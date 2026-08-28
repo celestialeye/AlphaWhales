@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}QoQ Changes Across The Board - Alpha Whales Intelligence{% endblock %}
+
+{% block content %}
+<div class="period-loader" id="period-loader" hidden aria-live="polite" aria-busy="true">
+    <div class="period-loader-panel">
+        <div class="period-loader-orbit" aria-hidden="true">
+            <span></span>
+            <strong>13F</strong>
+        </div>
+        <div class="period-loader-copy">
+            <span class="period-loader-eyebrow" id="period-loader-eyebrow">Loading filing period</span>
+            <h2 id="period-loader-title">Preparing historical snapshot</h2>
+            <p id="period-loader-message">Checking the local cache...</p>
+        </div>
+        <div class="period-loader-progress" aria-hidden="true">
+            <span id="period-loader-progress-bar"></span>
+        </div>
+        <div class="period-loader-meta">
+            <span id="period-loader-count">0 of 26 funds</span>
+            <span id="period-loader-source">SEC EDGAR</span>
+        </div>
+    </div>
+</div>
+
+<!-- Actionable Signal Bar -->
+<div class="kpi-grid" id="kpi-banner">
+    <a class="kpi-card kpi-signal-card signal-buy" id="signal-consensus-buy" href="/ticker">
+        <div class="kpi-label">CONSENSUS BUY</div>
+        <div class="kpi-value font-mono">--</div>
+        <div class="kpi-sub">Finding the broadest accumulation...</div>
+    </a>
+    <a class="kpi-card kpi-signal-card signal-inflow" id="signal-dollar-inflow" href="/ticker">
+        <div class="kpi-label">BIGGEST NET $ INFLOW</div>
+        <div class="kpi-value font-mono">--</div>
+        <div class="kpi-sub">Finding the largest reported value increase...</div>
+    </a>
+    <a class="kpi-card kpi-signal-card signal-sell" id="signal-consensus-sell" href="/ticker">
+        <div class="kpi-label">CONSENSUS SELL</div>
+        <div class="kpi-value font-mono">--</div>
+        <div class="kpi-sub">Finding the broadest reduction...</div>
+    </a>
+    <a class="kpi-card kpi-signal-card signal-outflow" id="signal-dollar-outflow" href="/ticker">
+        <div class="kpi-label">BIGGEST NET $ OUTFLOW</div>
+        <div class="kpi-value font-mono">--</div>
+        <div class="kpi-sub">Finding the largest reported value reduction...</div>
+    </a>
+    <a class="kpi-card kpi-signal-card signal-new" id="signal-new-idea" href="/ticker">
+        <div class="kpi-label">NEW CONSENSUS IDEA</div>
+        <div class="kpi-value font-mono">--</div>
+        <div class="kpi-sub">Finding newly initiated positions...</div>
+    </a>
+    <a class="kpi-card kpi-signal-card signal-conviction" id="signal-conviction" href="/ticker">
+        <div class="kpi-label">HIGHEST CONVICTION</div>
+        <div class="kpi-value font-mono">--</div>
+        <div class="kpi-sub">Ranking median portfolio size...</div>
+    </a>
+    <a class="kpi-card kpi-signal-card signal-value" id="signal-near-low" href="/ticker">
+        <div class="kpi-label">NEAR 52-WEEK LOW</div>
+        <div class="kpi-value font-mono">--</div>
+        <div class="kpi-sub">Finding a high-conviction value setup...</div>
+    </a>
+</div>
+
+<!-- Cross-Portfolio Intelligence -->
+<section class="portfolio-stats-section mt-4" aria-labelledby="portfolio-stats-title">
+    <div class="section-header portfolio-stats-heading">
+        <div>
+            <h2 id="portfolio-stats-title">Superinvestor Portfolio Stats</h2>
+            <p class="section-sub">Consensus ownership, conviction, and the quarter's strongest accumulation signals.</p>
+        </div>
+        <div class="filing-period-control">
+            <label for="filing-period-select">Filing period</label>
+            <select id="filing-period-select" onchange="changeFilingPeriod(this.value)" disabled>
+                <option>Loading periods...</option>
+            </select>
+            <span id="filing-period-status">Latest period loads by default</span>
+        </div>
+    </div>
+
+    <div class="portfolio-stats-grid mt-2">
+        <article class="stats-card">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">CONSENSUS</span>
+                    <h3>Most Owned &amp; QoQ Activity</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="About this table" data-tooltip="Investor activity comes from quarter-over-quarter share changes in reported 13F holdings. Net owner change equals new positions minus closed positions among comparable filings. Market return is price performance since the filing-period end, not investor profit or loss.">i</span>
+            </div>
+            <div class="stats-table-wrap">
+                <table class="stats-table stats-ownership-table">
+                    <thead>
+                        <tr>
+                            <th>Security</th>
+                            <th>Investors</th>
+                            <th>QoQ Actions</th>
+                            <th title="Median portfolio weight among current holders and its percentage-point change from the previous quarter's median">Median Pos.</th>
+                            <th id="stats-market-period" title="Quarter-end market price and price return since that date">Market</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stats-most-owned">
+                        <tr><td colspan="5" class="stats-loading">Loading ownership data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="stats-card">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">HIGHEST CONVICTION</span>
+                    <h3>Highest Median Portfolio %</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Highest conviction definition" data-tooltip="Ranks stocks by median portfolio weight across their current holders. A stock must be held by at least five tracked investors. Median weight limits distortion from one unusually concentrated manager.">i</span>
+            </div>
+            <ol class="stats-list" id="stats-highest-weight">
+                <li class="stats-loading">Loading weight data...</li>
+            </ol>
+        </article>
+
+        <article class="stats-card stats-card-wide">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">CONCENTRATED POSITIONS</span>
+                    <h3>Top “Big Bets”</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Big Bets definition" data-tooltip="Ranks stocks by the largest portfolio weight assigned by any single tracked manager. Max Portfolio % is the position value divided by that manager's total reported 13F value. This measures individual-manager concentration, not consensus conviction.">i</span>
+            </div>
+            <div class="stats-table-wrap">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Security</th>
+                            <th>Largest Owner</th>
+                            <th>Max Portfolio %</th>
+                            <th>Owners</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stats-big-bets">
+                        <tr><td colspan="4" class="stats-loading">Loading conviction data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="stats-card">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">DOLLAR ACCUMULATION</span>
+                    <h3>Top 10 Buys This Quarter</h3>
+                </div>
+                <span class="stats-icon stats-icon-green">$</span>
+            </div>
+            <ol class="stats-list" id="stats-top-buys">
+                <li class="stats-loading">Loading buy data...</li>
+            </ol>
+        </article>
+
+        <article class="stats-card">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">PORTFOLIO WEIGHT</span>
+                    <h3>Top 10 Buys This Quarter by %</h3>
+                </div>
+                <span class="stats-icon stats-icon-orange">%</span>
+            </div>
+            <ol class="stats-list" id="stats-fastest-adds">
+                <li class="stats-loading">Loading portfolio weights...</li>
+            </ol>
+        </article>
+
+        <article class="stats-card">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">REPORTED VALUE REDUCTION</span>
+                    <h3>Top 10 Sells This Quarter</h3>
+                </div>
+                <span class="stats-icon stats-icon-red">$</span>
+            </div>
+            <ol class="stats-list" id="stats-top-sells">
+                <li class="stats-loading">Loading sell data...</li>
+            </ol>
+        </article>
+
+        <article class="stats-card">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">SHARE REDUCTION</span>
+                    <h3>Largest Position Cuts by %</h3>
+                </div>
+                <span class="stats-icon stats-icon-orange">%</span>
+            </div>
+            <ol class="stats-list" id="stats-largest-cuts">
+                <li class="stats-loading">Loading position reductions...</li>
+            </ol>
+        </article>
+
+        <article class="stats-card stats-card-wide">
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">OPENBB MARKET SIGNAL</span>
+                    <h3>5%+ Holdings Near Their 52-Week Low</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Market data definition" data-tooltip="Shows 5%+ portfolio positions nearest their trailing 52-week low. Daily price history is supplied through OpenBB's yfinance provider.">i</span>
+            </div>
+            <div class="stats-table-wrap">
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Security</th>
+                            <th>Last Close</th>
+                            <th>52-Week Low</th>
+                            <th>% Above Low</th>
+                            <th>Max Portfolio %</th>
+                            <th>Owners</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stats-near-low">
+                        <tr><td colspan="6" class="stats-loading">Loading OpenBB market data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </div>
+</section>
+
+<!-- Visual Insights Charts -->
+<div class="grid chart-grid mt-4">
+    <div class="card chart-card">
+        <div class="card-header">
+            <h3>QoQ Share Actions by Strategy Group</h3>
+            <span class="card-badge">Activity Distribution</span>
+        </div>
+        <div id="summary-chart" class="chart-box"></div>
+    </div>
+    <div class="card chart-card">
+        <div class="card-header">
+            <h3>Top 10 Value Changes ($M)</h3>
+            <span class="card-badge">Largest Dollar Shifts</span>
+        </div>
+        <div id="top-moves-chart" class="chart-box"></div>
+    </div>
+</div>
+
+<!-- Manager Activity Matrix -->
+<section class="manager-activity-section mt-4" aria-labelledby="manager-activity-title">
+    <div class="section-header">
+        <div>
+            <h2 id="manager-activity-title">Manager Activity Matrix</h2>
+            <p class="section-sub">Each row shows the five largest share buys and sells by portfolio-weight change. Values beside tickers are percentage-point changes, not share-change percentages.</p>
+        </div>
+        <span class="card-badge">Top 10 Moves per Manager</span>
+    </div>
+    <div class="card table-card mt-2">
+        <div class="table-container manager-activity-wrap">
+            <table class="manager-activity-table">
+                <thead>
+                    <tr>
+                        <th>Manager / Fund</th>
+                        <th>Period</th>
+                        <th>Top 5 Share Buys</th>
+                        <th>Top 5 Share Sells</th>
+                    </tr>
+                </thead>
+                <tbody id="manager-activity-body">
+                    <tr><td colspan="4" class="text-center py-4">Loading manager activity...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- QoQ Changes Section -->
+<div class="section-header mt-4">
+    <div>
+        <h2>Quarter-Over-Quarter Position Changes</h2>
+        <p class="section-sub">All institutional buys, sells, entries, and exits sorted by absolute dollar impact.</p>
+    </div>
+    <div class="section-actions">
+        <button class="btn btn-outline" onclick="exportQoQToCSV()">📥 Export CSV</button>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card filter-bar">
+    <div class="filter-group-item">
+        <label for="filter-group">Group</label>
+        <select id="filter-group" onchange="applyFilters()">
+            <option value="All">All Groups (26 Funds)</option>
+            <option value="Value">Value (Buffett, Klarman, Li Lu...)</option>
+            <option value="High-performance concentrated">High-performance concentrated (Sosin, Baker...)</option>
+            <option value="Quality compounder">Quality compounder (Ellenbogen, Simons...)</option>
+            <option value="2026 expansion">2026 expansion (Terry Smith, Laffont, Halvorsen...)</option>
+        </select>
+    </div>
+
+    <div class="filter-group-item">
+        <label>Status</label>
+        <div class="checkbox-group">
+            <label class="chip-label chip-new"><input type="checkbox" class="filter-status" value="NEW" checked onchange="applyFilters()"> NEW</label>
+            <label class="chip-label chip-increased"><input type="checkbox" class="filter-status" value="INCREASED" checked onchange="applyFilters()"> INCREASED</label>
+            <label class="chip-label chip-decreased"><input type="checkbox" class="filter-status" value="DECREASED" checked onchange="applyFilters()"> DECREASED</label>
+            <label class="chip-label chip-closed"><input type="checkbox" class="filter-status" value="CLOSED" checked onchange="applyFilters()"> CLOSED</label>
+        </div>
+    </div>
+
+    <div class="filter-group-item">
+        <label for="filter-min-val">Min Move ($M)</label>
+        <input type="number" id="filter-min-val" placeholder="0" min="0" step="10" oninput="applyFilters()" style="width: 100px;">
+    </div>
+
+    <div class="filter-group-item search-item">
+        <label for="search-input">Search Filter</label>
+        <div class="search-wrap">
+            <input type="text" id="search-input" placeholder="Search ticker, company, fund or manager..." oninput="applyFilters()">
+            <button class="clear-btn" onclick="clearSearch()" id="clear-search-btn" style="display:none;">✕</button>
+        </div>
+    </div>
+
+    <div class="filter-actions">
+        <button class="btn btn-secondary" onclick="resetFilters()">Reset</button>
+    </div>
+</div>
+
+<!-- Table Card with Pagination & Sorting -->
+<div class="card table-card mt-2">
+    <div class="table-meta-bar">
+        <div id="table-results-count" class="text-muted">Showing 0 changes</div>
+        <div class="table-page-controls">
+            <span>Rows per page:</span>
+            <select id="table-page-size" onchange="changePageSize()">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="All">All</option>
+            </select>
+            <div class="btn-group">
+                <button class="btn btn-sm" id="prev-page-btn" onclick="prevPage()">◀ Prev</button>
+                <span id="page-indicator" class="page-indicator">Page 1 of 1</span>
+                <button class="btn btn-sm" id="next-page-btn" onclick="nextPage()">Next ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table id="qoq-table" class="data-table">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('fund_name')">Fund / Manager <span class="sort-icon" id="sort-fund_name"></span></th>
+                    <th onclick="sortTable('group')">Strategy <span class="sort-icon" id="sort-group"></span></th>
+                    <th onclick="sortTable('ticker')">Ticker <span class="sort-icon" id="sort-ticker"></span></th>
+                    <th onclick="sortTable('issuer')">Company <span class="sort-icon" id="sort-issuer"></span></th>
+                    <th onclick="sortTable('status')" title="Classified from the change in reported share count">Share Action <span class="sort-icon" id="sort-status"></span></th>
+                    <th onclick="sortTable('portfolio_weight')">Portfolio % <span class="sort-icon" id="sort-portfolio_weight"></span></th>
+                    <th onclick="sortTable('value')">Current ($M) <span class="sort-icon" id="sort-value"></span></th>
+                    <th onclick="sortTable('prev_value')">Prev ($M) <span class="sort-icon" id="sort-prev_value"></span></th>
+                    <th onclick="sortTable('value_change')">Reported Value Δ ($M) <span class="sort-icon" id="sort-value_change">▼</span></th>
+                    <th onclick="sortTable('value_change_pct')">Reported Value Δ % <span class="sort-icon" id="sort-value_change_pct"></span></th>
+                    <th onclick="sortTable('shares_change_pct')">Shares Δ % <span class="sort-icon" id="sort-shares_change_pct"></span></th>
+                    <th onclick="sortTable('report_period')">Period <span class="sort-icon" id="sort-report_period"></span></th>
+                </tr>
+            </thead>
+            <tbody id="qoq-table-body">
+                <tr><td colspan="12" class="text-center py-4">Loading QoQ changes...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('nav-overview').classList.add('active');
+        initializeOverviewPeriodSelector();
+    });
+</script>
+{% endblock %}

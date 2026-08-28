@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+
+{% block title %}Ticker Intelligence - Alpha Whales Intelligence{% endblock %}
+
+{% block content %}
+<div class="period-loader" id="ticker-loader" hidden aria-live="polite" aria-busy="true">
+    <div class="period-loader-panel">
+        <div class="period-loader-orbit" aria-hidden="true">
+            <span></span>
+            <strong>AI</strong>
+        </div>
+        <div class="period-loader-copy">
+            <span class="period-loader-eyebrow">Building ticker intelligence</span>
+            <h2 id="ticker-loader-title">Loading market and institutional data</h2>
+            <p id="ticker-loader-message">Preparing the 13F ownership snapshot...</p>
+        </div>
+        <div class="period-loader-progress">
+            <span id="ticker-loader-progress-bar"></span>
+        </div>
+        <div class="period-loader-meta">
+            <span id="ticker-loader-stage">Stage 1 of 3</span>
+            <span id="ticker-loader-source">Alpha Whales</span>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-header">
+    <div>
+        <h1>Ticker Intelligence</h1>
+        <p class="text-muted">Analyze consensus ownership, portfolio weights, and QoQ positioning across all 26 tracked managers.</p>
+    </div>
+    <div class="ticker-search-container">
+        <div class="search-wrap">
+            <input type="text" id="ticker-search" placeholder="Enter Ticker (e.g. AAPL, GOOGL, FICO)..." class="large-search" value="{{ ticker if ticker else '' }}" onkeypress="if(event.key==='Enter') searchTicker()">
+            <button class="btn btn-primary" onclick="searchTicker()">Inspect Ticker</button>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Picks Chips -->
+<div class="quick-chips-bar">
+    <span class="chips-label">Popular Consensus:</span>
+    <button class="chip-btn" onclick="selectTickerChip('AAPL')">AAPL</button>
+    <button class="chip-btn" onclick="selectTickerChip('GOOGL')">GOOGL</button>
+    <button class="chip-btn" onclick="selectTickerChip('GOOG')">GOOG</button>
+    <button class="chip-btn" onclick="selectTickerChip('MSFT')">MSFT</button>
+    <button class="chip-btn" onclick="selectTickerChip('AMZN')">AMZN</button>
+    <button class="chip-btn" onclick="selectTickerChip('META')">META</button>
+    <button class="chip-btn" onclick="selectTickerChip('NVDA')">NVDA</button>
+    <button class="chip-btn" onclick="selectTickerChip('FICO')">FICO</button>
+    <button class="chip-btn" onclick="selectTickerChip('SPGI')">SPGI</button>
+    <button class="chip-btn" onclick="selectTickerChip('MCO')">MCO</button>
+    <button class="chip-btn" onclick="selectTickerChip('MA')">MA</button>
+    <button class="chip-btn" onclick="selectTickerChip('V')">V</button>
+    <button class="chip-btn chip-reset" onclick="resetTickerView()">✕ Show All Tickers</button>
+</div>
+
+<!-- Selected Ticker Deep Dive Section -->
+<div id="ticker-detail-view" style="display: none;" class="mt-4">
+    <div class="ticker-intelligence-hero card">
+        <div class="ticker-identity-block">
+            <div class="ticker-hero-main">
+                <div class="ticker-badge-lg" id="td-ticker">AAPL</div>
+                <div>
+                    <h2 id="td-issuer" class="ticker-issuer-name">Apple Inc</h2>
+                    <div class="text-muted" id="td-holders-summary">Held by multiple elite funds</div>
+                </div>
+            </div>
+            <div class="ticker-profile-tags">
+                <span id="td-sector">Sector</span>
+                <span id="td-industry">Industry</span>
+                <span id="td-exchange">Exchange</span>
+            </div>
+        </div>
+        <div class="ticker-price-block">
+            <span class="ticker-hero-label">CURRENT MARKET PRICE</span>
+            <strong class="font-mono" id="td-current-price">—</strong>
+            <span class="ticker-price-change font-mono" id="td-day-change">Loading OpenBB quote...</span>
+        </div>
+        <div class="ticker-basis-block">
+            <div class="ticker-basis-header">
+                <span class="ticker-hero-label">EST. ALPHA WHALE PRICE</span>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Estimated Alpha Whale price methodology" data-tooltip="Estimated weighted-average basis for current tracked shares over 20 quarters. Net additions are priced at each quarter's average daily close; reductions remove basis proportionally. Starting positions are initialized at the oldest quarter's average price. This is an estimate, not reported investor cost basis.">i</span>
+            </div>
+            <strong class="font-mono" id="td-whale-basis">—</strong>
+            <span class="ticker-basis-gap font-mono" id="td-basis-gap">20-quarter model</span>
+        </div>
+    </div>
+
+    <div class="ticker-snapshot-label">
+        <span>13F institutional snapshot</span>
+        <strong class="font-mono" id="td-filing-period">Filing period —</strong>
+    </div>
+    <div class="ticker-hero-metrics ticker-ownership-strip">
+        <div class="hero-metric">
+            <div class="metric-label">ELITE HOLDERS</div>
+            <div class="metric-val font-mono" id="td-holders-count">0</div>
+        </div>
+        <div class="hero-metric">
+            <div class="metric-label">TOTAL TRACKED VALUE</div>
+            <div class="metric-val font-mono text-cyan" id="td-total-value">$0.00 M</div>
+        </div>
+        <div class="hero-metric">
+            <div class="metric-label">TOTAL SHARES HELD</div>
+            <div class="metric-val font-mono" id="td-total-shares">0</div>
+        </div>
+        <div class="hero-metric">
+            <div class="metric-label">MEDIAN PORTFOLIO WEIGHT</div>
+            <div class="metric-val font-mono" id="td-median-weight">0.00%</div>
+        </div>
+    </div>
+
+    <div class="ticker-market-grid mt-2">
+        <div class="ticker-market-metric"><span>Market Cap</span><strong class="font-mono" id="td-market-cap">—</strong></div>
+        <div class="ticker-market-metric"><span>TTM P/E</span><strong class="font-mono" id="td-pe">—</strong></div>
+        <div class="ticker-market-metric"><span>Forward P/E</span><strong class="font-mono" id="td-forward-pe">—</strong></div>
+        <div class="ticker-market-metric"><span>5Y Avg P/E</span><strong class="font-mono" id="td-pe-5y">—</strong></div>
+        <div class="ticker-market-metric"><span>52-Week Range</span><strong class="font-mono" id="td-52w-range">—</strong></div>
+        <div class="ticker-market-metric"><span>Beta</span><strong class="font-mono" id="td-beta">—</strong></div>
+        <div class="ticker-market-metric"><span>1-Year Return</span><strong class="font-mono" id="td-1y-return">—</strong></div>
+        <div class="ticker-market-metric"><span>EPS Growth CAGR</span><strong class="font-mono" id="td-eps-growth">—</strong></div>
+    </div>
+
+    <div class="section-header mt-4">
+        <div>
+            <h2>Purchase Decision Support</h2>
+            <p class="section-sub">Valuation, technical timing, whale positioning, and risk-budget sizing are shown separately so no single signal becomes a false verdict.</p>
+        </div>
+        <span class="card-badge">Educational Model</span>
+    </div>
+    <div class="ticker-decision-grid mt-2">
+        <article class="card ticker-decision-card">
+            <div class="card-header">
+                <div>
+                    <span class="stats-eyebrow">MULTI-MODEL VALUE</span>
+                    <h3>Valuation Assessment</h3>
+                </div>
+                <div class="decision-header-actions">
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Valuation methodology" data-tooltip="Composite fair value is the median of available Graham Number, conservative Graham growth value adjusted by current versus 20-year average AAA yields, and historical median P/E multiplied by trailing EPS. At least two models are required. The purchase price applies a 20% margin of safety. Growth is capped at 15%.">i</span>
+                    <span class="decision-status" id="td-valuation-status">—</span>
+                </div>
+            </div>
+            <div class="decision-price-pair">
+                <div><span>Composite Fair Value</span><strong class="font-mono" id="td-fair-value">—</strong></div>
+                <div class="purchase-price"><span>Buy At / Below (20% Safety)</span><strong class="font-mono" id="td-purchase-price">—</strong></div>
+            </div>
+            <div class="decision-model-grid">
+                <div><span>Graham Number</span><strong class="font-mono" id="td-graham-number">—</strong></div>
+                <div><span>Conservative Graham</span><strong class="font-mono" id="td-graham-conservative">—</strong></div>
+                <div><span>5Y P/E Value</span><strong class="font-mono" id="td-normalized-pe-value">—</strong></div>
+            </div>
+        </article>
+
+        <article class="card ticker-decision-card">
+            <div class="card-header">
+                <div>
+                    <span class="stats-eyebrow">MOMENTUM &amp; TREND</span>
+                    <h3>Technical Timing</h3>
+                </div>
+                <span class="decision-status" id="td-trend-status">TREND: —</span>
+            </div>
+            <div class="technical-entry-block">
+                <span>ENTRY TIMING</span>
+                <strong class="technical-entry-state" id="td-entry-timing">Loading...</strong>
+            </div>
+            <div class="technical-metric-grid">
+                <div><span>RSI(14)</span><strong class="font-mono" id="td-rsi14">—</strong></div>
+                <div><span>RSI(2)</span><strong class="font-mono" id="td-rsi2">—</strong></div>
+                <div><span>vs 50-SMA</span><strong class="font-mono" id="td-sma50-distance">—</strong></div>
+                <div><span>vs 200-SMA</span><strong class="font-mono" id="td-sma200-distance">—</strong></div>
+                <div><span>6M Momentum</span><strong class="font-mono" id="td-momentum-6m">—</strong></div>
+                <div><span>Annualized Vol.</span><strong class="font-mono" id="td-volatility">—</strong></div>
+            </div>
+        </article>
+
+        <article class="card ticker-decision-card ticker-sizing-card">
+            <div class="card-header">
+                <div>
+                    <span class="stats-eyebrow">ALL WEATHER-STYLE RISK BUDGET</span>
+                    <h3>Illustrative Position Range</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Position sizing methodology" data-tooltip="This is not personalized investment advice. The range combines valuation, 200-day trend, whale flow, and 63-day annualized volatility. It caps one stock at 5% of an equity sleeve and translates that into a portfolio assuming a 30% All Weather-style equity allocation.">i</span>
+            </div>
+            <strong class="sizing-stance" id="td-model-stance">—</strong>
+            <div class="decision-price-pair">
+                <div><span>Within Equity Sleeve</span><strong class="font-mono" id="td-equity-sleeve-range">—</strong></div>
+                <div><span>Of Total Portfolio</span><strong class="font-mono" id="td-total-portfolio-range">—</strong></div>
+            </div>
+            <p class="sizing-disclaimer">Illustrative risk budget only. Correlation, existing holdings, liquidity, taxes, and personal objectives are not modeled.</p>
+        </article>
+    </div>
+
+    <article class="card pair-signal-card mt-4">
+        <div class="card-header">
+            <div>
+                <span class="stats-eyebrow">RELATIVE-VALUE RESEARCH</span>
+                <h3>Pair Trading Signal</h3>
+            </div>
+            <div class="decision-header-actions">
+                <span class="stats-info" tabindex="0" role="img" aria-label="Pair signal methodology" data-tooltip="Hypothesis-tier research signal only. Economic peers are tested using five years of prices, bidirectional Engle-Granger cointegration, Bonferroni correction, out-of-sample ADF persistence, sub-window stability, and a 10-120 day half-life gate. A trade is ready only when all gates pass and the spread reaches an absolute z-score of 1.5.">i</span>
+                <span class="decision-status" id="td-pair-status">LOADING</span>
+            </div>
+        </div>
+        <div class="pair-signal-layout">
+            <div class="pair-signal-summary">
+                <span class="pair-label">Best Economic Pair</span>
+                <div class="pair-symbols">
+                    <strong class="font-mono" id="td-pair-focal">—</strong>
+                    <span>↔</span>
+                    <a class="font-mono" id="td-pair-peer" href="/ticker">—</a>
+                </div>
+                <span class="pair-type" id="td-pair-type">Analyzing relationship...</span>
+                <strong class="pair-action" id="td-pair-action">Running disciplined pair gates...</strong>
+                <p id="td-pair-observation">The observed spread direction will appear here.</p>
+            </div>
+            <div class="pair-metric-grid">
+                <div><span>Z-Score</span><strong class="font-mono" id="td-pair-zscore">—</strong></div>
+                <div><span>Quality</span><strong class="font-mono" id="td-pair-quality">—</strong></div>
+                <div><span>EG P-Value</span><strong class="font-mono" id="td-pair-pvalue">—</strong></div>
+                <div><span>OOS Persistence</span><strong class="font-mono" id="td-pair-oos">—</strong></div>
+                <div><span>Half-Life</span><strong class="font-mono" id="td-pair-half-life">—</strong></div>
+                <div><span>Stability</span><strong class="font-mono" id="td-pair-stability">—</strong></div>
+                <div><span>Correlation</span><strong class="font-mono" id="td-pair-correlation">—</strong></div>
+                <div><span>Hedge Ratio</span><strong class="font-mono" id="td-pair-hedge-ratio">—</strong></div>
+            </div>
+        </div>
+        <div class="pair-execution-grid">
+            <div class="pair-execution stock">
+                <span>MARKET-NEUTRAL EXPRESSION</span>
+                <strong id="td-pair-stock-execution">Waiting for a valid signal</strong>
+                <small>Long the relatively cheap stock and short the expensive leg using the estimated hedge ratio.</small>
+            </div>
+            <div class="pair-execution put">
+                <span>DEFINED-RISK PUT EXPRESSION</span>
+                <strong id="td-pair-put-execution">Waiting for a valid signal</strong>
+                <small>Buy the cheap stock and buy a put on the expensive stock. This is not market-neutral and adds premium, theta, volatility, strike, and expiry risk.</small>
+            </div>
+        </div>
+        <div class="pair-evidence-note">
+            <strong>Evidence tier: HYPOTHESIS</strong>
+            <span>No live forward record; this signal does not override valuation, trend, or position-sizing controls.</span>
+        </div>
+    </article>
+
+    <div class="ticker-qoq-grid mt-4">
+        <article class="card ticker-qoq-card">
+            <div class="card-header">
+                <div>
+                    <span class="stats-eyebrow">LATEST FILING ACTIVITY</span>
+                    <h3>Investor Actions</h3>
+                </div>
+                <span class="card-badge" id="td-qoq-period">Latest quarter</span>
+            </div>
+            <div class="ticker-action-kpis">
+                <div class="ticker-action-kpi new"><span>New</span><strong class="font-mono" id="td-qoq-new">0</strong></div>
+                <div class="ticker-action-kpi increased"><span>Increased</span><strong class="font-mono" id="td-qoq-increased">0</strong></div>
+                <div class="ticker-action-kpi decreased"><span>Decreased</span><strong class="font-mono" id="td-qoq-decreased">0</strong></div>
+                <div class="ticker-action-kpi closed"><span>Exited</span><strong class="font-mono" id="td-qoq-closed">0</strong></div>
+            </div>
+        </article>
+        <article class="card ticker-qoq-card ticker-flow-card">
+            <div class="card-header">
+                <div>
+                    <span class="stats-eyebrow">ESTIMATED CAPITAL MOVEMENT</span>
+                    <h3>Net Institutional Flow</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Estimated flow methodology" data-tooltip="Estimated flow values each quarter's net share changes at that quarter-end market price. It separates position-size changes from stock-price appreciation, but it is not actual trade proceeds because 13F filings do not disclose execution prices or dates.">i</span>
+            </div>
+            <strong class="ticker-net-flow font-mono" id="td-net-flow">—</strong>
+            <div class="ticker-flow-breakdown">
+                <div><span>Gross Inflow</span><strong class="font-mono text-green" id="td-gross-inflow">—</strong></div>
+                <div><span>Gross Outflow</span><strong class="font-mono text-red" id="td-gross-outflow">—</strong></div>
+            </div>
+        </article>
+    </div>
+
+    <article class="card ticker-tradingview-card mt-4">
+        <div class="card-header">
+            <div>
+                <h3>Market Price Chart</h3>
+                <span class="text-muted">Interactive market chart provided free by TradingView</span>
+            </div>
+            <span class="card-badge" id="td-chart-symbol">Market Data</span>
+        </div>
+        <div id="ticker-tradingview-chart" class="ticker-tradingview-chart">
+            <div class="stats-loading">Loading TradingView chart...</div>
+        </div>
+    </article>
+
+    <div class="section-header mt-4">
+        <div>
+            <h2>20-Quarter Institutional Trend</h2>
+            <p class="section-sub">Ownership breadth, tracked market value, and manager actions from Q3 2021 through the latest filing.</p>
+        </div>
+        <span class="card-badge">20 Quarters</span>
+    </div>
+    <div class="grid chart-grid mt-2">
+        <div class="card chart-card">
+            <div class="card-header"><h3>Tracked Investor Count</h3><span class="card-badge">Ownership Breadth</span></div>
+            <div id="ticker-investor-history-chart" class="chart-box ticker-history-chart"></div>
+        </div>
+        <div class="card chart-card">
+            <div class="card-header"><h3>Total Tracked Holdings</h3><span class="card-badge">Reported Value ($M)</span></div>
+            <div id="ticker-value-history-chart" class="chart-box ticker-history-chart"></div>
+        </div>
+    </div>
+    <article class="card chart-card mt-2">
+        <div class="card-header"><h3>Investor Action Trend</h3><span class="card-badge">New / Increase / Decrease / Exit</span></div>
+        <div id="ticker-action-history-chart" class="chart-box ticker-action-history-chart"></div>
+    </article>
+
+    <div class="grid chart-grid mt-4">
+        <div class="card chart-card">
+            <div class="card-header"><h3>Current Holder Value Distribution</h3><span class="card-badge">Latest Filing</span></div>
+            <div id="ticker-pie-chart" class="chart-box"></div>
+        </div>
+        <div class="card chart-card">
+            <div class="card-header"><h3>Reported Value Change by Fund</h3><span class="card-badge">Latest QoQ ($M)</span></div>
+            <div id="ticker-bar-chart" class="chart-box"></div>
+        </div>
+    </div>
+
+    <!-- Specific Holders Table -->
+    <div class="card table-card mt-4">
+        <div class="card-header">
+            <h3>Elite Fund Managers Holding <span id="td-table-ticker">AAPL</span></h3>
+            <span class="text-muted" id="td-holders-subtitle">Individual portfolio weights & QoQ changes</span>
+        </div>
+        <div class="table-container">
+            <table id="holders-table" class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fund Manager</th>
+                        <th>Strategy Group</th>
+                        <th>Catalog Annotation</th>
+                        <th>Portfolio Weight %</th>
+                        <th>Position Value ($M)</th>
+                        <th>Shares Held</th>
+                        <th>QoQ Action</th>
+                        <th>Value Δ %</th>
+                        <th>Shares Δ %</th>
+                        <th>Filing Period</th>
+                    </tr>
+                </thead>
+                <tbody id="holders-table-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- All Tickers Directory & Popularity -->
+<div id="all-tickers-view" class="mt-4">
+    <div class="grid chart-grid">
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>Top 20 by Investor Count</h3>
+                <span class="card-badge">Consensus Breadth</span>
+            </div>
+            <div id="popularity-chart" class="chart-box ticker-ranking-chart"></div>
+        </div>
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>Top 20 by Tracked Value</h3>
+                <span class="card-badge">Capital Concentration</span>
+            </div>
+            <div id="value-chart" class="chart-box ticker-ranking-chart"></div>
+        </div>
+    </div>
+
+    <div class="card table-card mt-4">
+        <div class="card-header">
+            <div>
+                <h3>All Tracked Securities Directory</h3>
+                <p class="section-sub">Click on any ticker symbol or row to view detailed ownership breakdown.</p>
+            </div>
+            <div class="filter-group-item search-item" style="margin: 0;">
+                <input type="text" id="all-tickers-filter" placeholder="Filter securities list..." oninput="filterAllTickersTable()">
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="all-tickers-table" class="data-table">
+                <thead>
+                    <tr onclick="sortAllTickers(event)">
+                        <th data-sort="ticker">Ticker ↕</th>
+                        <th data-sort="issuer">Company ↕</th>
+                        <th data-sort="num_holders">Elite Holders ↕</th>
+                        <th data-sort="total_value_across_funds">Total Value ($M) ↕</th>
+                        <th data-sort="median_weight" title="Median portfolio weight across funds that hold the security">Median Weight % ↕</th>
+                        <th>Held By Managers</th>
+                    </tr>
+                </thead>
+                <tbody id="all-tickers-table-body">
+                    <tr><td colspan="6" class="text-center py-4">Loading securities database...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('nav-ticker').classList.add('active');
+        const initTicker = "{{ ticker if ticker else '' }}";
+        if (initTicker) {
+            loadTickerDetail(initTicker);
+        } else {
+            loadAllTickers();
+        }
+    });
+
+    function selectTickerChip(ticker) {
+        document.getElementById('ticker-search').value = ticker;
+        searchTicker();
+    }
+
+    function resetTickerView() {
+        document.getElementById('ticker-search').value = '';
+        window.history.pushState({}, '', '/ticker');
+        document.getElementById('ticker-detail-view').style.display = 'none';
+        document.getElementById('all-tickers-view').style.display = 'block';
+        loadAllTickers();
+    }
+
+    function searchTicker() {
+        const t = document.getElementById('ticker-search').value.trim().toUpperCase();
+        if (t) {
+            window.history.pushState({}, '', `/ticker/${t}`);
+            loadTickerDetail(t);
+        } else {
+            resetTickerView();
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,1389 @@
+ticker,name,exchange,sector,industry,market_cap_b,indices,added_date,data_source,active
+A,"Agilent Technologies, Inc.",NYSE,Healthcare,Diagnostics & Research,38.4,sp500,2026-04-10,numerai,True
+AA,Alcoa Corporation Common Stock,NYSE,Basic Materials,Aluminum,19.3,nyse,2026-04-10,numerai,True
+AAL,"American Airlines Group, Inc. - Common Stock",NASDAQ,Industrials,Airlines,7.5,nasdaq,2026-04-10,numerai,True
+AAMI,Acadian Asset Management Inc. Common Stock,NYSE,Financial Services,Asset Management,2.2,nyse,2026-04-10,yfinance,True
+AAON,"AAON, Inc. - Common Stock",NASDAQ,Industrials,Building Products & Equipment,7.4,nasdaq,2026-04-10,numerai,True
+AAP,Advance Auto Parts Inc.,NYSE,Consumer Cyclical,Auto Parts,3.3,nyse,2026-04-10,numerai,True
+AAPL,Apple Inc.,NASDAQ,Technology,Consumer Electronics,3846.8,"sp500,nasdaq,dow",2026-04-10,numerai,True
+AAT,"American Assets Trust, Inc. Common Stock",NYSE,Real Estate,REIT - Diversified,1.5,nyse,2026-04-10,yfinance,True
+AAUC,Allied Gold Corporation Common Shares,NYSE,Basic Materials,Gold,4.0,nyse,2026-04-10,yfinance,True
+AB,AllianceBernstein Holding L.P.  Units,NYSE,Financial Services,Asset Management,3.5,nyse,2026-04-10,yfinance,True
+ABBV,AbbVie Inc.,NYSE,Healthcare,Drug Manufacturers - General,310.3,sp500,2026-04-10,numerai,True
+ABCB,Ameris Bancorp Common Stock,NYSE,Financial Services,Banks - Regional,5.7,nyse,2026-04-10,numerai,True
+ABCL,AbCellera Biologics Inc. - Common Shares,NASDAQ,Healthcare,Biotechnology,1.0,nasdaq,2026-04-10,numerai,True
+ABEV,Ambev S.A. American Depositary Shares (Each representing 1 Common Share),NYSE,Consumer Defensive,Beverages - Brewers,50.1,nyse,2026-04-10,yfinance,True
+ABG,Asbury Automotive Group Inc Common Stock,NYSE,Consumer Cyclical,Auto & Truck Dealerships,3.9,nyse,2026-04-10,numerai,True
+ABM,ABM Industries Incorporated Common Stock,NYSE,Industrials,Specialty Business Services,2.3,nyse,2026-04-10,numerai,True
+ABNB,"Airbnb, Inc.",NASDAQ,Consumer Cyclical,Travel Services,83.9,"sp500,nasdaq",2026-04-10,numerai,True
+ABR,Arbor Realty Trust Common Stock,NYSE,Real Estate,REIT - Mortgage,1.6,nyse,2026-04-10,yfinance,True
+ABT,Abbott Laboratories,NYSE,Healthcare,Medical Devices,198.1,sp500,2026-04-10,numerai,True
+ACA,"Arcosa, Inc. Common Stock",NYSE,Industrials,Engineering & Construction,5.5,nyse,2026-04-10,numerai,True
+ACAD,ACADIA Pharmaceuticals Inc. - Common Stock,NASDAQ,Healthcare,Biotechnology,3.8,nasdaq,2026-04-10,numerai,True
+ACDC,ProFrac Holding Corp. - Class A Common Stock,NASDAQ,Energy,Oil & Gas Equipment & Services,1.1,nasdaq,2026-04-10,yfinance,True
+ACGL,Arch Capital Group Ltd.,NASDAQ,Financial Services,Insurance - Diversified,34.2,"sp500,nasdaq",2026-04-10,numerai,True
+ACHC,"Acadia Healthcare Company, Inc. - Common Stock",NASDAQ,Healthcare,Medical Care Facilities,2.5,nasdaq,2026-04-10,numerai,True
+ACHR,Archer Aviation Inc. Class A Common Stock,NYSE,Industrials,Aerospace & Defense,4.0,nyse,2026-04-10,numerai,True
+ACI,"Albertsons Companies, Inc. Class A Common Stock",NYSE,Consumer Defensive,Grocery Stores,9.5,nyse,2026-04-10,numerai,True
+ACIW,"ACI Worldwide, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,4.2,nasdaq,2026-04-10,numerai,True
+ACLS,"Axcelis Technologies, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,3.3,nasdaq,2026-04-10,numerai,True
+ACLX,"Arcellx, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,6.7,nasdaq,2026-04-10,yfinance,True
+ACM,AECOM Common Stock,NYSE,Industrials,Engineering & Construction,10.8,nyse,2026-04-10,numerai,True
+ACN,Accenture plc,NYSE,Technology,Information Technology Services,229.2,sp500,2026-04-10,numerai,True
+ACT,"Enact Holdings, Inc. - Common Stock",NASDAQ,Financial Services,Insurance - Specialty,6.0,nasdaq,2026-04-10,yfinance,True
+AD,"Array Digital Infrastructure, Inc. Common Shares",NYSE,Communication Services,Telecom Services,4.3,nyse,2026-04-10,yfinance,True
+ADBE,Adobe Inc.,NASDAQ,Technology,Software - Infrastructure,196.8,"sp500,nasdaq",2026-04-10,numerai,True
+ADC,Agree Realty Corporation Common Stock,NYSE,Real Estate,REIT - Retail,9.4,nyse,2026-04-10,yfinance,True
+ADEA,Adeia Inc.  - Common Stock,NASDAQ,Technology,Software - Application,3.0,nasdaq,2026-04-10,yfinance,True
+ADI,"Analog Devices, Inc.",NASDAQ,Technology,Semiconductors,105.1,"sp500,nasdaq",2026-04-10,numerai,True
+ADM,Archer-Daniels-Midland Company,NYSE,Consumer Defensive,Farm Products,24.2,sp500,2026-04-10,numerai,True
+ADNT,Adient plc Ordinary Shares,NYSE,Consumer Cyclical,Auto Parts,1.6,nyse,2026-04-10,numerai,True
+ADP,"Automatic Data Processing, Inc.",NASDAQ,Technology,Software - Application,119.8,"sp500,nasdaq",2026-04-10,numerai,True
+ADPT,Adaptive Biotechnologies Corporation - Common Stock,NASDAQ,Healthcare,Biotechnology,2.1,nasdaq,2026-04-10,numerai,True
+ADSK,"Autodesk, Inc.",NASDAQ,Technology,Software - Application,64.2,"sp500,nasdaq",2026-04-10,numerai,True
+ADT,ADT Inc. Common Stock,NYSE,Industrials,Security & Protection Services,5.5,nyse,2026-04-10,numerai,True
+ADTN,"ADTRAN Holdings, Inc. - Common Stock",NASDAQ,Technology,Communication Equipment,1.2,nasdaq,2026-04-10,numerai,True
+ADUS,Addus HomeCare Corporation - Common Stock,NASDAQ,Healthcare,Medical Care Facilities,1.7,nasdaq,2026-04-10,numerai,True
+ADX,Adams Diversified Equity Fund Inc.,NYSE,Financial Services,Asset Management,2.9,nyse,2026-04-10,yfinance,True
+AEE,Ameren Corporation,NYSE,Utilities,Utilities - Regulated Electric,23.8,sp500,2026-04-10,numerai,True
+AEG,Aegon Ltd. New York Registry Shares,NYSE,Financial Services,Insurance - Diversified,11.9,nyse,2026-04-10,yfinance,True
+AEIS,"Advanced Energy Industries, Inc. - Common Stock",NASDAQ,Industrials,Electrical Equipment & Parts,14.3,nasdaq,2026-04-10,numerai,True
+AEM,Agnico Eagle Mines Limited Common Stock,NYSE,Basic Materials,Gold,109.6,nyse,2026-04-10,yfinance,True
+AEO,"American Eagle Outfitters, Inc. Common Stock",NYSE,Consumer Cyclical,Apparel Retail,3.0,nyse,2026-04-10,numerai,True
+AEP,American Electric Power Company,NASDAQ,Utilities,Utilities - Regulated Electric,49.4,"sp500,nasdaq",2026-04-10,numerai,True
+AER,AerCap Holdings N.V. Ordinary Shares,NYSE,Industrials,Rental & Leasing Services,24.9,nyse,2026-04-10,yfinance,True
+AERO,"Grupo Aeromexico, S.A.B. de C.V. American Depositary Shares (each representing t",NYSE,Industrials,Airlines,2.3,nyse,2026-04-10,yfinance,True
+AES,The AES Corporation,NYSE,Utilities,Utilities - Diversified,9.2,sp500,2026-04-10,numerai,True
+AESI,Atlas Energy Solutions Inc. Common Stock,NYSE,Energy,Oil & Gas Equipment & Services,1.4,nyse,2026-04-10,yfinance,True
+AFG,"American Financial Group, Inc. Common Stock",NYSE,Financial Services,Insurance - Property & Casualty,10.9,nyse,2026-04-10,numerai,True
+AFL,AFLAC Incorporated,NYSE,Financial Services,Insurance - Life,57.0,sp500,2026-04-10,numerai,True
+AFRM,"Affirm Holdings, Inc. - Class A Common Stock",NASDAQ,Financial Services,Credit Services,16.3,nasdaq,2026-04-10,numerai,True
+AFYA,Afya Limited - Class A Common Shares,NASDAQ,Consumer Defensive,Education & Training Services,1.4,nasdaq,2026-04-10,yfinance,True
+AG,First Majestic Silver Corp. Ordinary Shares (Canada),NYSE,Basic Materials,Silver,10.1,nyse,2026-04-10,yfinance,True
+AGBK,AGI Inc Class A Common Shares,NYSE,Financial Services,Banks - Regional,1.1,nyse,2026-04-10,yfinance,True
+AGCO,AGCO Corporation Common Stock,NYSE,Industrials,Farm & Heavy Construction Machinery,8.8,nyse,2026-04-10,numerai,True
+AGI,Alamos Gold Inc. Class A Common Shares,NYSE,Basic Materials,Gold,20.3,nyse,2026-04-10,yfinance,True
+AGIO,"Agios Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.9,nasdaq,2026-04-10,numerai,True
+AGM,Federal Agricultural Mortgage Corporation Common Stock,NYSE,Financial Services,Credit Services,1.7,nyse,2026-04-10,yfinance,True
+AGM-A,Federal Agricultural Mortgage Corporation Common Stock,NYSE,Financial Services,Credit Services,1.8,nyse,2026-04-10,yfinance,True
+AGNC,AGNC Investment Corp. - Common Stock,NASDAQ,Real Estate,REIT - Mortgage,11.8,nasdaq,2026-04-10,yfinance,True
+AGO,Assured Guaranty Ltd. Common Stock,NYSE,Financial Services,Insurance - Specialty,3.7,nyse,2026-04-10,numerai,True
+AGRO,Adecoagro S.A. Common Shares,NYSE,Consumer Defensive,Farm Products,2.0,nyse,2026-04-10,yfinance,True
+AGX,"Argan, Inc. Common Stock",NYSE,Industrials,Engineering & Construction,8.4,nyse,2026-04-10,yfinance,True
+AGYS,"Agilysys, Inc. - Common Stock",NASDAQ,Technology,Software - Application,1.8,nasdaq,2026-04-10,numerai,True
+AHR,"American Healthcare REIT, Inc. Common Stock",NYSE,Real Estate,REIT - Healthcare Facilities,9.3,nyse,2026-04-10,yfinance,True
+AI,"C3.ai, Inc. Class A Common Stock",NYSE,Technology,Software - Infrastructure,1.2,nyse,2026-04-10,numerai,True
+AIG,"American International Group, I",NYSE,Financial Services,Insurance - Diversified,45.3,sp500,2026-04-10,numerai,True
+AIN,Albany International Corporation Common Stock,NYSE,Consumer Cyclical,Textile Manufacturing,1.6,nyse,2026-04-10,numerai,True
+AIR,AAR Corp. Common Stock,NYSE,Industrials,Aerospace & Defense,4.8,nyse,2026-04-10,numerai,True
+AIT,"Applied Industrial Technologies, Inc. Common Stock",NYSE,Industrials,Industrial Distribution,10.9,nyse,2026-04-10,numerai,True
+AIZ,"Assurant, Inc.",NYSE,Financial Services,Insurance - Property & Casualty,10.9,sp500,2026-04-10,numerai,True
+AJG,Arthur J. Gallagher & Co.,NYSE,Financial Services,Insurance Brokers,70.7,sp500,2026-04-10,numerai,True
+AKAM,"Akamai Technologies, Inc.",NASDAQ,Technology,Software - Infrastructure,14.4,"sp500,nasdaq",2026-04-10,numerai,True
+AKO-A,Embotelladora Andina S.A. Common Stock,NYSE,Consumer Defensive,Beverages - Non-Alcoholic,4.0,nyse,2026-04-10,yfinance,True
+AKO-B,Embotelladora Andina S.A. Common Stock,NYSE,Consumer Defensive,Beverages - Non-Alcoholic,4.6,nyse,2026-04-10,yfinance,True
+AKR,Acadia Realty Trust Common Stock,NYSE,Real Estate,REIT - Retail,2.9,nyse,2026-04-10,yfinance,True
+ALAB,"Astera Labs, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,22.0,nasdaq,2026-04-10,yfinance,True
+ALB,Albemarle Corporation,NYSE,Basic Materials,Specialty Chemicals,10.4,sp500,2026-04-10,numerai,True
+ALC,Alcon Inc. Ordinary Shares,NYSE,Healthcare,Medical Instruments & Supplies,39.0,nyse,2026-04-10,yfinance,True
+ALG,"Alamo Group, Inc. Common Stock",NYSE,Industrials,Farm & Heavy Construction Machinery,2.2,nyse,2026-04-10,numerai,True
+ALGM,"Allegro MicroSystems, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,6.9,nasdaq,2026-04-10,numerai,True
+ALGN,"Align Technology, Inc.",NASDAQ,Healthcare,Medical Instruments & Supplies,15.8,"sp500,nasdaq",2026-04-10,numerai,True
+ALGT,Allegiant Travel Company - Common Stock,NASDAQ,Industrials,Airlines,1.6,nasdaq,2026-04-10,numerai,True
+ALH,Alliance Laundry Holdings Inc. Common Stock,NYSE,Consumer Cyclical,"Furnishings, Fixtures & Appliances",4.8,nyse,2026-04-10,yfinance,True
+ALHC,"Alignment Healthcare, Inc. - Common Stock",NASDAQ,Healthcare,Healthcare Plans,4.4,nasdaq,2026-04-10,numerai,True
+ALK,"Alaska Air Group, Inc. Common Stock",NYSE,Industrials,Airlines,4.5,nyse,2026-04-10,numerai,True
+ALKS,Alkermes plc - Ordinary Shares,NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,5.8,nasdaq,2026-04-10,numerai,True
+ALKT,"Alkami Technology, Inc. - Common Stock",NASDAQ,Technology,Software - Application,1.7,nasdaq,2026-04-10,yfinance,True
+ALL,Allstate Corporation (The),NYSE,Financial Services,Insurance - Property & Casualty,51.3,sp500,2026-04-10,numerai,True
+ALLE,Allegion plc,NYSE,Industrials,Security & Protection Services,11.5,sp500,2026-04-10,numerai,True
+ALLY,Ally Financial Inc. Common Stock,NYSE,Financial Services,Credit Services,12.7,nyse,2026-04-10,numerai,True
+ALMS,Alumis Inc. - Common Stock,NASDAQ,Healthcare,Biotechnology,2.9,nasdaq,2026-04-10,yfinance,True
+ALNY,"Alnylam Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,42.9,nasdaq,2026-04-10,numerai,True
+ALRM,"Alarm.com Holdings, Inc. - Common Stock",NASDAQ,Technology,Software - Application,2.2,nasdaq,2026-04-10,numerai,True
+ALSN,"Allison Transmission Holdings, Inc. Common Stock",NYSE,Consumer Cyclical,Auto Parts,10.6,nyse,2026-04-10,numerai,True
+ALV,"Autoliv, Inc. Common Stock",NYSE,Consumer Cyclical,Auto Parts,8.2,nyse,2026-04-10,yfinance,True
+ALX,"Alexander's, Inc. Common Stock",NYSE,Real Estate,REIT - Retail,1.3,nyse,2026-04-10,yfinance,True
+AM,Antero Midstream Corporation Common Stock,NYSE,Energy,Oil & Gas Midstream,10.5,nyse,2026-04-10,numerai,True
+AMAT,"Applied Materials, Inc.",NASDAQ,Technology,Semiconductor Equipment & Materials,133.1,"sp500,nasdaq",2026-04-10,numerai,True
+AMBA,"Ambarella, Inc. - Ordinary Shares",NASDAQ,Technology,Semiconductor Equipment & Materials,2.3,nasdaq,2026-04-10,numerai,True
+AMBP,Ardagh Metal Packaging S.A. Ordinary Shares,NYSE,Consumer Cyclical,Packaging & Containers,2.5,nyse,2026-04-10,yfinance,True
+AMCR,Amcor plc,NYSE,Consumer Cyclical,Packaging & Containers,13.6,sp500,2026-04-10,numerai,True
+AMD,"Advanced Micro Devices, Inc.",NASDAQ,Technology,Semiconductors,193.5,"sp500,nasdaq",2026-04-10,numerai,True
+AME,"AMETEK, Inc.",NYSE,Industrials,Specialty Industrial Machinery,42.4,sp500,2026-04-10,numerai,True
+AMG,"Affiliated Managers Group, Inc. Common Stock",NYSE,Financial Services,Asset Management,8.0,nyse,2026-04-10,numerai,True
+AMGN,Amgen Inc.,NASDAQ,Healthcare,Drug Manufacturers - General,141.6,"sp500,nasdaq,dow",2026-04-10,numerai,True
+AMH,American Homes 4 Rent Common Shares of Beneficial Interest,NYSE,Real Estate,REIT - Residential,12.3,nyse,2026-04-10,yfinance,True
+AMKR,"Amkor Technology, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,13.7,nasdaq,2026-04-10,numerai,True
+AMLX,"Amylyx Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,1.9,nasdaq,2026-04-10,yfinance,True
+AMP,"Ameriprise Financial, Inc.",NYSE,Financial Services,Asset Management,51.6,sp500,2026-04-10,numerai,True
+AMPX,"Amprius Technologies, Inc. Common Stock",NYSE,Industrials,Electrical Equipment & Parts,2.4,nyse,2026-04-10,yfinance,True
+AMR,"Alpha Metallurgical Resources, Inc. Common Stock",NYSE,Basic Materials,Coking Coal,2.5,nyse,2026-04-10,numerai,True
+AMRC,"Ameresco, Inc. Class A Common Stock",NYSE,Industrials,Engineering & Construction,1.4,nyse,2026-04-10,numerai,True
+AMRX,"Amneal Pharmaceuticals, Inc. - Class A Common Stock",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,4.1,nasdaq,2026-04-10,numerai,True
+AMRZ,Amrize Ltd Ordinary Shares,NYSE,Basic Materials,Building Materials,32.0,nyse,2026-04-10,yfinance,True
+AMSC,American Superconductor Corporation - Common Stock,NASDAQ,Industrials,Specialty Industrial Machinery,1.7,nasdaq,2026-04-10,numerai,True
+AMT,American Tower Corporation (REI,NYSE,Real Estate,REIT - Specialty,85.9,sp500,2026-04-10,yfinance,True
+AMTB,Amerant Bancorp Inc. Class A Common Stock,NYSE,Financial Services,Banks - Regional,1.0,nyse,2026-04-10,numerai,True
+AMTM,"Amentum Holdings, Inc.",NYSE,Industrials,Specialty Business Services,4.7,sp500,2026-04-10,yfinance,True
+AMX,"America Movil, S.A.B. de C.V. American Depositary Shares (each representing the ",NYSE,Communication Services,Telecom Services,81.9,nyse,2026-04-10,yfinance,True
+AMZN,"Amazon.com, Inc.",NASDAQ,Consumer Cyclical,Internet Retail,2365.0,"sp500,nasdaq",2026-04-10,numerai,True
+AN,"AutoNation, Inc. Common Stock",NYSE,Consumer Cyclical,Auto & Truck Dealerships,6.9,nyse,2026-04-10,numerai,True
+ANAB,"AnaptysBio, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.0,nasdaq,2026-04-10,numerai,True
+ANDE,"The Andersons, Inc. - Common Stock",NASDAQ,Consumer Defensive,Food Distribution,2.5,nasdaq,2026-04-10,numerai,True
+ANDG,Andersen Group Inc. Class A Common Stock,NYSE,Consumer Cyclical,Personal Services,3.1,nyse,2026-04-10,yfinance,True
+ANET,"Arista Networks, Inc.",NYSE,Technology,Computer Hardware,142.1,sp500,2026-04-10,numerai,True
+ANF,Abercrombie & Fitch Company Common Stock,NYSE,Consumer Cyclical,Apparel Retail,4.5,nyse,2026-04-10,numerai,True
+ANSS,"ANSYS, Inc.",NASDAQ,Technology,Software - Application,29.6,sp500,2026-04-10,numerai,True
+AOD,abrdn Total Dynamic Dividend Fund Common Shares of Beneficial Interest,NYSE,Financial Services,Asset Management,1.0,nyse,2026-04-10,yfinance,True
+AON,Aon plc,NYSE,Financial Services,Insurance Brokers,77.5,sp500,2026-04-10,numerai,True
+AORT,"Artivion, Inc. Common Stock",NYSE,Healthcare,Medical Devices,1.8,nyse,2026-04-10,numerai,True
+AOS,A.O. Smith Corporation,NYSE,Industrials,Specialty Industrial Machinery,10.0,sp500,2026-04-10,numerai,True
+APA,APA Corporation,NASDAQ,Energy,Oil & Gas E&P,7.8,"sp500,nasdaq",2026-04-10,numerai,True
+APAM,Artisan Partners Asset Management Inc. Class A Common Stock,NYSE,Financial Services,Asset Management,2.6,nyse,2026-04-10,numerai,True
+APD,"Air Products and Chemicals, Inc",NYSE,Basic Materials,Specialty Chemicals,65.6,sp500,2026-04-10,numerai,True
+APEI,"American Public Education, Inc. - Common Stock",NASDAQ,Consumer Defensive,Education & Training Services,1.1,nasdaq,2026-04-10,numerai,True
+APG,APi Group Corporation Common Stock,NYSE,Industrials,Engineering & Construction,19.2,nyse,2026-04-10,numerai,True
+APH,Amphenol Corporation,NYSE,Technology,Electronic Components,85.1,sp500,2026-04-10,numerai,True
+APLD,Applied Digital Corporation - Common Stock,NASDAQ,Technology,Information Technology Services,7.3,nasdaq,2026-04-10,yfinance,True
+APLE,"Apple Hospitality REIT, Inc. Common Shares",NYSE,Real Estate,REIT - Hotel & Motel,2.9,nyse,2026-04-10,yfinance,True
+APLS,"Apellis Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,5.2,nasdaq,2026-04-10,numerai,True
+APO,"Apollo Global Management, Inc. (New) Common Stock",NYSE,Financial Services,Asset Management,60.3,nyse,2026-04-10,numerai,True
+APP,Applovin Corporation - Class A Common Stock,NASDAQ,Communication Services,Advertising Agencies,128.1,nasdaq,2026-04-10,yfinance,True
+APTV,Aptiv PLC,NYSE,Consumer Cyclical,Auto Parts,13.8,sp500,2026-04-10,numerai,True
+AQN,Algonquin Power & Utilities Corp. Common Shares,NYSE,Utilities,Utilities - Diversified,4.9,nyse,2026-04-10,yfinance,True
+AR,Antero Resources Corporation Common Stock,NYSE,Energy,Oil & Gas E&P,11.7,nyse,2026-04-10,numerai,True
+ARCB,ArcBest Corporation - Common Stock,NASDAQ,Industrials,Trucking,2.5,nasdaq,2026-04-10,numerai,True
+ARCC,Ares Capital Corporation - Closed End Fund,NASDAQ,Financial Services,Asset Management,12.9,nasdaq,2026-04-10,yfinance,True
+ARCO,Arcos Dorados Holdings Inc. Class A Shares,NYSE,Consumer Cyclical,Restaurants,1.8,nyse,2026-04-10,yfinance,True
+ARDT,"Ardent Health, Inc. Common Stock",NYSE,Healthcare,Medical Care Facilities,1.3,nyse,2026-04-10,yfinance,True
+ARE,Alexandria Real Estate Equities,NYSE,Real Estate,REIT - Office,17.3,sp500,2026-04-10,yfinance,True
+ARES,Ares Management Corporation Class A Common Stock,NYSE,Financial Services,Asset Management,32.9,nyse,2026-04-10,numerai,True
+ARGX,argenx SE - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,50.0,nasdaq,2026-04-10,yfinance,True
+ARI,"Apollo Commercial Real Estate Finance, Inc",NYSE,Real Estate,REIT - Mortgage,1.5,nyse,2026-04-10,yfinance,True
+ARIS,Aris Mining Corporation Common Shares,NYSE,Basic Materials,Gold,4.2,nyse,2026-04-10,yfinance,True
+ARLO,"Arlo Technologies, Inc. Common Stock",NYSE,Industrials,Building Products & Equipment,1.4,nyse,2026-04-10,numerai,True
+ARLP,"Alliance Resource Partners, L.P. - Common Units Representing Limited Partnership",NASDAQ,Energy,Thermal Coal,3.4,nasdaq,2026-04-10,yfinance,True
+ARM,Arm Holdings plc - American Depositary Shares,NASDAQ,Technology,Semiconductors,159.1,nasdaq,2026-04-10,yfinance,True
+ARMK,Aramark Common Stock,NYSE,Industrials,Specialty Business Services,11.3,nyse,2026-04-10,numerai,True
+AROC,"Archrock, Inc. Common Stock",NYSE,Energy,Oil & Gas Equipment & Services,6.3,nyse,2026-04-10,numerai,True
+ARQT,"Arcutis Biotherapeutics, Inc. - Common stock",NASDAQ,Healthcare,Biotechnology,3.0,nasdaq,2026-04-10,numerai,True
+ARR,"ARMOUR Residential REIT, Inc.",NYSE,Real Estate,REIT - Mortgage,2.2,nyse,2026-04-10,yfinance,True
+ARW,"Arrow Electronics, Inc. Common Stock",NYSE,Technology,Electronics & Computer Distribution,8.1,nyse,2026-04-10,numerai,True
+ARWR,"Arrowhead Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,9.3,nasdaq,2026-04-10,numerai,True
+ARX,Accelerant Holdings Class A Common Shares,NYSE,Financial Services,Insurance Brokers,2.8,nyse,2026-04-10,yfinance,True
+AS,"Amer Sports, Inc. Ordinary Shares",NYSE,Consumer Cyclical,Leisure,20.5,nyse,2026-04-10,yfinance,True
+ASA,ASA  Gold and Precious Metals Limited,NYSE,Financial Services,Asset Management,1.3,nyse,2026-04-10,yfinance,True
+ASAN,"Asana, Inc. Class A Common Stock",NYSE,Technology,Software - Application,1.3,nyse,2026-04-10,numerai,True
+ASB,Associated Banc-Corp Common Stock,NYSE,Financial Services,Banks - Regional,5.2,nyse,2026-04-10,numerai,True
+ASGN,ASGN Incorporated Common Stock,NYSE,Technology,Information Technology Services,1.5,nyse,2026-04-10,numerai,True
+ASH,Ashland Inc. Common Stock,NYSE,Basic Materials,Specialty Chemicals,2.6,nyse,2026-04-10,numerai,True
+ASML,ASML Holding N.V. - New York Registry Shares,NASDAQ,Technology,Semiconductor Equipment & Materials,568.8,nasdaq,2026-04-10,yfinance,True
+ASND,Ascendis Pharma A/S - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,14.8,nasdaq,2026-04-10,yfinance,True
+ASO,"Academy Sports and Outdoors, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Specialty Retail,3.7,nasdaq,2026-04-10,numerai,True
+ASR,"Grupo Aeroportuario del Sureste, S.A. de C.V. Common Stock",NYSE,Industrials,Airports & Air Services,10.5,nyse,2026-04-10,yfinance,True
+ASTE,"Astec Industries, Inc. - Common Stock",NASDAQ,Industrials,Farm & Heavy Construction Machinery,1.4,nasdaq,2026-04-10,numerai,True
+ASTS,"AST SpaceMobile, Inc. - Class A Common Stock",NASDAQ,Technology,Communication Equipment,35.0,nasdaq,2026-04-10,yfinance,True
+ASX,"ASE Technology Holding Co., Ltd. American Depositary Shares (each representing T",NYSE,Technology,Semiconductors,54.4,nyse,2026-04-10,yfinance,True
+ATAT,Atour Lifestyle Holdings Limited - American Depositary Shares,NASDAQ,Consumer Cyclical,Lodging,5.1,nasdaq,2026-04-10,yfinance,True
+ATEC,"Alphatec Holdings, Inc. - Common Stock",NASDAQ,Healthcare,Medical Devices,1.7,nasdaq,2026-04-10,numerai,True
+ATEN,"A10 Networks, Inc. Common Stock",NYSE,Technology,Software - Infrastructure,1.7,nyse,2026-04-10,numerai,True
+ATHM,"Autohome Inc. American Depositary Shares, each representing four class A ordinar",NYSE,Communication Services,Internet Content & Information,2.1,nyse,2026-04-10,yfinance,True
+ATI,ATI Inc. Common Stock,NYSE,Industrials,Metal Fabrication,22.1,nyse,2026-04-10,numerai,True
+ATKR,Atkore Inc. Common Stock,NYSE,Industrials,Electrical Equipment & Parts,2.3,nyse,2026-04-10,yfinance,True
+ATMU,Atmus Filtration Technologies Inc. Common Stock,NYSE,Consumer Cyclical,Auto Parts,5.2,nyse,2026-04-10,yfinance,True
+ATO,Atmos Energy Corporation,NYSE,Utilities,Utilities - Regulated Gas,21.7,sp500,2026-04-10,numerai,True
+ATR,"AptarGroup, Inc. Common Stock",NYSE,Healthcare,Medical Instruments & Supplies,8.5,nyse,2026-04-10,numerai,True
+ATRO,Astronics Corporation - Common Stock,NASDAQ,Industrials,Aerospace & Defense,2.6,nasdaq,2026-04-10,yfinance,True
+ATS,ATS Corporation Common Shares,NYSE,Industrials,Specialty Industrial Machinery,3.0,nyse,2026-04-10,yfinance,True
+AU,AngloGold Ashanti PLC Ordinary Shares,NYSE,Basic Materials,Gold,54.6,nyse,2026-04-10,yfinance,True
+AUB,Atlantic Union Bankshares Corporation Common Stock,NYSE,Financial Services,Banks - Regional,5.5,nyse,2026-04-10,numerai,True
+AUGO,Aura Minerals Inc. - Common Shares,NASDAQ,Basic Materials,Gold,8.3,nasdaq,2026-04-10,yfinance,True
+AUR,"Aurora Innovation, Inc.  - Class A Common Stock",NASDAQ,Technology,Information Technology Services,7.9,nasdaq,2026-04-10,yfinance,True
+AVA,Avista Corporation Common Stock,NYSE,Utilities,Utilities - Diversified,3.5,nyse,2026-04-10,numerai,True
+AVAH,Aveanna Healthcare Holdings Inc. - Common Stock,NASDAQ,Healthcare,Medical Care Facilities,1.4,nasdaq,2026-04-10,yfinance,True
+AVAL,Grupo Aval Acciones y Valores S.A. ADR (Each representing 20 preferred shares),NYSE,Financial Services,Banks - Regional,5.3,nyse,2026-04-10,yfinance,True
+AVAV,"AeroVironment, Inc. - Common Stock",NASDAQ,Industrials,Aerospace & Defense,9.0,nasdaq,2026-04-10,numerai,True
+AVB,"AvalonBay Communities, Inc.",NYSE,Real Estate,REIT - Residential,31.6,sp500,2026-04-10,yfinance,True
+AVGO,Broadcom Inc.,NASDAQ,Technology,Semiconductors,1031.2,"sp500,nasdaq",2026-04-10,numerai,True
+AVNT,Avient Corporation Common Stock,NYSE,Basic Materials,Specialty Chemicals,3.5,nyse,2026-04-10,numerai,True
+AVO,"Mission Produce, Inc. - Common Stock",NASDAQ,Consumer Defensive,Food Distribution,1.0,nasdaq,2026-04-10,numerai,True
+AVPT,"AvePoint, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Infrastructure,2.0,nasdaq,2026-04-10,numerai,True
+AVT,"Avnet, Inc. - Common Stock",NASDAQ,Technology,Electronics & Computer Distribution,5.5,nasdaq,2026-04-10,numerai,True
+AVTR,"Avantor, Inc. Common Stock",NYSE,Healthcare,Medical Instruments & Supplies,5.3,nyse,2026-04-10,numerai,True
+AVY,Avery Dennison Corporation,NYSE,Consumer Cyclical,Packaging & Containers,15.1,sp500,2026-04-10,numerai,True
+AWI,Armstrong World Industries Inc Common Stock,NYSE,Industrials,Building Products & Equipment,7.6,nyse,2026-04-10,numerai,True
+AWK,"American Water Works Company, I",NYSE,Utilities,Utilities - Regulated Water,24.5,sp500,2026-04-10,numerai,True
+AWR,American States Water Company Common Stock,NYSE,Utilities,Utilities - Regulated Water,3.1,nyse,2026-04-10,numerai,True
+AX,"Axos Financial, Inc. Common Stock",NYSE,Financial Services,Banks - Regional,5.2,nyse,2026-04-10,numerai,True
+AXIA,AXIA Energia American Depositary Shares (Each representing one Common Share),NYSE,Utilities,Utilities - Renewable,29.3,nyse,2026-04-10,yfinance,True
+AXON,"Axon Enterprise, Inc.",NASDAQ,Industrials,Aerospace & Defense,48.2,"sp500,nasdaq",2026-04-10,numerai,True
+AXP,American Express Company,NYSE,Financial Services,Credit Services,210.4,"sp500,dow",2026-04-10,numerai,True
+AXS,Axis Capital Holdings Limited Common Stock,NYSE,Financial Services,Insurance - Specialty,7.3,nyse,2026-04-10,numerai,True
+AXTA,Axalta Coating Systems Ltd. Common Shares,NYSE,Basic Materials,Specialty Chemicals,6.2,nyse,2026-04-10,numerai,True
+AXTI,AXT Inc - Common Stock,NASDAQ,Technology,Semiconductor Equipment & Materials,3.5,nasdaq,2026-04-10,numerai,True
+AYI,Acuity Inc. Common Stock,NYSE,Industrials,Electrical Equipment & Parts,8.6,nyse,2026-04-10,numerai,True
+AZN,AstraZeneca PLC Ordinary Shares,NYSE,Healthcare,Drug Manufacturers - General,316.6,nyse,2026-04-10,yfinance,True
+AZO,"AutoZone, Inc.",NYSE,Consumer Cyclical,Specialty Retail,54.7,sp500,2026-04-10,numerai,True
+AZTA,"Azenta, Inc. - Common Stock",NASDAQ,Healthcare,Medical Instruments & Supplies,1.0,nasdaq,2026-04-10,yfinance,True
+AZZ,AZZ Inc.,NYSE,Industrials,Specialty Business Services,4.1,nyse,2026-04-10,numerai,True
+B,Barrick Mining Corporation Common Shares,NYSE,Basic Materials,Gold,73.0,nyse,2026-04-10,numerai,True
+BA,Boeing Company (The),NYSE,Industrials,Aerospace & Defense,132.7,"sp500,dow",2026-04-10,numerai,True
+BABA,Alibaba Group Holding Limited American Depositary Shares each representing eight,NYSE,Consumer Cyclical,Internet Retail,304.5,nyse,2026-04-10,yfinance,True
+BAC,Bank of America Corporation,NYSE,Financial Services,Banks - Diversified,338.9,sp500,2026-04-10,numerai,True
+BAH,Booz Allen Hamilton Holding Corporation Common Stock,NYSE,Industrials,Consulting Services,9.4,nyse,2026-04-10,numerai,True
+BAK,Braskem SA ADR,NYSE,Basic Materials,Chemicals,1.5,nyse,2026-04-10,yfinance,True
+BALL,Ball Corporation,NYSE,Consumer Cyclical,Packaging & Containers,16.7,sp500,2026-04-10,numerai,True
+BAM,Brookfield Asset Management Inc Class A Limited Voting Shares,NYSE,Financial Services,Asset Management,73.6,nyse,2026-04-10,yfinance,True
+BANC,"Banc of California, Inc. Common Stock",NYSE,Financial Services,Banks - Regional,2.9,nyse,2026-04-10,numerai,True
+BANF,BancFirst Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,3.9,nasdaq,2026-04-10,numerai,True
+BANR,Banner Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.2,nasdaq,2026-04-10,numerai,True
+BAP,Credicorp Ltd. Common Stock,NYSE,Financial Services,Banks - Regional,27.8,nyse,2026-04-10,yfinance,True
+BATRA,"Atlanta Braves Holdings, Inc. - Series A Common Stock",NASDAQ,Communication Services,Entertainment,3.1,nasdaq,2026-04-10,yfinance,True
+BATRK,"Atlanta Braves Holdings, Inc. - Series C Common Stock",NASDAQ,Communication Services,Entertainment,2.9,nasdaq,2026-04-10,numerai,True
+BAX,Baxter International Inc.,NYSE,Healthcare,Medical Instruments & Supplies,15.1,sp500,2026-04-10,numerai,True
+BB,BlackBerry Limited Common Stock,NYSE,Technology,Software - Infrastructure,2.3,nyse,2026-04-10,yfinance,True
+BBAI,"BigBear.ai, Inc. Common Stock",NYSE,Technology,Information Technology Services,1.6,nyse,2026-04-10,yfinance,True
+BBAR,Banco BBVA Argentina S.A. ADS,NYSE,Financial Services,Banks - Regional,3.5,nyse,2026-04-10,yfinance,True
+BBD,Banco Bradesco Sa American Depositary Shares,NYSE,Financial Services,Banks - Regional,42.5,nyse,2026-04-10,yfinance,True
+BBDO,Banco Bradesco Sa American Depositary Shares (each representing one Common Share,NYSE,Financial Services,Banks - Regional,39.3,nyse,2026-04-10,yfinance,True
+BBIO,"BridgeBio Pharma, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,14.6,nasdaq,2026-04-10,numerai,True
+BBN,BlackRock Taxable Municipal Bond Trust Common Shares of Beneficial Interest,NYSE,Financial Services,Asset Management,1.0,nyse,2026-04-10,yfinance,True
+BBT,Beacon Financial Corporation Common stock,NYSE,Financial Services,Banks - Regional,2.7,nyse,2026-04-10,yfinance,True
+BBUC,Brookfield Business Corporation Class A Subordinate Voting Shares,NYSE,Industrials,Conglomerates,7.0,nyse,2026-04-10,yfinance,True
+BBVA,Banco Bilbao Vizcaya Argentaria S.A. Common Stock,NYSE,Financial Services,Banks - Diversified,129.8,nyse,2026-04-10,yfinance,True
+BBWI,"Bath & Body Works, Inc.",NYSE,Consumer Cyclical,Specialty Retail,3.7,nyse,2026-04-10,numerai,True
+BBY,"Best Buy Co., Inc.",NYSE,Consumer Cyclical,Specialty Retail,18.3,sp500,2026-04-10,numerai,True
+BC,Brunswick Corporation Common Stock,NYSE,Consumer Cyclical,Recreational Vehicles,5.0,nyse,2026-04-10,numerai,True
+BCAT,BlackRock Capital Allocation Term Trust Common Shares of Beneficial Interest,NYSE,Financial Services,Asset Management,1.6,nyse,2026-04-10,yfinance,True
+BCC,"Boise Cascade, L.L.C. Common Stock",NYSE,Basic Materials,Lumber & Wood Production,2.9,nyse,2026-04-10,numerai,True
+BCE,"BCE, Inc. Common Stock",NYSE,Communication Services,Telecom Services,21.8,nyse,2026-04-10,yfinance,True
+BCH,Banco De Chile ADS,NYSE,Financial Services,Banks - Regional,19.4,nyse,2026-04-10,yfinance,True
+BCO,Brinks Company (The) Common Stock,NYSE,Industrials,Security & Protection Services,4.3,nyse,2026-04-10,yfinance,True
+BCPC,Balchem Corporation - Common Stock,NASDAQ,Basic Materials,Specialty Chemicals,5.7,nasdaq,2026-04-10,yfinance,True
+BCRX,"BioCryst Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,2.5,nasdaq,2026-04-10,numerai,True
+BCS,Barclays PLC Common Stock,NYSE,Financial Services,Banks - Diversified,81.2,nyse,2026-04-10,yfinance,True
+BDC,Belden Inc Common Stock,NYSE,Technology,Communication Equipment,5.1,nyse,2026-04-10,numerai,True
+BDJ,Blackrock Enhanced Equity Dividend Trust,NYSE,Financial Services,Asset Management,1.6,nyse,2026-04-10,yfinance,True
+BDX,"Becton, Dickinson and Company",NYSE,Healthcare,Medical Instruments & Supplies,66.0,sp500,2026-04-10,numerai,True
+BE,Bloom Energy Corporation Class A Common Stock,NYSE,Industrials,Electrical Equipment & Parts,47.4,nyse,2026-04-10,numerai,True
+BEAM,Beam Therapeutics Inc. - Common Stock,NASDAQ,Healthcare,Biotechnology,2.7,nasdaq,2026-04-10,numerai,True
+BEKE,KE Holdings Inc American Depositary Shares (each representing three Class A Ordi,NYSE,Real Estate,Real Estate Services,18.4,nyse,2026-04-10,yfinance,True
+BELFA,Bel Fuse Inc. - Class A Common Stock,NASDAQ,Technology,Electronic Components,2.8,nasdaq,2026-04-10,yfinance,True
+BELFB,Bel Fuse Inc. - Class B Common Stock,NASDAQ,Technology,Electronic Components,3.0,nasdaq,2026-04-10,yfinance,True
+BEN,"Franklin Resources, Inc.",NYSE,Financial Services,Asset Management,10.7,sp500,2026-04-10,numerai,True
+BEP,Brookfield Renewable Partners L.P. Limited Partnership Units,NYSE,Utilities,Utilities - Renewable,22.4,nyse,2026-04-10,yfinance,True
+BEPC,Brookfield Renewable Corporation Brookfield Renewable Corporation Class A Subord,NYSE,Utilities,Utilities - Renewable,7.7,nyse,2026-04-10,numerai,True
+BETA,"Beta Technologies, Inc. Class A Common Stock",NYSE,Industrials,Aerospace & Defense,4.0,nyse,2026-04-10,yfinance,True
+BF-A,Brown Forman Inc Class A Common Stock,NYSE,Consumer Defensive,Beverages - Wineries & Distilleries,13.6,nyse,2026-04-10,yfinance,True
+BF-B,Brown Forman Inc,NYSE,Consumer Defensive,Beverages - Wineries & Distilleries,19.4,sp500,2026-04-10,numerai,True
+BFAM,Bright Horizons Family Solutions Inc. Common Stock,NYSE,Consumer Cyclical,Personal Services,4.5,nyse,2026-04-10,numerai,True
+BFH,"Bread Financial Holdings, Inc. Common Stock",NYSE,Financial Services,Credit Services,3.4,nyse,2026-04-10,numerai,True
+BFLY,"Butterfly Network, Inc. Class A Common Stock",NYSE,Healthcare,Medical Devices,1.0,nyse,2026-04-10,yfinance,True
+BFS,"Saul Centers, Inc. Common Stock",NYSE,Real Estate,REIT - Retail,1.2,nyse,2026-04-10,yfinance,True
+BG,Bunge Limited,NYSE,Consumer Defensive,Farm Products,11.0,sp500,2026-04-10,numerai,True
+BGC,"BGC Group, Inc. - Class A Common Stock",NASDAQ,Financial Services,Capital Markets,5.2,nasdaq,2026-04-10,yfinance,True
+BGSI,Boyd Group Services Inc. Common Shares,NYSE,Consumer Cyclical,Auto & Truck Dealerships,3.3,nyse,2026-04-10,yfinance,True
+BH,Biglari Holdings Inc. Class B Common Stock,NYSE,Consumer Cyclical,Restaurants,1.0,nyse,2026-04-10,yfinance,True
+BH-A,Biglari Holdings Inc. Class A Common Stock,NYSE,Consumer Cyclical,Restaurants,1.1,nyse,2026-04-10,yfinance,True
+BHC,Bausch Health Companies Inc. Common Stock,NYSE,Healthcare,Drug Manufacturers - Specialty & Generic,2.1,nyse,2026-04-10,yfinance,True
+BHE,"Benchmark Electronics, Inc. Common Stock",NYSE,Technology,Electronic Components,2.2,nyse,2026-04-10,numerai,True
+BHF,"Brighthouse Financial, Inc. - Common Stock",NASDAQ,Financial Services,Insurance - Life,3.5,nasdaq,2026-04-10,numerai,True
+BHP,BHP Group Limited American Depositary Shares (Each representing two Ordinary Sha,NYSE,Basic Materials,Other Industrial Metals & Mining,195.3,nyse,2026-04-10,yfinance,True
+BHVN,Biohaven Ltd. Common Shares,NYSE,Healthcare,Biotechnology,1.4,nyse,2026-04-10,numerai,True
+BIDU,"Baidu, Inc. - American Depositary Shares, each representing 8 ordinary share",NASDAQ,Communication Services,Internet Content & Information,36.8,nasdaq,2026-04-10,yfinance,True
+BIIB,Biogen Inc.,NASDAQ,Healthcare,Drug Manufacturers - General,21.3,"sp500,nasdaq",2026-04-10,numerai,True
+BILI,Bilibili Inc. - American Depositary Shares,NASDAQ,Communication Services,Internet Content & Information,10.0,nasdaq,2026-04-10,yfinance,True
+BILL,"BILL Holdings, Inc. Common Stock",NYSE,Technology,Software - Application,3.5,nyse,2026-04-10,numerai,True
+BIO,"Bio-Rad Laboratories, Inc. Class A Common Stock",NYSE,Healthcare,Medical Devices,7.5,nyse,2026-04-10,numerai,True
+BIO-B,"Bio-Rad Laboratories, Inc. Class B  Common Stock",NYSE,Healthcare,Medical Devices,7.5,nyse,2026-04-10,yfinance,True
+BIP,Brookfield Infrastructure Partners LP Limited Partnership Units,NYSE,Utilities,Utilities - Diversified,17.0,nyse,2026-04-10,yfinance,True
+BIPC,Brookfield Infrastructure Corporation Brookfield Infrastructure Corporation,NYSE,Utilities,Utilities - Regulated Gas,5.1,nyse,2026-04-10,yfinance,True
+BIRK,Birkenstock Holding plc Ordinary Shares,NYSE,Consumer Cyclical,Footwear & Accessories,7.0,nyse,2026-04-10,yfinance,True
+BJ,"BJ's Wholesale Club Holdings, Inc. Common Stock",NYSE,Consumer Defensive,Discount Stores,12.1,nyse,2026-04-10,numerai,True
+BK,The Bank of New York Mellon Cor,NYSE,Financial Services,Banks - Diversified,56.4,sp500,2026-04-10,numerai,True
+BKD,Brookdale Senior Living Inc. Common Stock,NYSE,Healthcare,Medical Care Facilities,3.2,nyse,2026-04-10,numerai,True
+BKE,"Buckle, Inc. (The) Common Stock",NYSE,Consumer Cyclical,Apparel Retail,2.8,nyse,2026-04-10,numerai,True
+BKH,Black Hills Corporation Common Stock,NYSE,Utilities,Utilities - Regulated Gas,5.6,nyse,2026-04-10,numerai,True
+BKNG,Booking Holdings Inc. Common St,NASDAQ,Consumer Cyclical,Travel Services,167.1,"sp500,nasdaq",2026-04-10,numerai,True
+BKR,Baker Hughes Company,NASDAQ,Energy,Oil & Gas Equipment & Services,39.9,"sp500,nasdaq",2026-04-10,numerai,True
+BKSY,BlackSky Technology Inc. Class A Common Stock,NYSE,Industrials,Specialty Business Services,1.3,nyse,2026-04-10,yfinance,True
+BKU,"BankUnited, Inc. Common Stock",NYSE,Financial Services,Banks - Regional,3.5,nyse,2026-04-10,numerai,True
+BKV,BKV Corporation Common Stock,NYSE,Energy,Oil & Gas E&P,3.1,nyse,2026-04-10,yfinance,True
+BL,"BlackLine, Inc. - Common Stock",NASDAQ,Technology,Software - Application,1.9,nasdaq,2026-04-10,numerai,True
+BLCO,Bausch + Lomb Corporation Common Shares,NYSE,Healthcare,Medical Instruments & Supplies,5.8,nyse,2026-04-10,yfinance,True
+BLD,TopBuild Corp. Common Stock,NYSE,Industrials,Engineering & Construction,11.1,nyse,2026-04-10,numerai,True
+BLDR,"Builders FirstSource, Inc.",NYSE,Industrials,Building Products & Equipment,17.3,sp500,2026-04-10,numerai,True
+BLK,"BlackRock, Inc.",NYSE,Financial Services,Asset Management,159.3,sp500,2026-04-10,numerai,True
+BLKB,"Blackbaud, Inc. - Common Stock",NASDAQ,Technology,Software - Application,1.7,nasdaq,2026-04-10,numerai,True
+BLLN,"BillionToOne, Inc. - Class A common stock",NASDAQ,Healthcare,Diagnostics & Research,3.8,nasdaq,2026-04-10,yfinance,True
+BLSH,Bullish Ordinary Shares,NYSE,Technology,Software - Infrastructure,5.5,nyse,2026-04-10,yfinance,True
+BLX,"Banco Latinoamericano de Comercio Exterior, S.A.",NYSE,Financial Services,Banks - Regional,2.0,nyse,2026-04-10,yfinance,True
+BMA,Banco Macro S.A.  ADR (representing Ten Class B Common Shares),NYSE,Financial Services,Banks - Regional,5.1,nyse,2026-04-10,yfinance,True
+BMI,"Badger Meter, Inc. Common Stock",NYSE,Technology,Scientific & Technical Instruments,4.5,nyse,2026-04-10,numerai,True
+BMNR,"BitMine Immersion Technologies, Inc. Common Stock",NYSE,Financial Services,Capital Markets,9.6,nyse,2026-04-10,yfinance,True
+BMO,Bank Of Montreal Common Stock,NYSE,Financial Services,Banks - Diversified,102.3,nyse,2026-04-10,yfinance,True
+BMRN,BioMarin Pharmaceutical Inc. - Common Stock,NASDAQ,Healthcare,Biotechnology,10.8,nasdaq,2026-04-10,numerai,True
+BMY,Bristol-Myers Squibb Company,NYSE,Healthcare,Drug Manufacturers - General,116.3,sp500,2026-04-10,numerai,True
+BN,Brookfield Corporation Class A Limited Voting Shares,NYSE,Financial Services,Asset Management,95.1,nyse,2026-04-10,yfinance,True
+BNL,"Broadstone Net Lease, Inc. Common Stock",NYSE,Real Estate,REIT - Diversified,4.0,nyse,2026-04-10,yfinance,True
+BNS,Bank Nova Scotia Halifax Pfd 3 Ordinary Shares,NYSE,Financial Services,Banks - Diversified,90.0,nyse,2026-04-10,yfinance,True
+BNT,Brookfield Wealth Solutions Ltd. Class A Exchangeable Limited Voting Shares,NYSE,Financial Services,Insurance - Diversified,11.8,nyse,2026-04-10,yfinance,True
+BNTX,BioNTech SE - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,23.3,nasdaq,2026-04-10,yfinance,True
+BOBS,"Bob's Discount Furniture, Inc. Common Stock",NYSE,Consumer Cyclical,Specialty Retail,1.4,nyse,2026-04-10,yfinance,True
+BOH,Bank of Hawaii Corporation Common Stock,NYSE,Financial Services,Banks - Regional,3.1,nyse,2026-04-10,numerai,True
+BOKF,BOK Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,8.2,nasdaq,2026-04-10,numerai,True
+BOOT,"Boot Barn Holdings, Inc. Common Stock",NYSE,Consumer Cyclical,Apparel Retail,4.7,nyse,2026-04-10,numerai,True
+BORR,Borr Drilling Limited Common Shares,NYSE,Energy,Oil & Gas Drilling,1.8,nyse,2026-04-10,yfinance,True
+BOX,"Box, Inc. Class A Common Stock",NYSE,Technology,Software - Infrastructure,3.1,nyse,2026-04-10,numerai,True
+BP,BP p.l.c. Common Stock,NYSE,Energy,Oil & Gas Integrated,121.2,nyse,2026-04-10,yfinance,True
+BPOP,"Popular, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,9.6,nasdaq,2026-04-10,numerai,True
+BR,"Broadridge Financial Solutions,",NYSE,Technology,Information Technology Services,26.4,sp500,2026-04-10,numerai,True
+BRBR,"BellRing Brands, Inc. Common Stock",NYSE,Consumer Defensive,Packaged Foods,1.7,nyse,2026-04-10,numerai,True
+BRC,Brady Corporation Common Stock,NYSE,Industrials,Security & Protection Services,3.9,nyse,2026-04-10,numerai,True
+BRK-A,Berkshire Hathaway Inc. Common Stock,NYSE,Financial Services,Insurance - Diversified,1035.4,nyse,2026-04-10,yfinance,True
+BRK-B,Berkshire Hathaway Inc. New,NYSE,Financial Services,Insurance - Diversified,978.8,sp500,2026-04-10,numerai,True
+BRKR,Bruker Corporation - Common Stock,NASDAQ,Healthcare,Medical Devices,5.8,nasdaq,2026-04-10,numerai,True
+BRO,"Brown & Brown, Inc.",NYSE,Financial Services,Insurance Brokers,29.4,sp500,2026-04-10,numerai,True
+BROS,Dutch Bros Inc. Class A Common Stock,NYSE,Consumer Cyclical,Restaurants,9.2,nyse,2026-04-10,yfinance,True
+BRSL,Brightstar Lottery PLC Trading under the Legal Name to begin at the market open ,NYSE,Consumer Cyclical,Gambling,2.3,nyse,2026-04-10,yfinance,True
+BRX,Brixmor Property Group Inc. Common Stock,NYSE,Real Estate,REIT - Retail,9.1,nyse,2026-04-10,yfinance,True
+BRZE,"Braze, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,2.3,nasdaq,2026-04-10,yfinance,True
+BSAC,Banco Santander - Chile ADS,NYSE,Financial Services,Banks - Regional,16.5,nyse,2026-04-10,yfinance,True
+BSBR,"Banco Santander Brasil SA American Depositary Shares, each representing one unit",NYSE,Financial Services,Banks - Regional,48.2,nyse,2026-04-10,yfinance,True
+BSM,"Black Stone Minerals, L.P. Common units representing limited partner interests",NYSE,Energy,Oil & Gas E&P,3.0,nyse,2026-04-10,yfinance,True
+BST,BlackRock Science and Technology Trust Common Shares of Beneficial Interest,NYSE,Financial Services,Asset Management,1.4,nyse,2026-04-10,yfinance,True
+BSTZ,BlackRock Science and Technology Term Trust Common Shares of Beneficial Interest,NYSE,Financial Services,Asset Management,1.6,nyse,2026-04-10,yfinance,True
+BSX,Boston Scientific Corporation,NYSE,Healthcare,Medical Devices,131.1,sp500,2026-04-10,numerai,True
+BSY,"Bentley Systems, Incorporated - Class B Common Stock",NASDAQ,Technology,Software - Application,10.2,nasdaq,2026-04-10,numerai,True
+BTE,Baytex Energy Corp Common Shares,NYSE,Energy,Oil & Gas E&P,3.2,nyse,2026-04-10,yfinance,True
+BTSG,"BrightSpring Health Services, Inc. - Common Stock",NASDAQ,Healthcare,Health Information Services,8.8,nasdaq,2026-04-10,yfinance,True
+BUSE,First Busey Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.3,nasdaq,2026-04-10,numerai,True
+BWA,BorgWarner Inc.,NYSE,Consumer Cyclical,Auto Parts,7.0,sp500,2026-04-10,numerai,True
+BWIN,"The Baldwin Insurance Group, Inc. - Class A Common Stock",NASDAQ,Financial Services,Insurance Brokers,2.1,nasdaq,2026-04-10,yfinance,True
+BX,Blackstone Inc.,NYSE,Financial Services,Asset Management,207.2,sp500,2026-04-10,numerai,True
+BXP,"BXP, Inc.",NYSE,Real Estate,REIT - Office,13.2,sp500,2026-04-10,yfinance,True
+BZ,KANZHUN LIMITED - American Depository Shares,NASDAQ,Communication Services,Internet Content & Information,6.1,nasdaq,2026-04-10,yfinance,True
+C,"Citigroup, Inc.",NYSE,Financial Services,Banks - Diversified,130.9,sp500,2026-04-10,numerai,True
+CACC,Credit Acceptance Corporation - Common Stock,NASDAQ,Financial Services,Credit Services,5.2,nasdaq,2026-04-10,numerai,True
+CAG,"ConAgra Brands, Inc.",NYSE,Consumer Defensive,Packaged Foods,12.9,sp500,2026-04-10,numerai,True
+CAH,"Cardinal Health, Inc.",NYSE,Healthcare,Medical Distribution,28.6,sp500,2026-04-10,numerai,True
+CAI,"Caris Life Sciences, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,5.4,nasdaq,2026-04-10,yfinance,True
+CAKE,The Cheesecake Factory Incorporated - Common Stock,NASDAQ,Consumer Cyclical,Restaurants,2.9,nasdaq,2026-04-10,numerai,True
+CALM,"Cal-Maine Foods, Inc. - Common Stock",NASDAQ,Consumer Defensive,Farm Products,3.7,nasdaq,2026-04-10,numerai,True
+CAPR,"Capricor Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.8,nasdaq,2026-04-10,yfinance,True
+CAR,"Avis Budget Group, Inc. - Common Stock",NASDAQ,Industrials,Rental & Leasing Services,10.5,nasdaq,2026-04-10,numerai,True
+CARG,"CarGurus, Inc. - Class A Common Stock",NASDAQ,Consumer Cyclical,Auto & Truck Dealerships,3.3,nasdaq,2026-04-10,numerai,True
+CARR,Carrier Global Corporation,NYSE,Industrials,Building Products & Equipment,61.5,sp500,2026-04-10,numerai,True
+CART,Maplebear Inc. - Common Stock,NASDAQ,Consumer Cyclical,Internet Retail,10.6,nasdaq,2026-04-10,yfinance,True
+CASH,"Pathward Financial, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,2.1,nasdaq,2026-04-10,numerai,True
+CASY,"Caseys General Stores, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Specialty Retail,28.1,nasdaq,2026-04-10,numerai,True
+CAT,"Caterpillar, Inc.",NYSE,Industrials,Farm & Heavy Construction Machinery,176.7,"sp500,dow",2026-04-10,numerai,True
+CATY,Cathay General Bancorp - Common Stock,NASDAQ,Financial Services,Banks - Regional,3.7,nasdaq,2026-04-10,numerai,True
+CB,Chubb Limited,NYSE,Financial Services,Insurance - Property & Casualty,110.1,sp500,2026-04-10,numerai,True
+CBC,"Central Bancompany, Inc. - Class A Common Stock",NASDAQ,Financial Services,Banks - Regional,6.0,nasdaq,2026-04-10,yfinance,True
+CBOE,"Cboe Global Markets, Inc.",BATS,Financial Services,Financial Data & Stock Exchanges,20.1,sp500,2026-04-10,numerai,True
+CBRE,CBRE Group Inc,NYSE,Real Estate,Real Estate Services,39.5,sp500,2026-04-10,numerai,True
+CBSH,"Commerce Bancshares, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,7.5,nasdaq,2026-04-10,numerai,True
+CCB,Coastal Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.3,nasdaq,2026-04-10,numerai,True
+CCC,CCC Intelligent Solutions Holdings Inc. - Common Stock,NASDAQ,Technology,Software - Application,3.2,nasdaq,2026-04-10,yfinance,True
+CCEC,Capital Clean Energy Carriers Corp. - Common Share,NASDAQ,Industrials,Marine Shipping,1.0,nasdaq,2026-04-10,yfinance,True
+CCEP,Coca-Cola Europacific Partners plc - Ordinary Shares,NASDAQ,Consumer Defensive,Beverages - Non-Alcoholic,43.9,nasdaq,2026-04-10,yfinance,True
+CCI,Crown Castle Inc.,NYSE,Real Estate,REIT - Specialty,39.4,sp500,2026-04-10,yfinance,True
+CCL,Carnival Corporation,NYSE,Consumer Cyclical,Travel Services,35.1,sp500,2026-04-10,numerai,True
+CCOI,"Cogent Communications Holdings, Inc. - Common Stock",NASDAQ,Communication Services,Telecom Services,1.0,nasdaq,2026-04-10,numerai,True
+CDNS,"Cadence Design Systems, Inc.",NASDAQ,Technology,Software - Application,82.7,"sp500,nasdaq",2026-04-10,numerai,True
+CDW,CDW Corporation,NASDAQ,Technology,Information Technology Services,23.3,"sp500,nasdaq",2026-04-10,numerai,True
+CE,Celanese Corporation,NYSE,Basic Materials,Chemicals,7.5,sp500,2026-04-10,numerai,True
+CECO,CECO Environmental Corp. - Common Stock,NASDAQ,Industrials,Pollution & Treatment Controls,2.3,nasdaq,2026-04-10,yfinance,True
+CEG,Constellation Energy Corporatio,NASDAQ,Utilities,Utilities - Renewable,71.0,"sp500,nasdaq",2026-04-10,yfinance,True
+CENT,Central Garden & Pet Company - Common Stock,NASDAQ,Consumer Defensive,Packaged Foods,2.3,nasdaq,2026-04-10,yfinance,True
+CENTA,Central Garden & Pet Company - Class A Common Stock Nonvoting,NASDAQ,Consumer Defensive,Packaged Foods,2.1,nasdaq,2026-04-10,numerai,True
+CENX,Century Aluminum Company - Common Stock,NASDAQ,Basic Materials,Aluminum,6.6,nasdaq,2026-04-10,numerai,True
+CF,"CF Industries Holdings, Inc.",NYSE,Basic Materials,Agricultural Inputs,14.8,sp500,2026-04-10,numerai,True
+CFFN,"Capitol Federal Financial, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.0,nasdaq,2026-04-10,numerai,True
+CFG,"Citizens Financial Group, Inc.",NYSE,Financial Services,Banks - Regional,19.1,sp500,2026-04-10,numerai,True
+CG,The Carlyle Group Inc. - Common Stock,NASDAQ,Financial Services,Asset Management,17.4,nasdaq,2026-04-10,numerai,True
+CGNX,Cognex Corporation - Common Stock,NASDAQ,Technology,Scientific & Technical Instruments,9.0,nasdaq,2026-04-10,numerai,True
+CGON,"CG Oncology, Inc. - Common stock",NASDAQ,Healthcare,Biotechnology,5.8,nasdaq,2026-04-10,yfinance,True
+CHA,"Chagee Holdings Limited - American Depositary Shares, each representing 1 Class ",NASDAQ,Consumer Cyclical,Restaurants,1.8,nasdaq,2026-04-10,yfinance,True
+CHCO,City Holding Company - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.8,nasdaq,2026-04-10,numerai,True
+CHD,"Church & Dwight Company, Inc.",NYSE,Consumer Defensive,Household & Personal Products,26.0,sp500,2026-04-10,numerai,True
+CHDN,"Churchill Downs, Incorporated - Common Stock",NASDAQ,Consumer Cyclical,Gambling,6.2,nasdaq,2026-04-10,numerai,True
+CHEF,"The Chefs' Warehouse, Inc. - Common Stock",NASDAQ,Consumer Defensive,Food Distribution,2.6,nasdaq,2026-04-10,numerai,True
+CHKP,Check Point Software Technologies Ltd. - Ordinary Shares,NASDAQ,Technology,Software - Infrastructure,15.2,nasdaq,2026-04-10,yfinance,True
+CHRD,Chord Energy Corporation - Common Stock,NASDAQ,Energy,Oil & Gas E&P,7.5,nasdaq,2026-04-10,numerai,True
+CHRW,"C.H. Robinson Worldwide, Inc.",NASDAQ,Industrials,Integrated Freight & Logistics,12.3,"sp500,nasdaq",2026-04-10,numerai,True
+CHTR,"Charter Communications, Inc.",NASDAQ,Communication Services,Telecom Services,50.0,"sp500,nasdaq",2026-04-10,numerai,True
+CHYM,"Chime Financial, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,7.6,nasdaq,2026-04-10,yfinance,True
+CI,The Cigna Group,NYSE,Healthcare,Healthcare Plans,77.0,sp500,2026-04-10,numerai,True
+CIEN,Ciena Corporation,NYSE,Technology,Communication Equipment,68.9,nyse,2026-04-10,yfinance,True
+CIFR,Cipher Digital Inc. - Common Stock,NASDAQ,Technology,Information Technology Services,6.6,nasdaq,2026-04-10,yfinance,True
+CIGI,Colliers International Group Inc.  - Subordinate Voting Shares,NASDAQ,Real Estate,Real Estate Services,5.7,nasdaq,2026-04-10,yfinance,True
+CINF,Cincinnati Financial Corporatio,NASDAQ,Financial Services,Insurance - Property & Casualty,22.6,"sp500,nasdaq",2026-04-10,numerai,True
+CL,Colgate-Palmolive Company,NYSE,Consumer Defensive,Household & Personal Products,75.2,sp500,2026-04-10,numerai,True
+CLBK,"Columbia Financial, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.9,nasdaq,2026-04-10,yfinance,True
+CLBT,Cellebrite DI Ltd. - Ordinary Shares,NASDAQ,Technology,Software - Infrastructure,3.1,nasdaq,2026-04-10,yfinance,True
+CLMT,"Calumet, Inc - Common Stock",NASDAQ,Basic Materials,Specialty Chemicals,2.9,nasdaq,2026-04-10,yfinance,True
+CLOV,"Clover Health Investments, Corp.  - Class A Common stock",NASDAQ,Healthcare,Healthcare Plans,1.0,nasdaq,2026-04-10,numerai,True
+CLX,Clorox Company (The),NYSE,Consumer Defensive,Household & Personal Products,20.4,sp500,2026-04-10,numerai,True
+CMCSA,Comcast Corporation,NASDAQ,Communication Services,Telecom Services,146.3,"sp500,nasdaq",2026-04-10,numerai,True
+CME,CME Group Inc.,NASDAQ,Financial Services,Financial Data & Stock Exchanges,86.0,"sp500,nasdaq",2026-04-10,numerai,True
+CMG,"Chipotle Mexican Grill, Inc.",NYSE,Consumer Cyclical,Restaurants,84.3,sp500,2026-04-10,numerai,True
+CMI,Cummins Inc.,NYSE,Industrials,Specialty Industrial Machinery,48.2,sp500,2026-04-10,numerai,True
+CMPR,Cimpress plc - Ordinary Shares,NASDAQ,Industrials,Specialty Business Services,1.9,nasdaq,2026-04-10,yfinance,True
+CMS,CMS Energy Corporation,NYSE,Utilities,Utilities - Regulated Electric,19.9,sp500,2026-04-10,numerai,True
+CNC,Centene Corporation,NYSE,Healthcare,Healthcare Plans,30.1,sp500,2026-04-10,numerai,True
+CNOB,"ConnectOne Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.4,nasdaq,2026-04-10,yfinance,True
+CNP,"CenterPoint Energy, Inc (Holdin",NYSE,Utilities,Utilities - Regulated Electric,21.2,sp500,2026-04-10,numerai,True
+CNTA,Centessa Pharmaceuticals plc - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,6.1,nasdaq,2026-04-10,yfinance,True
+CNXC,Concentrix Corporation - Common Stock,NASDAQ,Technology,Information Technology Services,1.7,nasdaq,2026-04-10,numerai,True
+CNXN,"PC Connection, Inc. - Common Stock",NASDAQ,Technology,Electronics & Computer Distribution,1.6,nasdaq,2026-04-10,numerai,True
+COCO,"The Vita Coco Company, Inc. - Common Stock",NASDAQ,Consumer Defensive,Beverages - Non-Alcoholic,2.8,nasdaq,2026-04-10,yfinance,True
+COF,Capital One Financial Corporati,NYSE,Financial Services,Credit Services,68.2,sp500,2026-04-10,numerai,True
+COGT,"Cogent Biosciences, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,6.1,nasdaq,2026-04-10,numerai,True
+COHR,Coherent Corp,NYSE,Technology,Communication Equipment,53.3,nyse,2026-04-10,yfinance,True
+COHU,"Cohu, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,1.7,nasdaq,2026-04-10,numerai,True
+COIN,"Coinbase Global, Inc. - Class A Common Stock",NASDAQ,Financial Services,Financial Data & Stock Exchanges,45.6,nasdaq,2026-04-10,yfinance,True
+COKE,"Coca-Cola Consolidated, Inc. - Common Stock",NASDAQ,Consumer Defensive,Beverages - Non-Alcoholic,13.9,nasdaq,2026-04-10,yfinance,True
+COLB,"Columbia Banking System, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,8.7,nasdaq,2026-04-10,numerai,True
+COLL,"Collegium Pharmaceutical, Inc. - Common Stock",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,1.1,nasdaq,2026-04-10,numerai,True
+COLM,Columbia Sportswear Company - Common Stock,NASDAQ,Consumer Cyclical,Apparel Manufacturing,3.2,nasdaq,2026-04-10,numerai,True
+COO,"The Cooper Companies, Inc.",NASDAQ,Healthcare,Medical Instruments & Supplies,18.6,"sp500,nasdaq",2026-04-10,numerai,True
+COP,ConocoPhillips,NYSE,Energy,Oil & Gas E&P,123.0,sp500,2026-04-10,numerai,True
+COR,"Cencora, Inc.",NYSE,Healthcare,Medical Distribution,44.0,sp500,2026-04-10,yfinance,True
+CORZ,"Core Scientific, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,5.7,nasdaq,2026-04-10,numerai,True
+COST,Costco Wholesale Corporation,NASDAQ,Consumer Defensive,Discount Stores,423.5,"sp500,nasdaq",2026-04-10,numerai,True
+CPAY,"Corpay, Inc.",NYSE,Technology,Software - Infrastructure,24.0,sp500,2026-04-10,yfinance,True
+CPB,The Campbell's Company,NASDAQ,Consumer Defensive,Packaged Foods,12.4,"sp500,nasdaq",2026-04-10,numerai,True
+CPRT,"Copart, Inc.",NASDAQ,Industrials,Specialty Business Services,56.1,"sp500,nasdaq",2026-04-10,numerai,True
+CPT,Camden Property Trust,NYSE,Real Estate,REIT - Residential,12.3,sp500,2026-04-10,yfinance,True
+CRAI,"CRA International,Inc. - Common Stock",NASDAQ,Industrials,Consulting Services,1.1,nasdaq,2026-04-10,yfinance,True
+CRDO,Credo Technology Group Holding Ltd - Ordinary Shares,NASDAQ,Technology,Semiconductors,19.9,nasdaq,2026-04-10,yfinance,True
+CRL,Charles River Laboratories Inte,NYSE,Healthcare,Diagnostics & Research,9.5,sp500,2026-04-10,numerai,True
+CRM,"Salesforce, Inc.",NYSE,Technology,Software - Application,328.9,"sp500,dow",2026-04-10,numerai,True
+CRNX,"Crinetics Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,4.1,nasdaq,2026-04-10,numerai,True
+CROX,"Crocs, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Footwear & Accessories,5.3,nasdaq,2026-04-10,numerai,True
+CRUS,"Cirrus Logic, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,8.2,nasdaq,2026-04-10,numerai,True
+CRVL,CorVel Corp. - Common Stock,NASDAQ,Financial Services,Insurance Brokers,2.8,nasdaq,2026-04-10,yfinance,True
+CRWD,"CrowdStrike Holdings, Inc.",NASDAQ,Technology,Software - Infrastructure,89.2,"sp500,nasdaq",2026-04-10,numerai,True
+CRWV,"CoreWeave, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Infrastructure,48.4,nasdaq,2026-04-10,yfinance,True
+CSCO,"Cisco Systems, Inc.",NASDAQ,Technology,Communication Equipment,233.1,"sp500,nasdaq,dow",2026-04-10,numerai,True
+CSGP,"CoStar Group, Inc.",NASDAQ,Real Estate,Real Estate Services,29.3,"sp500,nasdaq",2026-04-10,numerai,True
+CSGS,"CSG Systems International, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,2.3,nasdaq,2026-04-10,numerai,True
+CSQ,Calamos Strategic Total Return Fund - Closed End Fund,NASDAQ,Financial Services,Asset Management,3.0,nasdaq,2026-04-10,yfinance,True
+CSWC,Capital Southwest Corporation - Common Stock,NASDAQ,Financial Services,Asset Management,1.4,nasdaq,2026-04-10,yfinance,True
+CSX,CSX Corporation,NASDAQ,Industrials,Railroads,61.4,"sp500,nasdaq",2026-04-10,numerai,True
+CTAS,Cintas Corporation,NASDAQ,Industrials,Specialty Business Services,75.4,"sp500,nasdaq",2026-04-10,numerai,True
+CTBI,"Community Trust Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.2,nasdaq,2026-04-10,yfinance,True
+CTRA,Coterra Energy Inc.,NYSE,Energy,Oil & Gas E&P,17.4,sp500,2026-04-10,numerai,True
+CTSH,Cognizant Technology Solutions,NASDAQ,Technology,Information Technology Services,39.3,"sp500,nasdaq",2026-04-10,numerai,True
+CTVA,"Corteva, Inc.",NYSE,Basic Materials,Agricultural Inputs,39.5,sp500,2026-04-10,numerai,True
+CVBF,CVB Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.8,nasdaq,2026-04-10,numerai,True
+CVCO,"Cavco Industries, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Residential Construction,4.1,nasdaq,2026-04-10,numerai,True
+CVLT,"Commvault Systems, Inc. - Common Stock",NASDAQ,Technology,Software - Application,3.6,nasdaq,2026-04-10,numerai,True
+CVS,CVS Health Corporation,NYSE,Healthcare,Healthcare Plans,55.8,sp500,2026-04-10,numerai,True
+CVX,Chevron Corporation,NYSE,Energy,Oil & Gas Integrated,254.7,"sp500,dow",2026-04-10,numerai,True
+CWST,"Casella Waste Systems, Inc. - Class A Common Stock",NASDAQ,Industrials,Waste Management,5.5,nasdaq,2026-04-10,numerai,True
+CYTK,"Cytokinetics, Incorporated - Common Stock",NASDAQ,Healthcare,Biotechnology,8.0,nasdaq,2026-04-10,numerai,True
+CZR,"Caesars Entertainment, Inc.",NASDAQ,Consumer Cyclical,Resorts & Casinos,7.0,"sp500,nasdaq",2026-04-10,numerai,True
+D,"Dominion Energy, Inc.",NYSE,Utilities,Utilities - Regulated Electric,45.1,sp500,2026-04-10,numerai,True
+DAL,"Delta Air Lines, Inc.",NYSE,Industrials,Airlines,39.3,sp500,2026-04-10,numerai,True
+DASH,"DoorDash, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Internet Retail,67.1,nasdaq,2026-04-10,numerai,True
+DAWN,"Day One Biopharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.2,nasdaq,2026-04-10,yfinance,True
+DAY,"Dayforce, Inc.",NYSE,Technology,Software - Application,11.8,sp500,2026-04-10,yfinance,True
+DBX,"Dropbox, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Infrastructure,5.3,nasdaq,2026-04-10,numerai,True
+DD,"DuPont de Nemours, Inc.",NYSE,Basic Materials,Specialty Chemicals,32.3,sp500,2026-04-10,numerai,True
+DDOG,"Datadog, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,38.6,nasdaq,2026-04-10,numerai,True
+DE,Deere & Company,NYSE,Industrials,Farm & Heavy Construction Machinery,117.5,sp500,2026-04-10,numerai,True
+DECK,Deckers Outdoor Corporation,NYSE,Consumer Cyclical,Footwear & Accessories,32.1,sp500,2026-04-10,numerai,True
+DELL,Dell Technologies Inc.,NYSE,Technology,Computer Hardware,81.1,sp500,2026-04-10,numerai,True
+DFS,Discover Financial Services,NYSE,Financial Services,Credit Services,43.5,sp500,2026-04-10,numerai,True
+DFTX,"Definium Therapeutics, Inc.  - Common Shares",NASDAQ,Healthcare,Biotechnology,2.1,nasdaq,2026-04-10,yfinance,True
+DG,Dollar General Corporation,NYSE,Consumer Defensive,Discount Stores,16.8,sp500,2026-04-10,numerai,True
+DGII,Digi International Inc. - Common Stock,NASDAQ,Technology,Communication Equipment,2.0,nasdaq,2026-04-10,numerai,True
+DGX,Quest Diagnostics Incorporated,NYSE,Healthcare,Diagnostics & Research,17.1,sp500,2026-04-10,numerai,True
+DHC,Diversified Healthcare Trust  - Common Shares of Beneficial Interest,NASDAQ,Real Estate,REIT - Healthcare Facilities,1.8,nasdaq,2026-04-10,yfinance,True
+DHI,"D.R. Horton, Inc.",NYSE,Consumer Cyclical,Residential Construction,44.8,sp500,2026-04-10,numerai,True
+DHR,Danaher Corporation,NYSE,Healthcare,Diagnostics & Research,165.1,sp500,2026-04-10,numerai,True
+DIOD,Diodes Incorporated - Common Stock,NASDAQ,Technology,Semiconductors,3.8,nasdaq,2026-04-10,numerai,True
+DIS,Walt Disney Company (The),NYSE,Communication Services,Entertainment,202.9,"sp500,dow",2026-04-10,numerai,True
+DKNG,DraftKings Inc. - Class A Common Stock,NASDAQ,Consumer Cyclical,Gambling,11.0,nasdaq,2026-04-10,numerai,True
+DLO,DLocal Limited - Class A Common Shares,NASDAQ,Technology,Software - Infrastructure,3.8,nasdaq,2026-04-10,yfinance,True
+DLR,"Digital Realty Trust, Inc.",NYSE,Real Estate,REIT - Specialty,60.4,sp500,2026-04-10,yfinance,True
+DLTR,"Dollar Tree, Inc.",NASDAQ,Consumer Defensive,Discount Stores,15.7,"sp500,nasdaq",2026-04-10,numerai,True
+DMLP,"Dorchester Minerals, L.P. - Common Units Representing Limited Partnership Intere",NASDAQ,Energy,Oil & Gas E&P,1.3,nasdaq,2026-04-10,yfinance,True
+DNLI,Denali Therapeutics Inc. - Common Stock,NASDAQ,Healthcare,Biotechnology,3.1,nasdaq,2026-04-10,numerai,True
+DOC,"Healthpeak Properties, Inc.",NYSE,Real Estate,REIT - Healthcare Facilities,14.1,sp500,2026-04-10,yfinance,True
+DOCU,"DocuSign, Inc. - Common Stock",NASDAQ,Technology,Software - Application,8.9,nasdaq,2026-04-10,numerai,True
+DOO,BRP Inc. - Common Subordinate Voting Shares,NASDAQ,Consumer Cyclical,Recreational Vehicles,5.6,nasdaq,2026-04-10,yfinance,True
+DORM,"Dorman Products, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Auto Parts,3.3,nasdaq,2026-04-10,numerai,True
+DOV,Dover Corporation,NYSE,Industrials,Specialty Industrial Machinery,26.0,sp500,2026-04-10,numerai,True
+DOW,Dow Inc.,NYSE,Basic Materials,Chemicals,28.0,"sp500,dow",2026-04-10,numerai,True
+DOX,Amdocs Limited - Ordinary Shares,NASDAQ,Technology,Software - Infrastructure,7.0,nasdaq,2026-04-10,numerai,True
+DPZ,Domino's Pizza Inc,NYSE,Consumer Cyclical,Restaurants,14.7,"sp500,nasdaq",2026-04-10,numerai,True
+DRH,Diamondrock Hospitality Company - Common Stock,NASDAQ,Real Estate,REIT - Hotel & Motel,2.1,nasdaq,2026-04-10,yfinance,True
+DRI,"Darden Restaurants, Inc.",NYSE,Consumer Cyclical,Restaurants,22.0,sp500,2026-04-10,numerai,True
+DRS,"Leonardo DRS, Inc. - Common Stock",NASDAQ,Industrials,Aerospace & Defense,12.5,nasdaq,2026-04-10,yfinance,True
+DRVN,Driven Brands Holdings Inc. - Common Stock,NASDAQ,Consumer Cyclical,Auto & Truck Dealerships,2.1,nasdaq,2026-04-10,numerai,True
+DSGR,"Distribution Solutions Group, Inc. - Common Stock",NASDAQ,Industrials,Industrial Distribution,1.3,nasdaq,2026-04-10,yfinance,True
+DSGX,The Descartes Systems Group Inc. - Common Stock,NASDAQ,Technology,Software - Application,5.6,nasdaq,2026-04-10,yfinance,True
+DTE,DTE Energy Company,NYSE,Utilities,Utilities - Regulated Electric,24.9,sp500,2026-04-10,numerai,True
+DUK,Duke Energy Corporation (Holdin,NYSE,Utilities,Utilities - Regulated Electric,83.6,sp500,2026-04-10,numerai,True
+DUOL,"Duolingo, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,4.3,nasdaq,2026-04-10,yfinance,True
+DVA,DaVita Inc.,NYSE,Healthcare,Medical Care Facilities,12.5,sp500,2026-04-10,numerai,True
+DVN,Devon Energy Corporation,NYSE,Energy,Oil & Gas E&P,20.2,sp500,2026-04-10,numerai,True
+DXCM,"DexCom, Inc.",NASDAQ,Healthcare,Medical Devices,31.3,"sp500,nasdaq",2026-04-10,numerai,True
+DXPE,"DXP Enterprises, Inc. - Common Stock",NASDAQ,Industrials,Industrial Distribution,2.4,nasdaq,2026-04-10,yfinance,True
+DYN,"Dyne Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,3.2,nasdaq,2026-04-10,numerai,True
+EA,Electronic Arts Inc.,NASDAQ,Communication Services,Electronic Gaming & Multimedia,38.8,"sp500,nasdaq",2026-04-10,numerai,True
+EBAY,eBay Inc.,NASDAQ,Consumer Cyclical,Internet Retail,31.1,"sp500,nasdaq",2026-04-10,numerai,True
+EBC,"Eastern Bankshares, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,4.7,nasdaq,2026-04-10,numerai,True
+ECL,Ecolab Inc.,NYSE,Basic Materials,Specialty Chemicals,67.5,sp500,2026-04-10,numerai,True
+ECPG,Encore Capital Group Inc - Common Stock,NASDAQ,Financial Services,Credit Services,1.7,nasdaq,2026-04-10,numerai,True
+ED,"Consolidated Edison, Inc.",NYSE,Utilities,Utilities - Regulated Electric,31.2,sp500,2026-04-10,numerai,True
+EEFT,"Euronet Worldwide, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,2.9,nasdaq,2026-04-10,numerai,True
+EFSC,Enterprise Financial Services Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.2,nasdaq,2026-04-10,numerai,True
+EFX,"Equifax, Inc.",NYSE,Industrials,Consulting Services,32.0,sp500,2026-04-10,numerai,True
+EG,"Everest Group, Ltd.",NYSE,Financial Services,Insurance - Reinsurance,15.3,sp500,2026-04-10,yfinance,True
+EIX,Edison International,NYSE,Utilities,Utilities - Regulated Electric,30.8,sp500,2026-04-10,numerai,True
+EL,"Estee Lauder Companies, Inc. (T",NYSE,Consumer Defensive,Household & Personal Products,26.7,sp500,2026-04-10,numerai,True
+ELV,"Elevance Health, Inc.",NYSE,Healthcare,Healthcare Plans,84.9,sp500,2026-04-10,numerai,True
+ELVN,"Enliven Therapeutics, Inc.  - Common Stock",NASDAQ,Healthcare,Biotechnology,2.7,nasdaq,2026-04-10,yfinance,True
+EMN,Eastman Chemical Company,NYSE,Basic Materials,Specialty Chemicals,10.6,sp500,2026-04-10,numerai,True
+EMR,Emerson Electric Company,NYSE,Industrials,Specialty Industrial Machinery,70.7,sp500,2026-04-10,numerai,True
+ENLT,Enlight Renewable Energy Ltd. - Ordinary Shares,NASDAQ,Utilities,Utilities - Renewable,10.0,nasdaq,2026-04-10,yfinance,True
+ENPH,"Enphase Energy, Inc.",NASDAQ,Technology,Solar,9.7,sp500,2026-04-10,numerai,True
+ENSG,"The Ensign Group, Inc. - Common Stock",NASDAQ,Healthcare,Medical Care Facilities,11.8,nasdaq,2026-04-10,numerai,True
+ENTG,"Entegris, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,20.2,nasdaq,2026-04-10,numerai,True
+ENVX,Enovix Corporation - Common Stock,NASDAQ,Industrials,Electrical Equipment & Parts,1.2,nasdaq,2026-04-10,numerai,True
+EOG,"EOG Resources, Inc.",NYSE,Energy,Oil & Gas E&P,67.0,sp500,2026-04-10,numerai,True
+EPAM,"EPAM Systems, Inc.",NYSE,Technology,Information Technology Services,14.1,sp500,2026-04-10,numerai,True
+EQIX,"Equinix, Inc.",NASDAQ,Real Estate,REIT - Specialty,89.5,"sp500,nasdaq",2026-04-10,yfinance,True
+EQPT,EquipmentShare.com Inc - Class A Common Stock,NASDAQ,Industrials,Rental & Leasing Services,5.4,nasdaq,2026-04-10,yfinance,True
+EQR,Equity Residential,NYSE,Real Estate,REIT - Residential,27.9,sp500,2026-04-10,yfinance,True
+EQT,EQT Corporation,NYSE,Energy,Oil & Gas E&P,25.7,sp500,2026-04-10,numerai,True
+ERAS,"Erasca, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,5.4,nasdaq,2026-04-10,yfinance,True
+ERIC,Ericsson - American Depositary Shares each representing 1 underlying Class B sha,NASDAQ,Technology,Communication Equipment,39.7,nasdaq,2026-04-10,yfinance,True
+ERIE,Erie Indemnity Company,NASDAQ,Financial Services,Insurance Brokers,21.8,"sp500,nasdaq",2026-04-10,yfinance,True
+ES,Eversource Energy (D/B/A),NYSE,Utilities,Utilities - Regulated Electric,20.9,sp500,2026-04-10,numerai,True
+ESLT,Elbit Systems Ltd. - Ordinary Shares,NASDAQ,Industrials,Aerospace & Defense,43.2,nasdaq,2026-04-10,yfinance,True
+ESS,"Essex Property Trust, Inc.",NYSE,Real Estate,REIT - Residential,18.9,sp500,2026-04-10,yfinance,True
+ETN,"Eaton Corporation, PLC",NYSE,Industrials,Specialty Industrial Machinery,133.6,sp500,2026-04-10,numerai,True
+ETOR,eToro Group Ltd. - Class A Common Shares,NASDAQ,Financial Services,Capital Markets,2.7,nasdaq,2026-04-10,yfinance,True
+ETR,Entergy Corporation,NYSE,Utilities,Utilities - Regulated Electric,32.2,sp500,2026-04-10,numerai,True
+EVCM,EverCommerce Inc. - Common Stock,NASDAQ,Technology,Software - Infrastructure,2.0,nasdaq,2026-04-10,yfinance,True
+EVRG,"Evergy, Inc.",NASDAQ,Utilities,Utilities - Regulated Electric,14.1,"sp500,nasdaq",2026-04-10,numerai,True
+EW,Edwards Lifesciences Corporatio,NYSE,Healthcare,Medical Devices,44.1,sp500,2026-04-10,numerai,True
+EWBC,"East West Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,16.1,nasdaq,2026-04-10,numerai,True
+EWTX,"Edgewise Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,3.6,nasdaq,2026-04-10,numerai,True
+EXC,Exelon Corporation,NASDAQ,Utilities,Utilities - Regulated Electric,37.2,"sp500,nasdaq",2026-04-10,numerai,True
+EXE,Expand Energy Corporation - Common Stock,NASDAQ,Energy,Oil & Gas E&P,23.9,nasdaq,2026-04-10,yfinance,True
+EXEL,"Exelixis, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,12.2,nasdaq,2026-04-10,numerai,True
+EXLS,"ExlService Holdings, Inc. - Common Stock",NASDAQ,Technology,Information Technology Services,4.7,nasdaq,2026-04-10,numerai,True
+EXPD,Expeditors International of Was,NYSE,Industrials,Integrated Freight & Logistics,15.6,sp500,2026-04-10,numerai,True
+EXPE,"Expedia Group, Inc.",NASDAQ,Consumer Cyclical,Travel Services,23.7,"sp500,nasdaq",2026-04-10,numerai,True
+EXPO,"Exponent, Inc. - Common Stock",NASDAQ,Industrials,Engineering & Construction,3.3,nasdaq,2026-04-10,numerai,True
+EXR,Extra Space Storage Inc,NYSE,Real Estate,REIT - Industrial,32.4,sp500,2026-04-10,yfinance,True
+EXTR,"Extreme Networks, Inc. - Common Stock",NASDAQ,Technology,Communication Equipment,2.4,nasdaq,2026-04-10,numerai,True
+EYE,"National Vision Holdings, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Specialty Retail,2.1,nasdaq,2026-04-10,numerai,True
+EZPW,"EZCORP, Inc. - Class A Non-Voting Common Stock",NASDAQ,Financial Services,Credit Services,1.8,nasdaq,2026-04-10,numerai,True
+F,Ford Motor Company,NYSE,Consumer Cyclical,Auto Manufacturers,39.3,sp500,2026-04-10,numerai,True
+FA,First Advantage Corporation - Common Stock,NASDAQ,Industrials,Specialty Business Services,1.9,nasdaq,2026-04-10,yfinance,True
+FANG,"Diamondback Energy, Inc.",NASDAQ,Energy,Oil & Gas E&P,45.2,"sp500,nasdaq",2026-04-10,numerai,True
+FAST,Fastenal Company,NASDAQ,Industrials,Industrial Distribution,42.9,"sp500,nasdaq",2026-04-10,numerai,True
+FBNC,First Bancorp - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.5,nasdaq,2026-04-10,numerai,True
+FCFS,"FirstCash Holdings, Inc. - Common Stock",NASDAQ,Financial Services,Credit Services,8.8,nasdaq,2026-04-10,numerai,True
+FCNCA,"First Citizens BancShares, Inc. - Class A Common Stock",NASDAQ,Financial Services,Banks - Regional,23.6,nasdaq,2026-04-10,numerai,True
+FCX,"Freeport-McMoRan, Inc.",NYSE,Basic Materials,Copper,55.8,sp500,2026-04-10,numerai,True
+FDS,FactSet Research Systems Inc.,NYSE,Financial Services,Financial Data & Stock Exchanges,18.4,sp500,2026-04-10,numerai,True
+FDX,FedEx Corporation,NYSE,Industrials,Integrated Freight & Logistics,66.4,sp500,2026-04-10,numerai,True
+FE,FirstEnergy Corp.,NYSE,Utilities,Utilities - Regulated Electric,22.9,sp500,2026-04-10,numerai,True
+FELE,"Franklin Electric Co., Inc. - Common Stock",NASDAQ,Industrials,Specialty Industrial Machinery,4.4,nasdaq,2026-04-10,numerai,True
+FER,Ferrovial SE - Ordinary Shares,NASDAQ,Industrials,Engineering & Construction,51.3,nasdaq,2026-04-10,yfinance,True
+FFBC,First Financial Bancorp. - Common Stock,NASDAQ,Financial Services,Banks - Regional,3.1,nasdaq,2026-04-10,numerai,True
+FFIN,"First Financial Bankshares, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,4.5,nasdaq,2026-04-10,numerai,True
+FFIV,"F5, Inc.",NASDAQ,Technology,Software - Infrastructure,14.8,"sp500,nasdaq",2026-04-10,numerai,True
+FHB,"First Hawaiian, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,3.3,nasdaq,2026-04-10,numerai,True
+FI,"Fiserv, Inc.",NYSE,Technology,Information Technology Services,117.2,sp500,2026-04-10,yfinance,True
+FIBK,"First Interstate BancSystem, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,3.5,nasdaq,2026-04-10,numerai,True
+FICO,Fair Isaac Corporation,NYSE,Technology,Software - Application,50.9,sp500,2026-04-10,numerai,True
+FIGR,"Figure Technology Solutions, Inc. - Class A Common Stock",NASDAQ,Financial Services,Capital Markets,7.1,nasdaq,2026-04-10,yfinance,True
+FIS,Fidelity National Information S,NYSE,Technology,Information Technology Services,43.9,sp500,2026-04-10,numerai,True
+FISV,"Fiserv, Inc. - Common Stock",NASDAQ,,,30.2,nasdaq,2026-04-10,numerai,True
+FITB,Fifth Third Bancorp,NASDAQ,Financial Services,Banks - Regional,28.5,"sp500,nasdaq",2026-04-10,numerai,True
+FIVE,"Five Below, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Specialty Retail,12.4,nasdaq,2026-04-10,numerai,True
+FIZZ,National Beverage Corp. - Common Stock,NASDAQ,Consumer Defensive,Beverages - Non-Alcoholic,3.3,nasdaq,2026-04-10,numerai,True
+FLEX,Flex Ltd. - Ordinary Shares,NASDAQ,Technology,Electronic Components,27.7,nasdaq,2026-04-10,yfinance,True
+FLNC,"Fluence Energy, Inc. - Class A Common Stock",NASDAQ,Utilities,Utilities - Renewable,2.5,nasdaq,2026-04-10,yfinance,True
+FLYW,Flywire Corporation - Voting Common Stock,NASDAQ,Technology,Software - Infrastructure,1.4,nasdaq,2026-04-10,yfinance,True
+FMC,FMC Corporation,NYSE,Basic Materials,Agricultural Inputs,6.3,sp500,2026-04-10,numerai,True
+FORM,"FormFactor, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,9.4,nasdaq,2026-04-10,numerai,True
+FORTY,Formula Systems (1985) Ltd. - American Depositary Shares,NASDAQ,Technology,Information Technology Services,1.9,nasdaq,2026-04-10,yfinance,True
+FOX,Fox Corporation,NASDAQ,Communication Services,Entertainment,21.9,"sp500,nasdaq",2026-04-10,yfinance,True
+FOXA,Fox Corporation,NASDAQ,Communication Services,Entertainment,21.9,"sp500,nasdaq",2026-04-10,numerai,True
+FRME,First Merchants Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.6,nasdaq,2026-04-10,numerai,True
+FRMI,Fermi Inc. - Common Stock,NASDAQ,Real Estate,REIT - Specialty,3.0,nasdaq,2026-04-10,yfinance,True
+FROG,JFrog Ltd. - Ordinary shares,NASDAQ,Technology,Software - Application,5.4,nasdaq,2026-04-10,numerai,True
+FRSH,Freshworks Inc. - Class A Common Stock,NASDAQ,Technology,Software - Application,2.3,nasdaq,2026-04-10,yfinance,True
+FRT,Federal Realty Investment Trust,NYSE,Real Estate,REIT - Retail,9.6,sp500,2026-04-10,yfinance,True
+FSLR,"First Solar, Inc.",NASDAQ,Technology,Solar,19.5,"sp500,nasdaq",2026-04-10,numerai,True
+FSLY,"Fastly, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,4.5,nasdaq,2026-04-10,numerai,True
+FSUN,FirstSun Capital Bancorp - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.8,nasdaq,2026-04-10,yfinance,True
+FSV,FirstService Corporation - Common Shares,NASDAQ,Real Estate,Real Estate Services,6.7,nasdaq,2026-04-10,yfinance,True
+FTAI,FTAI Aviation Ltd. - Common Stock,NASDAQ,Industrials,Rental & Leasing Services,26.2,nasdaq,2026-04-10,yfinance,True
+FTDR,"Frontdoor, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Personal Services,4.1,nasdaq,2026-04-10,numerai,True
+FTNT,"Fortinet, Inc.",NASDAQ,Technology,Software - Infrastructure,74.5,"sp500,nasdaq",2026-04-10,numerai,True
+FTV,Fortive Corporation,NYSE,Technology,Scientific & Technical Instruments,25.8,sp500,2026-04-10,numerai,True
+FULT,Fulton Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,4.2,nasdaq,2026-04-10,numerai,True
+FWONA,Liberty Media Corporation - Series A Liberty Formula One Common Stock,NASDAQ,Communication Services,Entertainment,22.3,nasdaq,2026-04-10,yfinance,True
+FWONK,Liberty Media Corporation - Series C Liberty Formula One Common Stock,NASDAQ,Communication Services,Entertainment,22.2,nasdaq,2026-04-10,numerai,True
+GABC,"German American Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.7,nasdaq,2026-04-10,numerai,True
+GBDC,"Golub Capital BDC, Inc. - Closed End Fund",NASDAQ,Financial Services,Asset Management,3.3,nasdaq,2026-04-10,yfinance,True
+GD,General Dynamics Corporation,NYSE,Industrials,Aerospace & Defense,72.5,sp500,2026-04-10,numerai,True
+GDDY,GoDaddy Inc.,NYSE,Technology,Software - Infrastructure,28.8,sp500,2026-04-10,numerai,True
+GE,GE Aerospace,NYSE,Industrials,Aerospace & Defense,182.2,sp500,2026-04-10,numerai,True
+GEHC,GE HealthCare Technologies Inc.,NASDAQ,Healthcare,Health Information Services,36.1,"sp500,nasdaq",2026-04-10,yfinance,True
+GEN,Gen Digital Inc.,NASDAQ,Technology,Software - Infrastructure,17.2,"sp500,nasdaq",2026-04-10,yfinance,True
+GENB,"Generate Biomedicines, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.5,nasdaq,2026-04-10,yfinance,True
+GERN,Geron Corporation - Common Stock,NASDAQ,Healthcare,Biotechnology,1.1,nasdaq,2026-04-10,numerai,True
+GEV,GE Vernova Inc.,NYSE,Utilities,Utilities - Renewable,94.5,sp500,2026-04-10,yfinance,True
+GFS,GlobalFoundries Inc. - Ordinary Share,NASDAQ,Technology,Semiconductors,26.7,nasdaq,2026-04-10,yfinance,True
+GH,"Guardant Health, Inc. - Common Stock",NASDAQ,Healthcare,Diagnostics & Research,11.4,nasdaq,2026-04-10,numerai,True
+GIII,"G-III Apparel Group, LTD. - Common Stock",NASDAQ,Consumer Cyclical,Apparel Manufacturing,1.3,nasdaq,2026-04-10,numerai,True
+GILD,"Gilead Sciences, Inc.",NASDAQ,Healthcare,Drug Manufacturers - General,115.4,"sp500,nasdaq",2026-04-10,numerai,True
+GILT,Gilat Satellite Networks Ltd. - Ordinary Shares,NASDAQ,Technology,Communication Equipment,1.3,nasdaq,2026-04-10,yfinance,True
+GIS,"General Mills, Inc.",NYSE,Consumer Defensive,Packaged Foods,35.1,sp500,2026-04-10,numerai,True
+GL,Globe Life Inc.,NYSE,Financial Services,Insurance - Life,9.2,sp500,2026-04-10,numerai,True
+GLBE,Global-E Online Ltd. - ordinary shares,NASDAQ,Consumer Cyclical,Internet Retail,5.1,nasdaq,2026-04-10,yfinance,True
+GLIBA,"GCI Liberty, Inc. - Series A GCI Group Common Stock",NASDAQ,Communication Services,Telecom Services,1.4,nasdaq,2026-04-10,yfinance,True
+GLIBK,"GCI Liberty, Inc. - Series C GCI Group Common Stock",NASDAQ,Communication Services,Telecom Services,1.4,nasdaq,2026-04-10,yfinance,True
+GLNG,Golar LNG Limited - Common Shares,NASDAQ,Energy,Oil & Gas Midstream,5.4,nasdaq,2026-04-10,numerai,True
+GLPG,Galapagos NV - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,1.9,nasdaq,2026-04-10,yfinance,True
+GLPI,"Gaming and Leisure Properties, Inc. - Common Stock",NASDAQ,Real Estate,REIT - Specialty,13.2,nasdaq,2026-04-10,yfinance,True
+GLUE,"Monte Rosa Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.4,nasdaq,2026-04-10,yfinance,True
+GLW,Corning Incorporated,NYSE,Technology,Electronic Components,40.5,sp500,2026-04-10,numerai,True
+GLXY,Galaxy Digital Inc. - Class A common stock,NASDAQ,Financial Services,Capital Markets,8.3,nasdaq,2026-04-10,yfinance,True
+GM,General Motors Company,NYSE,Consumer Cyclical,Auto Manufacturers,57.0,sp500,2026-04-10,numerai,True
+GMAB,Genmab A/S - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,17.5,nasdaq,2026-04-10,yfinance,True
+GNRC,Generac Holdlings Inc.,NYSE,Industrials,Specialty Industrial Machinery,9.3,sp500,2026-04-10,numerai,True
+GNTX,Gentex Corporation - Common Stock,NASDAQ,Consumer Cyclical,Auto Parts,4.9,nasdaq,2026-04-10,numerai,True
+GOOG,Alphabet Inc.,NASDAQ,Communication Services,Internet Content & Information,2351.6,"sp500,nasdaq",2026-04-10,yfinance,True
+GOOGL,Alphabet Inc.,NASDAQ,Communication Services,Internet Content & Information,2351.6,"sp500,nasdaq",2026-04-10,numerai,True
+GPC,Genuine Parts Company,NYSE,Consumer Cyclical,Auto Parts,16.1,sp500,2026-04-10,numerai,True
+GPN,Global Payments Inc.,NYSE,Industrials,Specialty Business Services,28.5,sp500,2026-04-10,numerai,True
+GPRE,"Green Plains, Inc. - Common Stock",NASDAQ,Basic Materials,Chemicals,1.1,nasdaq,2026-04-10,numerai,True
+GRAB,Grab Holdings Limited - Class A Ordinary Shares,NASDAQ,Technology,Software - Application,15.1,nasdaq,2026-04-10,yfinance,True
+GRAL,"GRAIL, Inc. - Common Stock",NASDAQ,Healthcare,Diagnostics & Research,2.0,nasdaq,2026-04-10,yfinance,True
+GRFS,"Grifols, S.A. - American Depositary Shares",NASDAQ,Healthcare,Drug Manufacturers - General,6.6,nasdaq,2026-04-10,yfinance,True
+GRMN,Garmin Ltd.,NYSE,Technology,Scientific & Technical Instruments,40.1,sp500,2026-04-10,numerai,True
+GS,"Goldman Sachs Group, Inc. (The)",NYSE,Financial Services,Capital Markets,177.7,"sp500,dow",2026-04-10,numerai,True
+GSAT,"Globalstar, Inc. - Common Stock",NASDAQ,Communication Services,Telecom Services,9.4,nasdaq,2026-04-10,numerai,True
+GSHD,"Goosehead Insurance, Inc. - Class A Common Stock",NASDAQ,Financial Services,Insurance Brokers,1.5,nasdaq,2026-04-10,numerai,True
+GT,The Goodyear Tire & Rubber Company - Common Stock,NASDAQ,Consumer Cyclical,Auto Parts,2.0,nasdaq,2026-04-10,numerai,True
+GTLB,GitLab Inc. - Class A Common Stock,NASDAQ,Technology,Software - Infrastructure,3.3,nasdaq,2026-04-10,yfinance,True
+GTM,ZoomInfo Technologies Inc. - Common Stock,NASDAQ,Technology,Software - Application,1.6,nasdaq,2026-04-10,yfinance,True
+GTX,Garrett Motion Inc. - Common Stock,NASDAQ,Consumer Cyclical,Auto Parts,3.8,nasdaq,2026-04-10,yfinance,True
+GWW,"W.W. Grainger, Inc.",NYSE,Industrials,Industrial Distribution,53.2,sp500,2026-04-10,numerai,True
+HAL,Halliburton Company,NYSE,Energy,Oil & Gas Equipment & Services,22.8,sp500,2026-04-10,numerai,True
+HALO,"Halozyme Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,7.9,nasdaq,2026-04-10,numerai,True
+HAS,"Hasbro, Inc.",NASDAQ,Consumer Cyclical,Leisure,8.0,"sp500,nasdaq",2026-04-10,numerai,True
+HBAN,Huntington Bancshares Incorpora,NASDAQ,Financial Services,Banks - Regional,23.7,"sp500,nasdaq",2026-04-10,numerai,True
+HBT,"HBT Financial, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.0,nasdaq,2026-04-10,yfinance,True
+HCA,"HCA Healthcare, Inc.",NYSE,Healthcare,Medical Care Facilities,76.9,sp500,2026-04-10,numerai,True
+HCM,HUTCHMED (China) Limited - American Depositary Shares,NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,2.6,nasdaq,2026-04-10,yfinance,True
+HCSG,"Healthcare Services Group, Inc. - Common Stock",NASDAQ,Healthcare,Medical Care Facilities,1.4,nasdaq,2026-04-10,numerai,True
+HD,"Home Depot, Inc. (The)",NYSE,Consumer Cyclical,Home Improvement Retail,390.0,"sp500,dow",2026-04-10,numerai,True
+HES,Hess Corporation,NYSE,Energy,Oil & Gas E&P,39.5,sp500,2026-04-10,numerai,True
+HFWA,Heritage Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.1,nasdaq,2026-04-10,numerai,True
+HIG,Hartford Financial Services Gro,NYSE,Financial Services,Insurance - Property & Casualty,31.7,sp500,2026-04-10,numerai,True
+HII,"Huntington Ingalls Industries,",NYSE,Industrials,Aerospace & Defense,7.5,sp500,2026-04-10,numerai,True
+HIMX,"Himax Technologies, Inc. - American depositary shares, each of which represents ",NASDAQ,Technology,Semiconductors,1.6,nasdaq,2026-04-10,yfinance,True
+HLIT,Harmonic Inc. - Common Stock,NASDAQ,Technology,Communication Equipment,1.1,nasdaq,2026-04-10,numerai,True
+HLNE,Hamilton Lane Incorporated - Class A Common Stock,NASDAQ,Financial Services,Asset Management,5.3,nasdaq,2026-04-10,numerai,True
+HLT,Hilton Worldwide Holdings Inc.,NYSE,Consumer Cyclical,Lodging,60.8,sp500,2026-04-10,numerai,True
+HOLX,"Hologic, Inc.",NASDAQ,Healthcare,Medical Instruments & Supplies,16.3,sp500,2026-04-10,numerai,True
+HON,Honeywell International Inc.,NASDAQ,Industrials,Conglomerates,148.5,"sp500,nasdaq,dow",2026-04-10,numerai,True
+HOOD,"Robinhood Markets, Inc. - Class A Common Stock",NASDAQ,Financial Services,Capital Markets,63.1,nasdaq,2026-04-10,yfinance,True
+HOPE,"Hope Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.6,nasdaq,2026-04-10,numerai,True
+HPE,Hewlett Packard Enterprise Comp,NYSE,Technology,Communication Equipment,28.4,sp500,2026-04-10,numerai,True
+HPQ,HP Inc.,NYSE,Technology,Computer Hardware,30.9,sp500,2026-04-10,numerai,True
+HQY,"HealthEquity, Inc. - Common Stock",NASDAQ,Healthcare,Health Information Services,7.2,nasdaq,2026-04-10,numerai,True
+HRL,Hormel Foods Corporation,NYSE,Consumer Defensive,Packaged Foods,17.4,sp500,2026-04-10,numerai,True
+HSAI,"Hesai Group - American Depositary Share, each ADS represents one Class B ordinar",NASDAQ,Consumer Cyclical,Auto Parts,3.4,nasdaq,2026-04-10,yfinance,True
+HSIC,"Henry Schein, Inc.",NASDAQ,Healthcare,Medical Distribution,8.7,"sp500,nasdaq",2026-04-10,numerai,True
+HST,"Host Hotels & Resorts, Inc.",NASDAQ,Real Estate,REIT - Hotel & Motel,12.9,"sp500,nasdaq",2026-04-10,yfinance,True
+HSY,The Hershey Company,NYSE,Consumer Defensive,Confectioners,34.5,sp500,2026-04-10,numerai,True
+HTFL,"Heartflow, Inc. - Common Stock",NASDAQ,Healthcare,Health Information Services,2.3,nasdaq,2026-04-10,yfinance,True
+HTHT,H World Group Limited - American Depositary Shares,NASDAQ,Consumer Cyclical,Lodging,16.5,nasdaq,2026-04-10,yfinance,True
+HTO,H2O America  - Common Stock,NASDAQ,Utilities,Utilities - Regulated Water,2.5,nasdaq,2026-04-10,yfinance,True
+HTZ,"Hertz Global Holdings, Inc - Common Stock",NASDAQ,Industrials,Rental & Leasing Services,2.1,nasdaq,2026-04-10,yfinance,True
+HUBB,Hubbell Inc,NYSE,Industrials,Electrical Equipment & Parts,22.9,sp500,2026-04-10,numerai,True
+HUM,Humana Inc.,NYSE,Healthcare,Healthcare Plans,29.8,sp500,2026-04-10,numerai,True
+HURN,Huron Consulting Group Inc. - Common Stock,NASDAQ,Industrials,Consulting Services,2.1,nasdaq,2026-04-10,numerai,True
+HUT,Hut 8 Corp. - Common Stock,NASDAQ,Financial Services,Capital Markets,7.0,nasdaq,2026-04-10,yfinance,True
+HWC,Hancock Whitney Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,5.6,nasdaq,2026-04-10,numerai,True
+HWKN,"Hawkins, Inc. - Common Stock",NASDAQ,Basic Materials,Specialty Chemicals,3.1,nasdaq,2026-04-10,yfinance,True
+HWM,Howmet Aerospace Inc.,NYSE,Industrials,Aerospace & Defense,45.0,sp500,2026-04-10,numerai,True
+IAC,IAC Inc. - Common Stock,NASDAQ,Communication Services,Internet Content & Information,3.1,nasdaq,2026-04-10,numerai,True
+IBKR,"Interactive Brokers Group, Inc. - Class A Common Stock",NASDAQ,Financial Services,Capital Markets,122.3,nasdaq,2026-04-10,numerai,True
+IBM,International Business Machines,NYSE,Technology,Information Technology Services,206.5,"sp500,dow",2026-04-10,numerai,True
+IBOC,International Bancshares Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,4.5,nasdaq,2026-04-10,yfinance,True
+IBRX,"ImmunityBio, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,7.7,nasdaq,2026-04-10,yfinance,True
+ICE,Intercontinental Exchange Inc.,NYSE,Financial Services,Financial Data & Stock Exchanges,86.3,sp500,2026-04-10,numerai,True
+ICFI,"ICF International, Inc. - Common Stock",NASDAQ,Industrials,Consulting Services,1.3,nasdaq,2026-04-10,numerai,True
+ICHR,Ichor Holdings - Ordinary Shares,NASDAQ,Technology,Semiconductor Equipment & Materials,1.9,nasdaq,2026-04-10,numerai,True
+ICLR,ICON plc - Ordinary Shares,NASDAQ,Healthcare,Diagnostics & Research,8.3,nasdaq,2026-04-10,yfinance,True
+ICUI,"ICU Medical, Inc. - Common Stock",NASDAQ,Healthcare,Medical Instruments & Supplies,3.1,nasdaq,2026-04-10,yfinance,True
+IDCC,"InterDigital, Inc. - Common Stock",NASDAQ,Technology,Software - Application,9.0,nasdaq,2026-04-10,yfinance,True
+IDXX,"IDEXX Laboratories, Inc.",NASDAQ,Healthcare,Diagnostics & Research,33.8,"sp500,nasdaq",2026-04-10,numerai,True
+IDYA,"IDEAYA Biosciences, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.7,nasdaq,2026-04-10,numerai,True
+IEP,Icahn Enterprises L.P. - Depositary Units representing Limited Partner Interests,NASDAQ,Energy,Oil & Gas Refining & Marketing,4.9,nasdaq,2026-04-10,yfinance,True
+IEX,IDEX Corporation,NYSE,Industrials,Specialty Industrial Machinery,16.1,sp500,2026-04-10,numerai,True
+IFF,International Flavors & Fragran,NYSE,Basic Materials,Specialty Chemicals,21.9,sp500,2026-04-10,numerai,True
+ILMN,"Illumina, Inc. - Common Stock",NASDAQ,Healthcare,Diagnostics & Research,18.9,nasdaq,2026-04-10,numerai,True
+IMCR,Immunocore Holdings plc - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,1.6,nasdaq,2026-04-10,yfinance,True
+IMKTA,"Ingles Markets, Incorporated - Class A Common Stock",NASDAQ,Consumer Defensive,Grocery Stores,1.8,nasdaq,2026-04-10,yfinance,True
+IMOS,ChipMOS TECHNOLOGIES INC. - American Depositary Shares,NASDAQ,Technology,Semiconductors,1.4,nasdaq,2026-04-10,yfinance,True
+IMVT,"Immunovant, Inc.  - Common Stock",NASDAQ,Healthcare,Biotechnology,5.2,nasdaq,2026-04-10,numerai,True
+INBX,"Inhibrx Biosciences, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.1,nasdaq,2026-04-10,numerai,True
+INCY,Incyte Corporation,NASDAQ,Healthcare,Biotechnology,13.3,"sp500,nasdaq",2026-04-10,numerai,True
+INDB,Independent Bank Corp. - Common Stock,NASDAQ,Financial Services,Banks - Regional,4.0,nasdaq,2026-04-10,numerai,True
+INDV,"Indivior Pharmaceuticals, Inc.  - Common Stock",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,4.0,nasdaq,2026-04-10,yfinance,True
+INNV,InnovAge Holding Corp. - Common Stock,NASDAQ,Healthcare,Medical Care Facilities,1.2,nasdaq,2026-04-10,numerai,True
+INSM,Insmed Incorporated - Common Stock,NASDAQ,Healthcare,Biotechnology,34.4,nasdaq,2026-04-10,numerai,True
+INTA,"Intapp, Inc. - Common Stock",NASDAQ,Technology,Software - Application,1.7,nasdaq,2026-04-10,yfinance,True
+INTC,Intel Corporation,NASDAQ,Technology,Semiconductors,84.2,"sp500,nasdaq",2026-04-10,numerai,True
+INTR,Inter & Co. Inc. - Class A Common Shares,NASDAQ,Financial Services,Banks - Regional,3.7,nasdaq,2026-04-10,yfinance,True
+INTU,Intuit Inc.,NASDAQ,Technology,Software - Application,180.1,"sp500,nasdaq",2026-04-10,numerai,True
+INVA,"Innoviva, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.8,nasdaq,2026-04-10,numerai,True
+INVH,Invitation Homes Inc.,NYSE,Real Estate,REIT - Residential,19.7,sp500,2026-04-10,yfinance,True
+IONS,"Ionis Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,12.6,nasdaq,2026-04-10,numerai,True
+IOSP,Innospec Inc. - Common Stock,NASDAQ,Basic Materials,Specialty Chemicals,1.9,nasdaq,2026-04-10,numerai,True
+IP,International Paper Company,NYSE,Consumer Cyclical,Packaging & Containers,18.9,sp500,2026-04-10,numerai,True
+IPAR,"Interparfums, Inc. - Common Stock",NASDAQ,Consumer Defensive,Household & Personal Products,2.9,nasdaq,2026-04-10,numerai,True
+IPG,"Interpublic Group of Companies,",NYSE,Communication Services,Advertising Agencies,10.8,sp500,2026-04-10,numerai,True
+IPGP,IPG Photonics Corporation - Common Stock,NASDAQ,Technology,Semiconductor Equipment & Materials,5.3,nasdaq,2026-04-10,numerai,True
+IQ,"iQIYI, Inc. - American Depositary Shares",NASDAQ,Communication Services,Entertainment,1.2,nasdaq,2026-04-10,yfinance,True
+IQV,"IQVIA Holdings, Inc.",NYSE,Healthcare,Diagnostics & Research,35.8,sp500,2026-04-10,numerai,True
+IR,Ingersoll Rand Inc.,NYSE,Industrials,Specialty Industrial Machinery,37.2,sp500,2026-04-10,numerai,True
+IRDM,Iridium Communications Inc - Common Stock,NASDAQ,Communication Services,Telecom Services,3.7,nasdaq,2026-04-10,numerai,True
+IREN,IREN Limited - Ordinary Shares,NASDAQ,Financial Services,Capital Markets,12.3,nasdaq,2026-04-10,yfinance,True
+IRM,Iron Mountain Incorporated (Del,NYSE,Real Estate,REIT - Specialty,30.8,sp500,2026-04-10,yfinance,True
+IRTC,"iRhythm Holdings, Inc.  - Common Stock",NASDAQ,Healthcare,Medical Devices,3.8,nasdaq,2026-04-10,numerai,True
+ISRG,"Intuitive Surgical, Inc.",NASDAQ,Healthcare,Medical Instruments & Supplies,186.8,"sp500,nasdaq",2026-04-10,numerai,True
+IT,"Gartner, Inc.",NYSE,Technology,Information Technology Services,37.9,sp500,2026-04-10,numerai,True
+ITRI,"Itron, Inc. - Common Stock",NASDAQ,Technology,Scientific & Technical Instruments,4.2,nasdaq,2026-04-10,numerai,True
+ITRN,Ituran Location and Control Ltd. - Ordinary Shares,NASDAQ,Technology,Scientific & Technical Instruments,1.1,nasdaq,2026-04-10,yfinance,True
+ITW,Illinois Tool Works Inc.,NYSE,Industrials,Specialty Industrial Machinery,76.4,sp500,2026-04-10,numerai,True
+IVZ,Invesco Ltd,NYSE,Financial Services,Asset Management,7.8,sp500,2026-04-10,numerai,True
+J,Jacobs Solutions Inc.,NYSE,Industrials,Engineering & Construction,16.8,sp500,2026-04-10,numerai,True
+JAZZ,Jazz Pharmaceuticals plc - Ordinary Shares,NASDAQ,Healthcare,Biotechnology,12.2,nasdaq,2026-04-10,numerai,True
+JBHT,"J.B. Hunt Transport Services, I",NASDAQ,Industrials,Integrated Freight & Logistics,17.2,"sp500,nasdaq",2026-04-10,numerai,True
+JBL,Jabil Inc.,NYSE,Technology,Electronic Components,16.2,sp500,2026-04-10,numerai,True
+JBLU,JetBlue Airways Corporation - Common Stock,NASDAQ,Industrials,Airlines,1.8,nasdaq,2026-04-10,numerai,True
+JCAP,"Jefferson Capital, Inc. - Common Stock",NASDAQ,Financial Services,Credit Services,1.1,nasdaq,2026-04-10,yfinance,True
+JCI,Johnson Controls International,NYSE,Industrials,Building Products & Equipment,53.4,sp500,2026-04-10,numerai,True
+JD,"JD.com, Inc. - American Depositary Shares",NASDAQ,Consumer Cyclical,Internet Retail,41.0,nasdaq,2026-04-10,yfinance,True
+JJSF,J & J Snack Foods Corp. - Common Stock,NASDAQ,Consumer Defensive,Packaged Foods,1.6,nasdaq,2026-04-10,numerai,True
+JKHY,"Jack Henry & Associates, Inc.",NASDAQ,Technology,Information Technology Services,12.9,"sp500,nasdaq",2026-04-10,numerai,True
+JNJ,Johnson & Johnson,NYSE,Healthcare,Drug Manufacturers - General,347.8,"sp500,dow",2026-04-10,numerai,True
+JNPR,"Juniper Networks, Inc.",NYSE,Technology,Communication Equipment,12.3,sp500,2026-04-10,numerai,True
+JOYY,JOYY Inc. - American Depositary Shares,NASDAQ,Communication Services,Internet Content & Information,3.1,nasdaq,2026-04-10,yfinance,True
+JPM,JP Morgan Chase & Co.,NYSE,Financial Services,Banks - Diversified,668.9,"sp500,dow",2026-04-10,numerai,True
+K,Kellanova,NYSE,Consumer Defensive,Packaged Foods,27.7,sp500,2026-04-10,numerai,True
+KALU,Kaiser Aluminum Corporation - Common Stock,NASDAQ,Basic Materials,Aluminum,2.3,nasdaq,2026-04-10,numerai,True
+KC,Kingsoft Cloud Holdings Limited - American Depositary Shares,NASDAQ,Technology,Software - Application,4.4,nasdaq,2026-04-10,yfinance,True
+KDP,Keurig Dr Pepper Inc.,NASDAQ,Consumer Defensive,Beverages - Non-Alcoholic,43.9,"sp500,nasdaq",2026-04-10,numerai,True
+KEY,KeyCorp,NYSE,Financial Services,Banks - Regional,16.9,sp500,2026-04-10,numerai,True
+KEYS,Keysight Technologies Inc.,NYSE,Technology,Scientific & Technical Instruments,28.3,sp500,2026-04-10,numerai,True
+KHC,The Kraft Heinz Company,NASDAQ,Consumer Defensive,Packaged Foods,36.9,"sp500,nasdaq",2026-04-10,numerai,True
+KIM,Kimco Realty Corporation (HC),NYSE,Real Estate,REIT - Retail,15.8,sp500,2026-04-10,yfinance,True
+KKR,KKR & Co. Inc.,NYSE,Financial Services,Asset Management,136.2,sp500,2026-04-10,numerai,True
+KLAC,KLA Corporation,NASDAQ,Technology,Semiconductor Equipment & Materials,84.2,"sp500,nasdaq",2026-04-10,numerai,True
+KLIC,"Kulicke and Soffa Industries, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,4.0,nasdaq,2026-04-10,numerai,True
+KMB,Kimberly-Clark Corporation,NYSE,Consumer Defensive,Household & Personal Products,43.8,"sp500,nasdaq",2026-04-10,numerai,True
+KMI,"Kinder Morgan, Inc.",NYSE,Energy,Oil & Gas Midstream,59.7,sp500,2026-04-10,numerai,True
+KMTS,"Kestra Medical Technologies, Ltd. - Common Stock",NASDAQ,Healthcare,Medical Instruments & Supplies,1.1,nasdaq,2026-04-10,yfinance,True
+KMX,CarMax Inc,NYSE,Consumer Cyclical,Auto & Truck Dealerships,13.0,sp500,2026-04-10,numerai,True
+KNSA,"Kiniksa Pharmaceuticals International, plc - Class A Ordinary Shares",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,3.6,nasdaq,2026-04-10,numerai,True
+KO,Coca-Cola Company (The),NYSE,Consumer Defensive,Beverages - Non-Alcoholic,269.5,"sp500,dow",2026-04-10,numerai,True
+KR,Kroger Company (The),NYSE,Consumer Defensive,Grocery Stores,44.8,sp500,2026-04-10,numerai,True
+KRYS,"Krystal Biotech, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,7.6,nasdaq,2026-04-10,numerai,True
+KSPI,Joint Stock Company Kaspi.kz - American Depository Shares,NASDAQ,Technology,Software - Infrastructure,14.3,nasdaq,2026-04-10,yfinance,True
+KTOS,"Kratos Defense & Security Solutions, Inc. - Common Stock",NASDAQ,Industrials,Aerospace & Defense,12.8,nasdaq,2026-04-10,numerai,True
+KVUE,Kenvue Inc.,NYSE,Consumer Defensive,Household & Personal Products,41.7,sp500,2026-04-10,yfinance,True
+KYIV,Kyivstar Group Ltd. - Common Shares,NASDAQ,Communication Services,Telecom Services,2.5,nasdaq,2026-04-10,yfinance,True
+L,Loews Corporation,NYSE,Financial Services,Insurance - Property & Casualty,18.0,sp500,2026-04-10,yfinance,True
+LAMR,Lamar Advertising Company - Class A Common Stock,NASDAQ,Real Estate,REIT - Specialty,13.5,nasdaq,2026-04-10,yfinance,True
+LASR,"nLIGHT, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,3.5,nasdaq,2026-04-10,numerai,True
+LAUR,"Laureate Education, Inc. - Common Stock",NASDAQ,Consumer Defensive,Education & Training Services,4.8,nasdaq,2026-04-10,yfinance,True
+LBRDA,Liberty Broadband Corporation - Class A Common Stock,NASDAQ,Communication Services,Telecom Services,7.5,nasdaq,2026-04-10,yfinance,True
+LBRDK,Liberty Broadband Corporation - Class C Common Stock,NASDAQ,Communication Services,Telecom Services,7.5,nasdaq,2026-04-10,numerai,True
+LBTYA,Liberty Global Ltd. - Class A Common Shares,NASDAQ,Communication Services,Telecom Services,4.1,nasdaq,2026-04-10,yfinance,True
+LBTYB,Liberty Global Ltd. - Class B Common Shares,NASDAQ,Communication Services,Telecom Services,4.6,nasdaq,2026-04-10,yfinance,True
+LBTYK,Liberty Global Ltd. - Class C Common Shares,NASDAQ,Communication Services,Telecom Services,4.0,nasdaq,2026-04-10,yfinance,True
+LCID,"Lucid Group, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Auto Manufacturers,2.9,nasdaq,2026-04-10,numerai,True
+LDOS,"Leidos Holdings, Inc.",NYSE,Technology,Information Technology Services,19.3,sp500,2026-04-10,numerai,True
+LECO,"Lincoln Electric Holdings, Inc. - Common Shares",NASDAQ,Industrials,Tools & Accessories,14.0,nasdaq,2026-04-10,numerai,True
+LEGN,Legend Biotech Corporation - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,3.4,nasdaq,2026-04-10,yfinance,True
+LEN,Lennar Corporation,NYSE,Consumer Cyclical,Residential Construction,37.3,sp500,2026-04-10,numerai,True
+LFST,"LifeStance Health Group, Inc. - Common Stock",NASDAQ,Healthcare,Medical Care Facilities,2.5,nasdaq,2026-04-10,yfinance,True
+LFUS,"Littelfuse, Inc. - Common Stock",NASDAQ,Technology,Electronic Components,9.5,nasdaq,2026-04-10,numerai,True
+LGN,Legence Corp. - Class A Common stock,NASDAQ,Industrials,Engineering & Construction,4.5,nasdaq,2026-04-10,yfinance,True
+LH,Labcorp Holdings Inc.,NYSE,Healthcare,Diagnostics & Research,19.1,sp500,2026-04-10,numerai,True
+LHX,"L3Harris Technologies, Inc.",NYSE,Industrials,Aerospace & Defense,40.5,sp500,2026-04-10,numerai,True
+LI,Li Auto Inc. - American Depositary Shares,NASDAQ,Consumer Cyclical,Auto Manufacturers,18.7,nasdaq,2026-04-10,yfinance,True
+LIF,"Life360, Inc. - Common Stock",NASDAQ,Technology,Software - Application,3.3,nasdaq,2026-04-10,yfinance,True
+LILA,Liberty Latin America Ltd. - Class A Common Stock,NASDAQ,Communication Services,Telecom Services,1.7,nasdaq,2026-04-10,yfinance,True
+LILAK,Liberty Latin America Ltd. - Class C Common Stock,NASDAQ,Communication Services,Telecom Services,1.7,nasdaq,2026-04-10,numerai,True
+LIN,Linde plc,NASDAQ,Basic Materials,Specialty Chemicals,202.0,"sp500,nasdaq",2026-04-10,numerai,True
+LINC,Lincoln Educational Services Corporation - Common Stock,NASDAQ,Consumer Defensive,Education & Training Services,1.3,nasdaq,2026-04-10,yfinance,True
+LINE,"Lineage, Inc. - Common Stock",NASDAQ,Real Estate,REIT - Industrial,8.6,nasdaq,2026-04-10,yfinance,True
+LITE,Lumentum Holdings Inc. - Common Stock,NASDAQ,Technology,Communication Equipment,63.8,nasdaq,2026-04-10,numerai,True
+LIVN,LivaNova PLC - Ordinary Shares,NASDAQ,Healthcare,Medical Devices,3.5,nasdaq,2026-04-10,numerai,True
+LKFN,Lakeland Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.6,nasdaq,2026-04-10,numerai,True
+LKQ,LKQ Corporation,NASDAQ,Consumer Cyclical,Auto Parts,9.6,"sp500,nasdaq",2026-04-10,numerai,True
+LLY,Eli Lilly and Company,NYSE,Healthcare,Drug Manufacturers - General,690.5,sp500,2026-04-10,numerai,True
+LLYVA,"Liberty Live Holdings, Inc. - Series A Liberty Live Group Common Stock",NASDAQ,Communication Services,Entertainment,9.2,nasdaq,2026-04-10,yfinance,True
+LLYVK,"Liberty Live Holdings, Inc. - Series C Liberty Live Group Common Stock",NASDAQ,Communication Services,Entertainment,9.3,nasdaq,2026-04-10,yfinance,True
+LMT,Lockheed Martin Corporation,NYSE,Industrials,Aerospace & Defense,115.9,sp500,2026-04-10,numerai,True
+LNT,Alliant Energy Corporation,NASDAQ,Utilities,Utilities - Regulated Electric,15.1,"sp500,nasdaq",2026-04-10,numerai,True
+LOGI,Logitech International S.A. - Registered Shares,NASDAQ,Technology,Computer Hardware,13.4,nasdaq,2026-04-10,yfinance,True
+LOPE,"Grand Canyon Education, Inc. - Common Stock",NASDAQ,Consumer Defensive,Education & Training Services,4.7,nasdaq,2026-04-10,numerai,True
+LOW,"Lowe's Companies, Inc.",NYSE,Consumer Cyclical,Home Improvement Retail,139.9,sp500,2026-04-10,numerai,True
+LPLA,LPL Financial Holdings Inc. - Common Stock,NASDAQ,Financial Services,Capital Markets,25.2,nasdaq,2026-04-10,numerai,True
+LQDT,"Liquidity Services, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Internet Retail,1.0,nasdaq,2026-04-10,yfinance,True
+LRCX,Lam Research Corporation,NASDAQ,Technology,Semiconductor Equipment & Materials,92.4,"sp500,nasdaq",2026-04-10,numerai,True
+LSCC,Lattice Semiconductor Corporation - Common Stock,NASDAQ,Technology,Semiconductors,14.5,nasdaq,2026-04-10,numerai,True
+LSTR,"Landstar System, Inc. - Common Stock",NASDAQ,Industrials,Integrated Freight & Logistics,5.8,nasdaq,2026-04-10,numerai,True
+LULU,lululemon athletica inc.,NASDAQ,Consumer Cyclical,Apparel Retail,46.2,"sp500,nasdaq",2026-04-10,numerai,True
+LUV,Southwest Airlines Company,NYSE,Industrials,Airlines,20.0,sp500,2026-04-10,numerai,True
+LVS,Las Vegas Sands Corp.,NYSE,Consumer Cyclical,Resorts & Casinos,37.9,sp500,2026-04-10,numerai,True
+LW,"Lamb Weston Holdings, Inc.",NYSE,Consumer Defensive,Packaged Foods,8.9,sp500,2026-04-10,numerai,True
+LYB,LyondellBasell Industries NV,NYSE,Basic Materials,Specialty Chemicals,23.9,sp500,2026-04-10,numerai,True
+LYFT,"Lyft, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,5.3,nasdaq,2026-04-10,numerai,True
+LYV,"Live Nation Entertainment, Inc.",NYSE,Communication Services,Entertainment,30.7,sp500,2026-04-10,numerai,True
+LZ,"LegalZoom.com, Inc. - Common Stock",NASDAQ,Industrials,Specialty Business Services,1.0,nasdaq,2026-04-10,yfinance,True
+MA,Mastercard Incorporated,NYSE,Financial Services,Credit Services,484.6,sp500,2026-04-10,numerai,True
+MAA,Mid-America Apartment Communiti,NYSE,Real Estate,REIT - Residential,18.4,sp500,2026-04-10,yfinance,True
+MANH,"Manhattan Associates, Inc. - Common Stock",NASDAQ,Technology,Software - Application,7.5,nasdaq,2026-04-10,numerai,True
+MAR,Marriott International,NASDAQ,Consumer Cyclical,Lodging,78.9,"sp500,nasdaq",2026-04-10,numerai,True
+MAS,Masco Corporation,NYSE,Industrials,Building Products & Equipment,16.0,sp500,2026-04-10,numerai,True
+MASI,Masimo Corporation - Common Stock,NASDAQ,Healthcare,Medical Devices,9.3,nasdaq,2026-04-10,numerai,True
+MAT,"Mattel, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Leisure,4.6,nasdaq,2026-04-10,numerai,True
+MBLY,Mobileye Global Inc. - Class A Common Stock,NASDAQ,Consumer Cyclical,Auto Parts,6.1,nasdaq,2026-04-10,yfinance,True
+MBX,"MBX Biosciences, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.6,nasdaq,2026-04-10,yfinance,True
+MCD,McDonald's Corporation,NYSE,Consumer Cyclical,Restaurants,209.7,"sp500,dow",2026-04-10,numerai,True
+MCHB,Mechanics Bancorp - Class A Common Stock,NASDAQ,Financial Services,Banks - Regional,3.4,nasdaq,2026-04-10,yfinance,True
+MCHP,Microchip Technology Incorporat,NASDAQ,Technology,Semiconductors,29.8,"sp500,nasdaq",2026-04-10,numerai,True
+MCK,McKesson Corporation,NYSE,Healthcare,Medical Distribution,73.6,sp500,2026-04-10,numerai,True
+MCO,Moody's Corporation,NYSE,Financial Services,Financial Data & Stock Exchanges,84.5,sp500,2026-04-10,numerai,True
+MCRI,"Monarch Casino & Resort, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Resorts & Casinos,1.8,nasdaq,2026-04-10,numerai,True
+MCW,"Mister Car Wash, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Auto & Truck Dealerships,2.3,nasdaq,2026-04-10,yfinance,True
+MDGL,"Madrigal Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,12.0,nasdaq,2026-04-10,numerai,True
+MDLN,Medline Inc. - Class A common stock,NASDAQ,Healthcare,Medical Instruments & Supplies,37.1,nasdaq,2026-04-10,yfinance,True
+MDLZ,"Mondelez International, Inc.",NASDAQ,Consumer Defensive,Confectioners,79.4,"sp500,nasdaq",2026-04-10,numerai,True
+MDT,Medtronic plc.,NYSE,Healthcare,Medical Devices,103.9,sp500,2026-04-10,numerai,True
+MEDP,"Medpace Holdings, Inc. - Common Stock",NASDAQ,Healthcare,Diagnostics & Research,14.3,nasdaq,2026-04-10,numerai,True
+MELI,"MercadoLibre, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Internet Retail,90.9,nasdaq,2026-04-10,yfinance,True
+MEOH,Methanex Corporation - Common Stock,NASDAQ,Basic Materials,Chemicals,4.5,nasdaq,2026-04-10,yfinance,True
+MESO,Mesoblast Limited - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,1.9,nasdaq,2026-04-10,yfinance,True
+MET,"MetLife, Inc.",NYSE,Financial Services,Insurance - Life,56.3,sp500,2026-04-10,numerai,True
+META,"Meta Platforms, Inc.",NASDAQ,Communication Services,Internet Content & Information,1477.5,"sp500,nasdaq",2026-04-10,numerai,True
+MFIC,MidCap Financial Investment Corporation - Closed End Fund,NASDAQ,Financial Services,Asset Management,1.1,nasdaq,2026-04-10,yfinance,True
+MGEE,MGE Energy Inc. - Common Stock,NASDAQ,Utilities,Utilities - Regulated Electric,3.0,nasdaq,2026-04-10,yfinance,True
+MGM,MGM Resorts International,NYSE,Consumer Cyclical,Resorts & Casinos,10.2,sp500,2026-04-10,numerai,True
+MGNI,"Magnite, Inc. - Common Stock",NASDAQ,Communication Services,Advertising Agencies,1.7,nasdaq,2026-04-10,numerai,True
+MGRC,McGrath RentCorp - Common Stock,NASDAQ,Industrials,Rental & Leasing Services,2.8,nasdaq,2026-04-10,numerai,True
+MHK,"Mohawk Industries, Inc.",NYSE,Consumer Cyclical,"Furnishings, Fixtures & Appliances",7.5,sp500,2026-04-10,numerai,True
+MIDD,The Middleby Corporation - Common Stock,NASDAQ,Industrials,Specialty Industrial Machinery,6.9,nasdaq,2026-04-10,numerai,True
+MKC,"McCormick & Company, Incorporat",NYSE,Consumer Defensive,Packaged Foods,21.2,sp500,2026-04-10,numerai,True
+MKSI,MKS Inc. - Common Stock,NASDAQ,Technology,Scientific & Technical Instruments,17.7,nasdaq,2026-04-10,numerai,True
+MKTX,"MarketAxess Holdings, Inc.",NASDAQ,Financial Services,Capital Markets,8.7,"sp500,nasdaq",2026-04-10,numerai,True
+MLCO,Melco Resorts & Entertainment Limited - American Depositary Shares,NASDAQ,Consumer Cyclical,Resorts & Casinos,2.3,nasdaq,2026-04-10,yfinance,True
+MLKN,"MillerKnoll, Inc. - Common Stock",NASDAQ,Consumer Cyclical,"Furnishings, Fixtures & Appliances",1.0,nasdaq,2026-04-10,numerai,True
+MLM,"Martin Marietta Materials, Inc.",NYSE,Basic Materials,Building Materials,32.6,sp500,2026-04-10,numerai,True
+MLYS,"Mineralys Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.2,nasdaq,2026-04-10,yfinance,True
+MMC,"Marsh & McLennan Companies, Inc",NYSE,Financial Services,Insurance Brokers,104.0,sp500,2026-04-10,numerai,True
+MMED,"MiniMed Group, Inc. - Common Stock",NASDAQ,Healthcare,Health Information Services,3.9,nasdaq,2026-04-10,yfinance,True
+MMM,3M Company,NYSE,Industrials,Conglomerates,70.4,"sp500,dow",2026-04-10,numerai,True
+MMSI,"Merit Medical Systems, Inc. - Common Stock",NASDAQ,Healthcare,Medical Instruments & Supplies,4.1,nasdaq,2026-04-10,numerai,True
+MMYT,MakeMyTrip Limited - Ordinary Shares,NASDAQ,Consumer Cyclical,Travel Services,4.0,nasdaq,2026-04-10,yfinance,True
+MNDY,monday.com Ltd. - Ordinary Shares,NASDAQ,Technology,Software - Application,3.2,nasdaq,2026-04-10,yfinance,True
+MNST,Monster Beverage Corporation,NASDAQ,Consumer Defensive,Beverages - Non-Alcoholic,50.3,"sp500,nasdaq",2026-04-10,numerai,True
+MO,"Altria Group, Inc.",NYSE,Consumer Defensive,Tobacco,91.2,sp500,2026-04-10,numerai,True
+MOH,Molina Healthcare Inc,NYSE,Healthcare,Healthcare Plans,16.9,sp500,2026-04-10,numerai,True
+MORN,"Morningstar, Inc. - Common Stock",NASDAQ,Financial Services,Financial Data & Stock Exchanges,6.8,nasdaq,2026-04-10,yfinance,True
+MOS,Mosaic Company (The),NYSE,Basic Materials,Agricultural Inputs,7.6,sp500,2026-04-10,numerai,True
+MPC,Marathon Petroleum Corporation,NYSE,Energy,Oil & Gas Refining & Marketing,42.9,sp500,2026-04-10,numerai,True
+MPLT,"MapLight Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.3,nasdaq,2026-04-10,yfinance,True
+MPWR,"Monolithic Power Systems, Inc.",NASDAQ,Technology,Semiconductors,28.9,"sp500,nasdaq",2026-04-10,numerai,True
+MQ,"Marqeta, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Infrastructure,1.8,nasdaq,2026-04-10,yfinance,True
+MRCY,Mercury Systems Inc - Common Stock,NASDAQ,Industrials,Aerospace & Defense,4.8,nasdaq,2026-04-10,numerai,True
+MRK,"Merck & Company, Inc.",NYSE,Healthcare,Drug Manufacturers - General,248.0,"sp500,dow",2026-04-10,numerai,True
+MRNA,"Moderna, Inc.",NASDAQ,Healthcare,Biotechnology,15.2,"sp500,nasdaq",2026-04-10,numerai,True
+MRTN,"Marten Transport, Ltd. - Common Stock",NASDAQ,Industrials,Trucking,1.1,nasdaq,2026-04-10,numerai,True
+MRVI,"Maravai LifeSciences Holdings, Inc. - Class A common stock",NASDAQ,Healthcare,Biotechnology,1.1,nasdaq,2026-04-10,numerai,True
+MRVL,"Marvell Technology, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,104.9,nasdaq,2026-04-10,numerai,True
+MRX,Marex Group plc - Ordinary Shares,NASDAQ,Financial Services,Capital Markets,3.6,nasdaq,2026-04-10,yfinance,True
+MS,Morgan Stanley,NYSE,Financial Services,Capital Markets,198.9,sp500,2026-04-10,numerai,True
+MSCI,MSCI Inc.,NYSE,Financial Services,Financial Data & Stock Exchanges,47.4,sp500,2026-04-10,numerai,True
+MSEX,Middlesex Water Company - Common Stock,NASDAQ,Utilities,Utilities - Regulated Water,1.0,nasdaq,2026-04-10,numerai,True
+MSFT,Microsoft Corporation,NASDAQ,Technology,Software - Infrastructure,3246.1,"sp500,nasdaq,dow",2026-04-10,numerai,True
+MSI,"Motorola Solutions, Inc.",NYSE,Technology,Communication Equipment,78.5,sp500,2026-04-10,numerai,True
+MSTR,Strategy Inc - Class A Common Stock,NASDAQ,Technology,Software - Application,44.7,nasdaq,2026-04-10,numerai,True
+MTB,M&T Bank Corporation,NYSE,Financial Services,Banks - Regional,31.4,sp500,2026-04-10,numerai,True
+MTCH,"Match Group, Inc.",NASDAQ,Communication Services,Internet Content & Information,8.5,"sp500,nasdaq",2026-04-10,numerai,True
+MTD,"Mettler-Toledo International, I",NYSE,Healthcare,Diagnostics & Research,26.0,sp500,2026-04-10,numerai,True
+MTSI,"MACOM Technology Solutions Holdings, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,18.6,nasdaq,2026-04-10,numerai,True
+MU,"Micron Technology, Inc.",NASDAQ,Technology,Semiconductors,100.4,"sp500,nasdaq",2026-04-10,numerai,True
+MWH,"SOLV Energy, Inc. - Class A common stock",NASDAQ,Utilities,Utilities - Renewable,6.1,nasdaq,2026-04-10,yfinance,True
+MXL,"MaxLinear, Inc - Common Stock",NASDAQ,Technology,Semiconductors,1.8,nasdaq,2026-04-10,numerai,True
+MYRG,"MYR Group, Inc. - Common Stock",NASDAQ,Industrials,Engineering & Construction,4.9,nasdaq,2026-04-10,numerai,True
+MZTI,The Marzetti Company - Common Stock,NASDAQ,Consumer Defensive,Packaged Foods,4.0,nasdaq,2026-04-10,yfinance,True
+NAVN,"Navan, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,3.1,nasdaq,2026-04-10,yfinance,True
+NBIS,Nebius Group N.V. - Class A Ordinary Shares,NASDAQ,Communication Services,Internet Content & Information,34.5,nasdaq,2026-04-10,yfinance,True
+NBIX,"Neurocrine Biosciences, Inc. - Common Stock",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,13.2,nasdaq,2026-04-10,numerai,True
+NBTB,NBT Bancorp Inc. - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.4,nasdaq,2026-04-10,numerai,True
+NBTX,Nanobiotix S.A. - ADSs,NASDAQ,Healthcare,Biotechnology,1.5,nasdaq,2026-04-10,yfinance,True
+NCLH,Norwegian Cruise Line Holdings,NYSE,Consumer Cyclical,Travel Services,11.8,sp500,2026-04-10,numerai,True
+NCNO,"nCino, Inc. - Common Stock",NASDAQ,Technology,Software - Application,2.0,nasdaq,2026-04-10,numerai,True
+NDAQ,"Nasdaq, Inc.",NASDAQ,Financial Services,Financial Data & Stock Exchanges,44.7,"sp500,nasdaq",2026-04-10,numerai,True
+NDSN,Nordson Corporation,NASDAQ,Industrials,Specialty Industrial Machinery,12.0,"sp500,nasdaq",2026-04-10,numerai,True
+NEE,"NextEra Energy, Inc.",NYSE,Utilities,Utilities - Regulated Electric,147.4,sp500,2026-04-10,numerai,True
+NEM,Newmont Corporation,NYSE,Basic Materials,Gold,43.6,sp500,2026-04-10,numerai,True
+NEOG,Neogen Corporation - Common Stock,NASDAQ,Healthcare,Medical Devices,2.2,nasdaq,2026-04-10,numerai,True
+NFLX,"Netflix, Inc.",NASDAQ,Communication Services,Entertainment,388.6,"sp500,nasdaq",2026-04-10,numerai,True
+NI,NiSource Inc,NYSE,Utilities,Utilities - Regulated Gas,16.9,sp500,2026-04-10,numerai,True
+NICE,NICE Ltd - American Depositary Shares each representing one Ordinary Share,NASDAQ,Technology,Software - Application,6.4,nasdaq,2026-04-10,yfinance,True
+NKE,"Nike, Inc.",NYSE,Consumer Cyclical,Footwear & Accessories,114.5,"sp500,dow",2026-04-10,numerai,True
+NMRK,"Newmark Group, Inc. - Class A Common Stock",NASDAQ,Real Estate,Real Estate Services,3.9,nasdaq,2026-04-10,numerai,True
+NOC,Northrop Grumman Corporation,NYSE,Industrials,Aerospace & Defense,68.4,sp500,2026-04-10,numerai,True
+NOVT,Novanta Inc. - Common Shares,NASDAQ,Technology,Scientific & Technical Instruments,4.4,nasdaq,2026-04-10,numerai,True
+NOW,"ServiceNow, Inc.",NYSE,Technology,Software - Application,225.1,sp500,2026-04-10,numerai,True
+NRG,"NRG Energy, Inc.",NYSE,Utilities,Utilities - Independent Power Producers,18.3,sp500,2026-04-10,numerai,True
+NSC,Norfolk Southern Corporation,NYSE,Industrials,Railroads,53.0,sp500,2026-04-10,numerai,True
+NSIT,"Insight Enterprises, Inc. - Common Stock",NASDAQ,Technology,Electronics & Computer Distribution,2.2,nasdaq,2026-04-10,numerai,True
+NSSC,"NAPCO Security Technologies, Inc. - Common Stock",NASDAQ,Industrials,Security & Protection Services,1.5,nasdaq,2026-04-10,numerai,True
+NTAP,"NetApp, Inc.",NASDAQ,Technology,Computer Hardware,24.1,"sp500,nasdaq",2026-04-10,numerai,True
+NTCT,"NetScout Systems, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,2.4,nasdaq,2026-04-10,numerai,True
+NTES,"NetEase, Inc. - American Depositary Shares, each representing 5 ordinary shares",NASDAQ,Communication Services,Electronic Gaming & Multimedia,72.8,nasdaq,2026-04-10,yfinance,True
+NTNX,"Nutanix, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Infrastructure,10.0,nasdaq,2026-04-10,numerai,True
+NTRA,"Natera, Inc. - Common Stock",NASDAQ,Healthcare,Diagnostics & Research,28.8,nasdaq,2026-04-10,numerai,True
+NTRS,Northern Trust Corporation,NASDAQ,Financial Services,Asset Management,20.3,"sp500,nasdaq",2026-04-10,numerai,True
+NTSK,"Netskope, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Infrastructure,3.4,nasdaq,2026-04-10,yfinance,True
+NUE,Nucor Corporation,NYSE,Basic Materials,Steel,27.4,sp500,2026-04-10,numerai,True
+NUVL,"Nuvalent, Inc. - Class A Common Stock",NASDAQ,Healthcare,Biotechnology,8.2,nasdaq,2026-04-10,yfinance,True
+NVAX,"Novavax, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.4,nasdaq,2026-04-10,numerai,True
+NVCR,NovoCure Limited - Ordinary Shares,NASDAQ,Healthcare,Medical Devices,1.3,nasdaq,2026-04-10,numerai,True
+NVDA,NVIDIA Corporation,NASDAQ,Technology,Semiconductors,3298.8,"sp500,nasdaq",2026-04-10,numerai,True
+NVMI,Nova Ltd. - Ordinary Shares,NASDAQ,Technology,Semiconductor Equipment & Materials,15.7,nasdaq,2026-04-10,yfinance,True
+NVR,"NVR, Inc.",NYSE,Consumer Cyclical,Residential Construction,25.4,sp500,2026-04-10,numerai,True
+NWBI,"Northwest Bancshares, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,2.0,nasdaq,2026-04-10,numerai,True
+NWE,"NorthWestern Energy Group, Inc.  - Common Stock",NASDAQ,Utilities,Utilities - Regulated Electric,4.3,nasdaq,2026-04-10,numerai,True
+NWL,Newell Brands Inc. - Common Stock,NASDAQ,Consumer Defensive,Household & Personal Products,1.7,nasdaq,2026-04-10,numerai,True
+NWS,News Corporation,NASDAQ,Communication Services,Entertainment,16.4,"sp500,nasdaq",2026-04-10,yfinance,True
+NWSA,News Corporation,NASDAQ,Communication Services,Entertainment,16.4,"sp500,nasdaq",2026-04-10,numerai,True
+NXPI,NXP Semiconductors N.V.,NASDAQ,Technology,Semiconductors,53.4,"sp500,nasdaq",2026-04-10,numerai,True
+NXST,"Nexstar Media Group, Inc. - Common Stock",NASDAQ,Communication Services,Broadcasting,5.4,nasdaq,2026-04-10,numerai,True
+NXT,Nextpower Inc. - Class A Common Stock,NASDAQ,Technology,Solar,17.1,nasdaq,2026-04-10,yfinance,True
+NYAX,Nayax Ltd. - Ordinary Shares,NASDAQ,Technology,Software - Infrastructure,2.1,nasdaq,2026-04-10,yfinance,True
+O,Realty Income Corporation,NYSE,Real Estate,REIT - Retail,46.2,sp500,2026-04-10,yfinance,True
+OCFC,OceanFirst Financial Corp. - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.1,nasdaq,2026-04-10,numerai,True
+OCSL,Oaktree Specialty Lending Corporation - Closed End Fund,NASDAQ,Financial Services,Asset Management,1.0,nasdaq,2026-04-10,yfinance,True
+ODFL,"Old Dominion Freight Line, Inc.",NASDAQ,Industrials,Trucking,38.7,"sp500,nasdaq",2026-04-10,numerai,True
+OKE,"ONEOK, Inc.",NYSE,Energy,Oil & Gas Midstream,58.5,sp500,2026-04-10,numerai,True
+OKTA,"Okta, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Infrastructure,12.0,nasdaq,2026-04-10,numerai,True
+OLED,Universal Display Corporation - Common Stock,NASDAQ,Technology,Electronic Components,4.4,nasdaq,2026-04-10,numerai,True
+OLMA,"Olema Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.5,nasdaq,2026-04-10,numerai,True
+OLPX,"Olaplex Holdings, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Specialty Retail,1.4,nasdaq,2026-04-10,yfinance,True
+OMAB,Grupo Aeroportuario del Centro Norte S.A.B. de C.V. - American Depositary Shares,NASDAQ,Industrials,Airports & Air Services,5.7,nasdaq,2026-04-10,yfinance,True
+OMC,Omnicom Group Inc.,NYSE,Communication Services,Advertising Agencies,17.5,sp500,2026-04-10,numerai,True
+OMCL,"Omnicell, Inc. - Common Stock",NASDAQ,Healthcare,Health Information Services,1.6,nasdaq,2026-04-10,numerai,True
+ON,ON Semiconductor Corporation,NASDAQ,Technology,Semiconductors,27.9,"sp500,nasdaq",2026-04-10,numerai,True
+ONB,Old National Bancorp - Common Stock,NASDAQ,Financial Services,Banks - Regional,9.2,nasdaq,2026-04-10,numerai,True
+ONC,BeOne Medicines Ltd. - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,36.0,nasdaq,2026-04-10,yfinance,True
+OPCH,"Option Care Health, Inc. - Common Stock",NASDAQ,Healthcare,Medical Care Facilities,4.6,nasdaq,2026-04-10,numerai,True
+OPEN,Opendoor Technologies Inc  - Common Stock,NASDAQ,Real Estate,Real Estate Services,4.1,nasdaq,2026-04-10,numerai,True
+OPRA,Opera Limited - American Depositary Shares,NASDAQ,Communication Services,Internet Content & Information,1.4,nasdaq,2026-04-10,yfinance,True
+ORCL,Oracle Corporation,NYSE,Technology,Software - Infrastructure,474.5,sp500,2026-04-10,numerai,True
+ORIC,"Oric Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.2,nasdaq,2026-04-10,numerai,True
+ORLY,"O'Reilly Automotive, Inc.",NASDAQ,Consumer Cyclical,Specialty Retail,70.4,"sp500,nasdaq",2026-04-10,numerai,True
+OSBC,"Old Second Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.1,nasdaq,2026-04-10,numerai,True
+OSIS,"OSI Systems, Inc. - Common Stock",NASDAQ,Technology,Electronic Components,5.0,nasdaq,2026-04-10,numerai,True
+OTEX,Open Text Corporation - Common Shares,NASDAQ,Technology,Software - Application,5.2,nasdaq,2026-04-10,yfinance,True
+OTIS,Otis Worldwide Corporation,NYSE,Industrials,Specialty Industrial Machinery,37.4,sp500,2026-04-10,numerai,True
+OTTR,Otter Tail Corporation - Common Stock,NASDAQ,Industrials,Conglomerates,3.8,nasdaq,2026-04-10,numerai,True
+OUST,"Ouster, Inc. - Common Stock",NASDAQ,Technology,Electronic Components,1.3,nasdaq,2026-04-10,numerai,True
+OXY,Occidental Petroleum Corporatio,NYSE,Energy,Oil & Gas E&P,44.2,sp500,2026-04-10,numerai,True
+OZK,Bank OZK - Common Stock,NASDAQ,Financial Services,Banks - Regional,5.4,nasdaq,2026-04-10,numerai,True
+PAA,"Plains All American Pipeline, L.P. - Common Units representing Limited Partner I",NASDAQ,Energy,Oil & Gas Midstream,15.4,nasdaq,2026-04-10,yfinance,True
+PAGP,"Plains GP Holdings, L.P. - Class A Shares representing limited partner interests",NASDAQ,Energy,Oil & Gas Midstream,5.5,nasdaq,2026-04-10,yfinance,True
+PANW,"Palo Alto Networks, Inc.",NASDAQ,Technology,Software - Infrastructure,122.6,"sp500,nasdaq",2026-04-10,numerai,True
+PARA,Paramount Global,NASDAQ,Communication Services,Entertainment,7.6,sp500,2026-04-10,yfinance,True
+PATK,"Patrick Industries, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Recreational Vehicles,3.9,nasdaq,2026-04-10,numerai,True
+PAX,Patria Investments Limited - Class A Common Shares,NASDAQ,Financial Services,Asset Management,2.0,nasdaq,2026-04-10,yfinance,True
+PAYC,"Paycom Software, Inc.",NYSE,Technology,Software - Application,11.9,sp500,2026-04-10,numerai,True
+PAYP,PayPay Corporation - American Depository Shares,NASDAQ,Technology,Software - Infrastructure,14.1,nasdaq,2026-04-10,yfinance,True
+PAYX,"Paychex, Inc.",NASDAQ,Technology,Software - Application,50.2,"sp500,nasdaq",2026-04-10,numerai,True
+PCAR,PACCAR Inc.,NASDAQ,Industrials,Farm & Heavy Construction Machinery,55.2,"sp500,nasdaq",2026-04-10,numerai,True
+PCG,Pacific Gas & Electric Co.,NYSE,Utilities,Utilities - Regulated Electric,43.5,sp500,2026-04-10,numerai,True
+PCRX,"Pacira BioSciences, Inc. - Common Stock",NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,1.0,nasdaq,2026-04-10,numerai,True
+PCTY,Paylocity Holding Corporation - Common Stock,NASDAQ,Technology,Software - Application,5.2,nasdaq,2026-04-10,numerai,True
+PCVX,"Vaxcyte, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,9.0,nasdaq,2026-04-10,numerai,True
+PDD,PDD Holdings Inc. - American Depositary Shares,NASDAQ,Consumer Cyclical,Internet Retail,142.8,nasdaq,2026-04-10,yfinance,True
+PDFS,"PDF Solutions, Inc. - Common Stock",NASDAQ,Technology,Software - Application,1.5,nasdaq,2026-04-10,numerai,True
+PEBO,Peoples Bancorp Inc. - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.2,nasdaq,2026-04-10,numerai,True
+PECO,"Phillips Edison & Company, Inc. - Common Stock",NASDAQ,Real Estate,REIT - Retail,5.4,nasdaq,2026-04-10,yfinance,True
+PEG,Public Service Enterprise Group,NYSE,Utilities,Utilities - Regulated Electric,42.4,sp500,2026-04-10,numerai,True
+PEGA,Pegasystems Inc. - Common Stock,NASDAQ,Technology,Software - Application,6.8,nasdaq,2026-04-10,numerai,True
+PENG,"Penguin Solutions, Inc. - Common Stock",NASDAQ,Technology,Information Technology Services,1.2,nasdaq,2026-04-10,yfinance,True
+PENN,"PENN Entertainment, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Resorts & Casinos,2.1,nasdaq,2026-04-10,numerai,True
+PEP,"Pepsico, Inc.",NASDAQ,Consumer Defensive,Beverages - Non-Alcoholic,209.6,"sp500,nasdaq",2026-04-10,numerai,True
+PFBC,Preferred Bank - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.2,nasdaq,2026-04-10,numerai,True
+PFE,"Pfizer, Inc.",NYSE,Healthcare,Drug Manufacturers - General,149.4,sp500,2026-04-10,numerai,True
+PFG,Principal Financial Group Inc,NASDAQ,Financial Services,Asset Management,17.7,"sp500,nasdaq",2026-04-10,numerai,True
+PG,Procter & Gamble Company (The),NYSE,Consumer Defensive,Household & Personal Products,395.8,"sp500,dow",2026-04-10,numerai,True
+PGEN,"Precigen, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.5,nasdaq,2026-04-10,numerai,True
+PGNY,"Progyny, Inc. - Common Stock",NASDAQ,Healthcare,Healthcare Plans,1.4,nasdaq,2026-04-10,numerai,True
+PGR,Progressive Corporation (The),NYSE,Financial Services,Insurance - Property & Casualty,140.6,sp500,2026-04-10,numerai,True
+PH,Parker-Hannifin Corporation,NYSE,Industrials,Specialty Industrial Machinery,83.3,sp500,2026-04-10,numerai,True
+PHAT,"Phathom Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.0,nasdaq,2026-04-10,numerai,True
+PHM,"PulteGroup, Inc.",NYSE,Consumer Cyclical,Residential Construction,22.7,sp500,2026-04-10,numerai,True
+PHVS,Pharvaris N.V. - Ordinary Shares,NASDAQ,Healthcare,Biotechnology,1.8,nasdaq,2026-04-10,yfinance,True
+PI,"Impinj, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,3.2,nasdaq,2026-04-10,numerai,True
+PICS,PicS N.V. - Class A Common Shares,NASDAQ,Technology,Software - Infrastructure,1.5,nasdaq,2026-04-10,yfinance,True
+PKG,Packaging Corporation of Americ,NYSE,Consumer Cyclical,Packaging & Containers,20.5,sp500,2026-04-10,numerai,True
+PLAB,"Photronics, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,2.6,nasdaq,2026-04-10,numerai,True
+PLD,"Prologis, Inc.",NYSE,Real Estate,REIT - Industrial,95.7,sp500,2026-04-10,yfinance,True
+PLMR,"Palomar Holdings, Inc. - Common stock",NASDAQ,Financial Services,Insurance - Property & Casualty,3.6,nasdaq,2026-04-10,numerai,True
+PLPC,Preformed Line Products Company - Common Stock,NASDAQ,Industrials,Electrical Equipment & Parts,1.6,nasdaq,2026-04-10,yfinance,True
+PLTK,Playtika Holding Corp. - Common Stock,NASDAQ,Communication Services,Electronic Gaming & Multimedia,1.2,nasdaq,2026-04-10,numerai,True
+PLTR,Palantir Technologies Inc.,NASDAQ,Technology,Software - Infrastructure,183.5,"sp500,nasdaq",2026-04-10,numerai,True
+PLUS,ePlus inc. - Common Stock,NASDAQ,Technology,Software - Application,2.2,nasdaq,2026-04-10,numerai,True
+PLXS,Plexus Corp. - Common Stock,NASDAQ,Technology,Electronic Components,6.0,nasdaq,2026-04-10,numerai,True
+PM,Philip Morris International Inc,NYSE,Consumer Defensive,Tobacco,193.1,sp500,2026-04-10,numerai,True
+PNC,"PNC Financial Services Group, I",NYSE,Financial Services,Banks - Regional,76.5,sp500,2026-04-10,numerai,True
+PNR,Pentair plc.,NYSE,Industrials,Specialty Industrial Machinery,16.8,sp500,2026-04-10,numerai,True
+PNTG,"The Pennant Group, Inc. - Common Stock",NASDAQ,Healthcare,Medical Care Facilities,1.1,nasdaq,2026-04-10,numerai,True
+PNW,Pinnacle West Capital Corporati,NYSE,Utilities,Utilities - Regulated Electric,9.7,sp500,2026-04-10,numerai,True
+PODD,Insulet Corporation,NASDAQ,Healthcare,Medical Devices,18.7,"sp500,nasdaq",2026-04-10,numerai,True
+PONY,Pony AI Inc. - American Depositary Shares,NASDAQ,Technology,Information Technology Services,4.1,nasdaq,2026-04-10,yfinance,True
+POOL,Pool Corporation,NASDAQ,Industrials,Industrial Distribution,13.3,"sp500,nasdaq",2026-04-10,numerai,True
+POWI,"Power Integrations, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,3.0,nasdaq,2026-04-10,numerai,True
+POWL,"Powell Industries, Inc. - Common Stock",NASDAQ,Industrials,Electrical Equipment & Parts,8.4,nasdaq,2026-04-10,numerai,True
+PPC,Pilgrim's Pride Corporation - Common Stock,NASDAQ,Consumer Defensive,Packaged Foods,8.6,nasdaq,2026-04-10,numerai,True
+PPG,"PPG Industries, Inc.",NYSE,Basic Materials,Specialty Chemicals,27.9,sp500,2026-04-10,numerai,True
+PPL,PPL Corporation,NYSE,Utilities,Utilities - Regulated Electric,23.9,sp500,2026-04-10,numerai,True
+PRAX,"Praxis Precision Medicines, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,8.9,nasdaq,2026-04-10,numerai,True
+PRDO,Perdoceo Education Corporation - Common Stock,NASDAQ,Consumer Defensive,Education & Training Services,2.3,nasdaq,2026-04-10,yfinance,True
+PRGS,Progress Software Corporation - Common Stock,NASDAQ,Technology,Software - Infrastructure,1.2,nasdaq,2026-04-10,numerai,True
+PRU,"Prudential Financial, Inc.",NYSE,Financial Services,Insurance - Life,41.9,sp500,2026-04-10,numerai,True
+PRVA,"Privia Health Group, Inc. - Common Stock",NASDAQ,Healthcare,Health Information Services,2.9,nasdaq,2026-04-10,yfinance,True
+PSA,Public Storage,NYSE,Real Estate,REIT - Industrial,52.1,sp500,2026-04-10,yfinance,True
+PSEC,Prospect Capital Corporation - Closed End Fund,NASDAQ,Financial Services,Asset Management,1.3,nasdaq,2026-04-10,yfinance,True
+PSKY,Paramount Skydance Corporation - Class B Common Stock,NASDAQ,Communication Services,Entertainment,12.1,nasdaq,2026-04-10,yfinance,True
+PSMT,"PriceSmart, Inc. - Common Stock",NASDAQ,Consumer Defensive,Discount Stores,5.0,nasdaq,2026-04-10,yfinance,True
+PSX,Phillips 66,NYSE,Energy,Oil & Gas Refining & Marketing,45.6,sp500,2026-04-10,numerai,True
+PTC,PTC Inc.,NASDAQ,Technology,Software - Application,22.5,"sp500,nasdaq",2026-04-10,numerai,True
+PTCT,"PTC Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,5.9,nasdaq,2026-04-10,numerai,True
+PTEN,"Patterson-UTI Energy, Inc. - Common Stock",NASDAQ,Energy,Oil & Gas Drilling,3.8,nasdaq,2026-04-10,numerai,True
+PTON,"Peloton Interactive, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Leisure,2.0,nasdaq,2026-04-10,numerai,True
+PTRN,Pattern Group Inc. - Series A Common Stock,NASDAQ,Technology,Software - Application,2.5,nasdaq,2026-04-10,yfinance,True
+PWP,Perella Weinberg Partners - Class A Common Stock,NASDAQ,Financial Services,Capital Markets,1.9,nasdaq,2026-04-10,yfinance,True
+PWR,"Quanta Services, Inc.",NYSE,Industrials,Engineering & Construction,48.5,sp500,2026-04-10,numerai,True
+PYPL,"PayPal Holdings, Inc.",NASDAQ,Financial Services,Credit Services,87.4,"sp500,nasdaq",2026-04-10,numerai,True
+PZZA,"Papa John's International, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Restaurants,1.2,nasdaq,2026-04-10,numerai,True
+QCOM,QUALCOMM Incorporated,NASDAQ,Technology,Semiconductors,169.9,"sp500,nasdaq",2026-04-10,numerai,True
+QFIN,"Qfin Holdings, Inc.  - American Depositary Shares",NASDAQ,Financial Services,Credit Services,1.8,nasdaq,2026-04-10,yfinance,True
+QLYS,"Qualys, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,2.7,nasdaq,2026-04-10,numerai,True
+QQQX,Nuveen NASDAQ 100 Dynamic Overwrite Fund - Closed End Fund,NASDAQ,Financial Services,Asset Management,1.4,nasdaq,2026-04-10,yfinance,True
+QRVO,"Qorvo, Inc.",NASDAQ,Technology,Semiconductors,6.7,"sp500,nasdaq",2026-04-10,numerai,True
+QS,QuantumScape Corporation - Common Stock,NASDAQ,Consumer Cyclical,Auto Parts,3.8,nasdaq,2026-04-10,numerai,True
+QURE,uniQure N.V. - Ordinary Shares,NASDAQ,Healthcare,Biotechnology,1.0,nasdaq,2026-04-10,yfinance,True
+RARE,Ultragenyx Pharmaceutical Inc. - Common Stock,NASDAQ,Healthcare,Biotechnology,2.4,nasdaq,2026-04-10,numerai,True
+RBCAA,"Republic Bancorp, Inc. - Class A Common Stock",NASDAQ,Financial Services,Banks - Regional,1.5,nasdaq,2026-04-10,yfinance,True
+RCL,Royal Caribbean Cruises Ltd.,NYSE,Consumer Cyclical,Travel Services,64.1,sp500,2026-04-10,numerai,True
+RDWR,Radware Ltd. - Ordinary Shares,NASDAQ,Technology,Software - Infrastructure,1.1,nasdaq,2026-04-10,yfinance,True
+REAL,"The RealReal, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Luxury Goods,1.2,nasdaq,2026-04-10,numerai,True
+REG,Regency Centers Corporation,NASDAQ,Real Estate,REIT - Retail,13.5,"sp500,nasdaq",2026-04-10,yfinance,True
+REGN,"Regeneron Pharmaceuticals, Inc.",NASDAQ,Healthcare,Biotechnology,77.1,"sp500,nasdaq",2026-04-10,numerai,True
+RELY,"Remitly Global, Inc. - Common stock",NASDAQ,Technology,Software - Infrastructure,3.6,nasdaq,2026-04-10,yfinance,True
+REYN,Reynolds Consumer Products Inc. - Common Stock,NASDAQ,Consumer Cyclical,Packaging & Containers,4.7,nasdaq,2026-04-10,numerai,True
+RF,Regions Financial Corporation,NYSE,Financial Services,Banks - Regional,21.6,sp500,2026-04-10,numerai,True
+RGEN,Repligen Corporation - Common Stock,NASDAQ,Healthcare,Medical Instruments & Supplies,6.8,nasdaq,2026-04-10,numerai,True
+RGLD,"Royal Gold, Inc. - Common Stock",NASDAQ,Basic Materials,Gold,22.5,nasdaq,2026-04-10,numerai,True
+RIVN,"Rivian Automotive, Inc. - Class A Common Stock",NASDAQ,Consumer Cyclical,Auto Manufacturers,18.9,nasdaq,2026-04-10,yfinance,True
+RJF,"Raymond James Financial, Inc.",NYSE,Financial Services,Asset Management,31.6,sp500,2026-04-10,numerai,True
+RL,Ralph Lauren Corporation,NYSE,Consumer Cyclical,Apparel Manufacturing,14.3,sp500,2026-04-10,numerai,True
+RMBS,"Rambus, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,11.4,nasdaq,2026-04-10,numerai,True
+RMD,ResMed Inc.,NYSE,Healthcare,Medical Instruments & Supplies,34.8,sp500,2026-04-10,numerai,True
+RNW,ReNew Energy Global plc - Class A Shares,NASDAQ,Utilities,Utilities - Renewable,1.7,nasdaq,2026-04-10,yfinance,True
+ROAD,"Construction Partners, Inc. - Common Stock",NASDAQ,Industrials,Engineering & Construction,6.7,nasdaq,2026-04-10,numerai,True
+ROCK,"Gibraltar Industries, Inc. - Common Stock",NASDAQ,Industrials,Building Products & Equipment,1.2,nasdaq,2026-04-10,numerai,True
+ROIV,Roivant Sciences Ltd. - Common Shares,NASDAQ,Healthcare,Biotechnology,20.4,nasdaq,2026-04-10,yfinance,True
+ROK,"Rockwell Automation, Inc.",NYSE,Industrials,Specialty Industrial Machinery,32.8,sp500,2026-04-10,numerai,True
+ROKU,"Roku, Inc. - Class A Common Stock",NASDAQ,Communication Services,Entertainment,14.7,nasdaq,2026-04-10,numerai,True
+ROL,"Rollins, Inc.",NYSE,Consumer Cyclical,Personal Services,22.7,sp500,2026-04-10,numerai,True
+ROP,"Roper Technologies, Inc.",NASDAQ,Technology,Software - Application,56.3,"sp500,nasdaq",2026-04-10,numerai,True
+ROST,"Ross Stores, Inc.",NASDAQ,Consumer Cyclical,Apparel Retail,49.2,"sp500,nasdaq",2026-04-10,numerai,True
+RPRX,Royalty Pharma plc - Class A Ordinary Shares,NASDAQ,Healthcare,Biotechnology,27.9,nasdaq,2026-04-10,numerai,True
+RRR,"Red Rock Resorts, Inc. - Class A Common Stock",NASDAQ,Consumer Cyclical,Resorts & Casinos,5.8,nasdaq,2026-04-10,numerai,True
+RSG,"Republic Services, Inc.",NYSE,Industrials,Waste Management,63.8,sp500,2026-04-10,numerai,True
+RTX,RTX Corporation,NYSE,Industrials,Aerospace & Defense,155.0,sp500,2026-04-10,numerai,True
+RUN,Sunrun Inc. - Common Stock,NASDAQ,Technology,Solar,3.1,nasdaq,2026-04-10,numerai,True
+RUSHA,"Rush Enterprises, Inc. - Class A Common Stock",NASDAQ,Consumer Cyclical,Auto & Truck Dealerships,5.5,nasdaq,2026-04-10,numerai,True
+RUSHB,"Rush Enterprises, Inc. - Class B Common Stock",NASDAQ,Consumer Cyclical,Auto & Truck Dealerships,5.7,nasdaq,2026-04-10,yfinance,True
+RVMD,"Revolution Medicines, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,19.1,nasdaq,2026-04-10,numerai,True
+RVTY,"Revvity, Inc.",NYSE,Healthcare,Diagnostics & Research,13.7,sp500,2026-04-10,yfinance,True
+RXRX,"Recursion Pharmaceuticals, Inc. - Class A Common Stock",NASDAQ,Healthcare,Biotechnology,1.7,nasdaq,2026-04-10,yfinance,True
+RYAAY,"Ryanair Holdings plc - American Depositary Shares, each representing five Ordina",NASDAQ,Industrials,Airlines,33.2,nasdaq,2026-04-10,yfinance,True
+SAFT,"Safety Insurance Group, Inc. - Common Stock",NASDAQ,Financial Services,Insurance - Property & Casualty,1.1,nasdaq,2026-04-10,yfinance,True
+SAIA,"Saia, Inc. - Common Stock",NASDAQ,Industrials,Trucking,10.7,nasdaq,2026-04-10,numerai,True
+SAIC,Science Applications International Corporation - Common Stock,NASDAQ,Technology,Information Technology Services,4.3,nasdaq,2026-04-10,numerai,True
+SAIL,"SailPoint, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,6.2,nasdaq,2026-04-10,numerai,True
+SANM,Sanmina Corporation - Common Stock,NASDAQ,Technology,Electronic Components,7.7,nasdaq,2026-04-10,numerai,True
+SATS,EchoStar Corporation - Common stock,NASDAQ,Communication Services,Telecom Services,34.7,nasdaq,2026-04-10,numerai,True
+SBAC,SBA Communications Corporation,NASDAQ,Real Estate,REIT - Specialty,21.9,"sp500,nasdaq",2026-04-10,yfinance,True
+SBCF,Seacoast Banking Corporation of Florida - Common Stock,NASDAQ,Financial Services,Banks - Regional,3.2,nasdaq,2026-04-10,numerai,True
+SBLK,Star Bulk Carriers Corp. - Common Shares,NASDAQ,Industrials,Marine Shipping,2.8,nasdaq,2026-04-10,yfinance,True
+SBRA,"Sabra Health Care REIT, Inc. - Common Stock",NASDAQ,Real Estate,REIT - Healthcare Facilities,5.1,nasdaq,2026-04-10,yfinance,True
+SBUX,Starbucks Corporation,NASDAQ,Consumer Cyclical,Restaurants,99.7,"sp500,nasdaq",2026-04-10,numerai,True
+SCHL,Scholastic Corporation - Common Stock,NASDAQ,Communication Services,Publishing,1.0,nasdaq,2026-04-10,yfinance,True
+SCHW,Charles Schwab Corporation (The,NYSE,Financial Services,Capital Markets,136.0,sp500,2026-04-10,numerai,True
+SEDG,"SolarEdge Technologies, Inc. - Common Stock",NASDAQ,Technology,Solar,2.5,nasdaq,2026-04-10,yfinance,True
+SEIC,SEI Investments Company - Common Stock,NASDAQ,Financial Services,Asset Management,9.4,nasdaq,2026-04-10,numerai,True
+SENEA,Seneca Foods Corp. - Class A Common Stock,NASDAQ,Consumer Defensive,Packaged Foods,1.1,nasdaq,2026-04-10,yfinance,True
+SENEB,Seneca Foods Corp. - Class B Common Stock,NASDAQ,Consumer Defensive,Packaged Foods,1.0,nasdaq,2026-04-10,yfinance,True
+SFD,"Smithfield Foods, Inc. - Common Stock",NASDAQ,Consumer Defensive,Packaged Foods,11.6,nasdaq,2026-04-10,yfinance,True
+SFM,"Sprouts Farmers Market, Inc. - Common Stock",NASDAQ,Consumer Defensive,Grocery Stores,7.2,nasdaq,2026-04-10,numerai,True
+SFNC,Simmons First National Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,3.0,nasdaq,2026-04-10,numerai,True
+SGRY,"Surgery Partners, Inc. - Common Stock",NASDAQ,Healthcare,Medical Care Facilities,1.7,nasdaq,2026-04-10,numerai,True
+SHC,Sotera Health Company - Common Stock,NASDAQ,Healthcare,Diagnostics & Research,4.4,nasdaq,2026-04-10,numerai,True
+SHOO,"Steven Madden, Ltd. - Common Stock",NASDAQ,Consumer Cyclical,Footwear & Accessories,2.8,nasdaq,2026-04-10,numerai,True
+SHOP,Shopify Inc. - Class A Subordinate Voting Shares,NASDAQ,Technology,Software - Application,146.7,nasdaq,2026-04-10,yfinance,True
+SHW,Sherwin-Williams Company (The),NYSE,Basic Materials,Specialty Chemicals,87.0,sp500,2026-04-10,numerai,True
+SIGI,"Selective Insurance Group, Inc. - Common Stock",NASDAQ,Financial Services,Insurance - Property & Casualty,4.9,nasdaq,2026-04-10,numerai,True
+SIMO,"Silicon Motion Technology Corporation - American Depositary Shares, each represe",NASDAQ,Technology,Semiconductors,4.3,nasdaq,2026-04-10,yfinance,True
+SIRI,SiriusXM Holdings Inc. - Common Stock,NASDAQ,Communication Services,Entertainment,7.9,nasdaq,2026-04-10,numerai,True
+SJM,The J.M. Smucker Company,NYSE,Consumer Defensive,Packaged Foods,11.7,sp500,2026-04-10,numerai,True
+SKWD,"Skyward Specialty Insurance Group, Inc. - Common Stock",NASDAQ,Financial Services,Insurance - Property & Casualty,2.0,nasdaq,2026-04-10,yfinance,True
+SKYW,"SkyWest, Inc. - Common Stock",NASDAQ,Industrials,Airlines,3.8,nasdaq,2026-04-10,numerai,True
+SLAB,"Silicon Laboratories, Inc. - Common Stock",NASDAQ,Technology,Semiconductors,6.9,nasdaq,2026-04-10,numerai,True
+SLB,Schlumberger N.V.,NYSE,Energy,Oil & Gas Equipment & Services,52.0,sp500,2026-04-10,numerai,True
+SLDE,"Slide Insurance Holdings, Inc. - Common Stock",NASDAQ,Financial Services,Insurance - Property & Casualty,2.2,nasdaq,2026-04-10,yfinance,True
+SLM,SLM Corporation - Common Stock,NASDAQ,Financial Services,Credit Services,4.2,nasdaq,2026-04-10,numerai,True
+SMCI,"Super Micro Computer, Inc.",NASDAQ,Technology,Computer Hardware,18.5,"sp500,nasdaq",2026-04-10,numerai,True
+SMTC,Semtech Corporation - Common Stock,NASDAQ,Technology,Semiconductors,8.2,nasdaq,2026-04-10,numerai,True
+SNA,Snap-On Incorporated,NYSE,Industrials,Tools & Accessories,18.0,sp500,2026-04-10,numerai,True
+SNDK,Sandisk Corporation - Common Stock,NASDAQ,Technology,Computer Hardware,125.7,nasdaq,2026-04-10,yfinance,True
+SNDX,"Syndax Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.2,nasdaq,2026-04-10,numerai,True
+SNEX,StoneX Group Inc. - Common Stock,NASDAQ,Financial Services,Capital Markets,7.3,nasdaq,2026-04-10,yfinance,True
+SNPS,"Synopsys, Inc.",NASDAQ,Technology,Software - Infrastructure,76.1,"sp500,nasdaq",2026-04-10,numerai,True
+SNY,Sanofi - American Depositary Shares,NASDAQ,Healthcare,Drug Manufacturers - General,114.7,nasdaq,2026-04-10,yfinance,True
+SO,Southern Company (The),NYSE,Utilities,Utilities - Regulated Electric,90.8,sp500,2026-04-10,numerai,True
+SOFI,"SoFi Technologies, Inc.  - Common Stock",NASDAQ,Financial Services,Credit Services,20.7,nasdaq,2026-04-10,numerai,True
+SOLS,Solstice Advanced Materials Inc. - Common Stock,NASDAQ,Basic Materials,Specialty Chemicals,13.1,nasdaq,2026-04-10,yfinance,True
+SOLV,Solventum Corporation,NYSE,Healthcare,Health Information Services,11.5,sp500,2026-04-10,yfinance,True
+SONO,"Sonos, Inc. - Common Stock",NASDAQ,Technology,Consumer Electronics,1.6,nasdaq,2026-04-10,numerai,True
+SPG,"Simon Property Group, Inc.",NYSE,Real Estate,REIT - Retail,64.4,sp500,2026-04-10,yfinance,True
+SPGI,S&P Global Inc.,NYSE,Financial Services,Financial Data & Stock Exchanges,152.6,sp500,2026-04-10,numerai,True
+SPSC,"SPS Commerce, Inc. - Common Stock",NASDAQ,Technology,Software - Application,2.0,nasdaq,2026-04-10,numerai,True
+SRAD,Sportradar Group AG - Class A Ordinary Shares,NASDAQ,Technology,Software - Application,4.5,nasdaq,2026-04-10,yfinance,True
+SRCE,1st Source Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.8,nasdaq,2026-04-10,numerai,True
+SRE,DBA Sempra,NYSE,Utilities,Utilities - Diversified,55.0,sp500,2026-04-10,numerai,True
+SRPT,"Sarepta Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.3,nasdaq,2026-04-10,numerai,True
+SRRK,Scholar Rock Holding Corporation - Common Stock,NASDAQ,Healthcare,Biotechnology,5.7,nasdaq,2026-04-10,numerai,True
+SSNC,"SS&C Technologies Holdings, Inc. - Common Stock",NASDAQ,Technology,Software - Application,16.5,nasdaq,2026-04-10,numerai,True
+SSRM,SSR Mining Inc. - Common Stock,NASDAQ,Basic Materials,Gold,6.8,nasdaq,2026-04-10,numerai,True
+STBA,"S&T Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,1.6,nasdaq,2026-04-10,numerai,True
+STE,STERIS plc (Ireland),NYSE,Healthcare,Medical Devices,20.5,sp500,2026-04-10,numerai,True
+STEP,StepStone Group Inc. - Class A Common Stock,NASDAQ,Financial Services,Asset Management,5.8,nasdaq,2026-04-10,numerai,True
+STGW,Stagwell Inc. - Class A Common Stock,NASDAQ,Communication Services,Advertising Agencies,1.6,nasdaq,2026-04-10,yfinance,True
+STLD,"Steel Dynamics, Inc.",NASDAQ,Basic Materials,Steel,17.6,"sp500,nasdaq",2026-04-10,numerai,True
+STNE,StoneCo Ltd. - Class A Common Share,NASDAQ,Technology,Software - Infrastructure,3.5,nasdaq,2026-04-10,numerai,True
+STOK,"Stoke Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.1,nasdaq,2026-04-10,numerai,True
+STRA,"Strategic Education, Inc. - Common Stock",NASDAQ,Consumer Defensive,Education & Training Services,1.9,nasdaq,2026-04-10,yfinance,True
+STRL,"Sterling Infrastructure, Inc. - Common Stock",NASDAQ,Industrials,Engineering & Construction,13.4,nasdaq,2026-04-10,numerai,True
+STT,State Street Corporation,NYSE,Financial Services,Asset Management,28.8,sp500,2026-04-10,numerai,True
+STX,Seagate Technology Holdings PLC,NASDAQ,Technology,Computer Hardware,18.5,"sp500,nasdaq",2026-04-10,yfinance,True
+STZ,"Constellation Brands, Inc.",NYSE,Consumer Defensive,Beverages - Brewers,41.3,sp500,2026-04-10,numerai,True
+SVRA,"Savara, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.2,nasdaq,2026-04-10,yfinance,True
+SW,Smurfit WestRock plc,NYSE,Consumer Cyclical,Packaging & Containers,27.7,sp500,2026-04-10,yfinance,True
+SWK,"Stanley Black & Decker, Inc.",NYSE,Industrials,Tools & Accessories,12.6,sp500,2026-04-10,numerai,True
+SWKS,"Skyworks Solutions, Inc.",NASDAQ,Technology,Semiconductors,14.2,"sp500,nasdaq",2026-04-10,numerai,True
+SYBT,"Stock Yards Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,2.1,nasdaq,2026-04-10,numerai,True
+SYF,Synchrony Financial,NYSE,Financial Services,Credit Services,25.5,sp500,2026-04-10,numerai,True
+SYK,Stryker Corporation,NYSE,Healthcare,Medical Devices,139.0,sp500,2026-04-10,numerai,True
+SYNA,Synaptics Incorporated - Common Stock,NASDAQ,Technology,Semiconductors,2.9,nasdaq,2026-04-10,numerai,True
+SYRE,"Spyre Therapeutics, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,4.1,nasdaq,2026-04-10,yfinance,True
+SYY,Sysco Corporation,NYSE,Consumer Defensive,Food Distribution,37.8,sp500,2026-04-10,numerai,True
+T,AT&T Inc.,NYSE,Communication Services,Telecom Services,163.2,sp500,2026-04-10,numerai,True
+TAP,Molson Coors Beverage Company,NYSE,Consumer Defensive,Beverages - Brewers,12.2,sp500,2026-04-10,numerai,True
+TARS,"Tarsus Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,3.1,nasdaq,2026-04-10,numerai,True
+TBBK,"The Bancorp, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,2.6,nasdaq,2026-04-10,yfinance,True
+TCBI,"Texas Capital Bancshares, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,4.5,nasdaq,2026-04-10,numerai,True
+TCBK,TriCo Bancshares - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.7,nasdaq,2026-04-10,numerai,True
+TCOM,Trip.com Group Limited - American Depositary Shares,NASDAQ,Consumer Cyclical,Travel Services,33.6,nasdaq,2026-04-10,yfinance,True
+TDG,Transdigm Group Incorporated,NYSE,Industrials,Aerospace & Defense,71.8,sp500,2026-04-10,numerai,True
+TDY,Teledyne Technologies Incorpora,NYSE,Technology,Scientific & Technical Instruments,21.8,sp500,2026-04-10,numerai,True
+TEAM,Atlassian Corporation  - Class A Common Stock,NASDAQ,Technology,Software - Application,15.6,nasdaq,2026-04-10,numerai,True
+TECH,Bio-Techne Corp,NASDAQ,Healthcare,Biotechnology,11.6,"sp500,nasdaq",2026-04-10,numerai,True
+TEL,TE Connectivity plc,NYSE,Technology,Electronic Components,43.0,sp500,2026-04-10,yfinance,True
+TEM,"Tempus AI, Inc. - Class A Common Stock",NASDAQ,Healthcare,Health Information Services,7.9,nasdaq,2026-04-10,yfinance,True
+TENB,"Tenable Holdings, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,2.0,nasdaq,2026-04-10,numerai,True
+TER,"Teradyne, Inc.",NASDAQ,Technology,Semiconductor Equipment & Materials,20.5,"sp500,nasdaq",2026-04-10,numerai,True
+TERN,"Terns Pharmaceuticals, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,6.1,nasdaq,2026-04-10,yfinance,True
+TFC,Truist Financial Corporation,NYSE,Financial Services,Banks - Regional,57.5,sp500,2026-04-10,numerai,True
+TFSL,TFS Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,4.2,nasdaq,2026-04-10,yfinance,True
+TFX,Teleflex Incorporated,NYSE,Healthcare,Medical Instruments & Supplies,8.3,sp500,2026-04-10,numerai,True
+TGT,Target Corporation,NYSE,Consumer Defensive,Discount Stores,60.2,sp500,2026-04-10,numerai,True
+TIGO,Millicom International Cellular S.A. - Common Stock,NASDAQ,Communication Services,Telecom Services,13.9,nasdaq,2026-04-10,yfinance,True
+TIGR,UP Fintech Holding Limited - American Depositary Shares representing fifteen Cla,NASDAQ,Financial Services,Capital Markets,1.2,nasdaq,2026-04-10,yfinance,True
+TILE,"Interface, Inc. - Common Stock",NASDAQ,Consumer Cyclical,"Furnishings, Fixtures & Appliances",1.6,nasdaq,2026-04-10,numerai,True
+TJX,"TJX Companies, Inc. (The)",NYSE,Consumer Cyclical,Apparel Retail,137.1,sp500,2026-04-10,numerai,True
+TLN,Talen Energy Corporation - Common Stock,NASDAQ,Utilities,Utilities - Independent Power Producers,14.3,nasdaq,2026-04-10,yfinance,True
+TLX,Telix Pharmaceuticals Limited - American Depositary Shares,NASDAQ,Healthcare,Biotechnology,3.3,nasdaq,2026-04-10,yfinance,True
+TMC,TMC the metals company Inc. - Common Stock,NASDAQ,Basic Materials,Other Industrial Metals & Mining,2.5,nasdaq,2026-04-10,yfinance,True
+TMO,Thermo Fisher Scientific Inc,NYSE,Healthcare,Diagnostics & Research,200.4,sp500,2026-04-10,numerai,True
+TMUS,"T-Mobile US, Inc.",NASDAQ,Communication Services,Telecom Services,255.7,"sp500,nasdaq",2026-04-10,numerai,True
+TOWN,Towne Bank - Common Stock,NASDAQ,Financial Services,Banks - Regional,3.3,nasdaq,2026-04-10,numerai,True
+TPG,TPG Inc. - Class A Common Stock,NASDAQ,Financial Services,Asset Management,14.9,nasdaq,2026-04-10,yfinance,True
+TPL,Texas Pacific Land Corporation,NYSE,Energy,Oil & Gas E&P,26.0,sp500,2026-04-10,yfinance,True
+TPR,"Tapestry, Inc.",NYSE,Consumer Cyclical,Luxury Goods,14.9,sp500,2026-04-10,numerai,True
+TRGP,"Targa Resources, Inc.",NYSE,Energy,Oil & Gas Midstream,38.6,sp500,2026-04-10,numerai,True
+TRI,Thomson Reuters Corp - Common Shares,NASDAQ,Industrials,Specialty Business Services,37.7,nasdaq,2026-04-10,yfinance,True
+TRIN,Trinity Capital Inc. - Common Stock,NASDAQ,Financial Services,Asset Management,1.3,nasdaq,2026-04-10,yfinance,True
+TRIP,"TripAdvisor, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Travel Services,1.3,nasdaq,2026-04-10,numerai,True
+TRMB,Trimble Inc.,NASDAQ,Technology,Scientific & Technical Instruments,17.5,"sp500,nasdaq",2026-04-10,numerai,True
+TRMD,TORM plc - Class A Common Stock,NASDAQ,Energy,Oil & Gas Midstream,3.1,nasdaq,2026-04-10,yfinance,True
+TRMK,Trustmark Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,2.7,nasdaq,2026-04-10,numerai,True
+TROW,"T. Rowe Price Group, Inc.",NASDAQ,Financial Services,Asset Management,25.8,"sp500,nasdaq",2026-04-10,numerai,True
+TRS,TriMas Corporation - Common Stock,NASDAQ,Consumer Cyclical,Packaging & Containers,1.5,nasdaq,2026-04-10,numerai,True
+TRV,"The Travelers Companies, Inc.",NYSE,Financial Services,Insurance - Property & Casualty,54.7,"sp500,dow",2026-04-10,numerai,True
+TSAT,Telesat Corporation - Class A Common Shares and Class B Variable Voting Shares,NASDAQ,Technology,Communication Equipment,2.3,nasdaq,2026-04-10,yfinance,True
+TSCO,Tractor Supply Company,NASDAQ,Consumer Cyclical,Specialty Retail,28.8,"sp500,nasdaq",2026-04-10,numerai,True
+TSEM,Tower Semiconductor Ltd. - Ordinary Shares,NASDAQ,Technology,Semiconductors,24.2,nasdaq,2026-04-10,yfinance,True
+TSHA,"Taysha Gene Therapies, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.3,nasdaq,2026-04-10,numerai,True
+TSLA,"Tesla, Inc.",NASDAQ,Consumer Cyclical,Auto Manufacturers,1351.6,"sp500,nasdaq",2026-04-10,numerai,True
+TSN,"Tyson Foods, Inc.",NYSE,Consumer Defensive,Farm Products,20.7,sp500,2026-04-10,numerai,True
+TT,Trane Technologies plc,NYSE,Industrials,Building Products & Equipment,84.9,sp500,2026-04-10,numerai,True
+TTAN,"ServiceTitan, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,5.6,nasdaq,2026-04-10,yfinance,True
+TTEK,"Tetra Tech, Inc. - Common Stock",NASDAQ,Industrials,Engineering & Construction,8.0,nasdaq,2026-04-10,numerai,True
+TTMI,"TTM Technologies, Inc. - Common Stock",NASDAQ,Technology,Electronic Components,11.2,nasdaq,2026-04-10,numerai,True
+TTWO,"Take-Two Interactive Software,",NASDAQ,Communication Services,Electronic Gaming & Multimedia,32.0,"sp500,nasdaq",2026-04-10,numerai,True
+TW,Tradeweb Markets Inc. - Class A Common Stock,NASDAQ,Financial Services,Capital Markets,26.7,nasdaq,2026-04-10,numerai,True
+TWST,Twist Bioscience Corporation - Common Stock,NASDAQ,Healthcare,Diagnostics & Research,3.0,nasdaq,2026-04-10,numerai,True
+TXG,"10x Genomics, Inc. - Common Stock",NASDAQ,Healthcare,Health Information Services,2.9,nasdaq,2026-04-10,numerai,True
+TXN,Texas Instruments Incorporated,NASDAQ,Technology,Semiconductors,170.5,"sp500,nasdaq",2026-04-10,numerai,True
+TXRH,"Texas Roadhouse, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Restaurants,10.9,nasdaq,2026-04-10,numerai,True
+TXT,Textron Inc.,NYSE,Industrials,Aerospace & Defense,14.3,sp500,2026-04-10,numerai,True
+TYL,"Tyler Technologies, Inc.",NYSE,Technology,Software - Application,25.9,sp500,2026-04-10,numerai,True
+TYRA,"Tyra Biosciences, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,2.0,nasdaq,2026-04-10,yfinance,True
+UAL,"United Airlines Holdings, Inc.",NASDAQ,Industrials,Airlines,32.0,"sp500,nasdaq",2026-04-10,numerai,True
+UBER,"Uber Technologies, Inc.",NYSE,Technology,Software - Application,127.9,sp500,2026-04-10,numerai,True
+UBSI,"United Bankshares, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,6.2,nasdaq,2026-04-10,numerai,True
+UCTT,"Ultra Clean Holdings, Inc. - Common Stock",NASDAQ,Technology,Semiconductor Equipment & Materials,3.3,nasdaq,2026-04-10,numerai,True
+UDR,"UDR, Inc.",NYSE,Real Estate,REIT - Residential,16.3,sp500,2026-04-10,yfinance,True
+UFCS,"United Fire Group, Inc - Common Stock",NASDAQ,Financial Services,Insurance - Property & Casualty,1.0,nasdaq,2026-04-10,yfinance,True
+UFPI,"UFP Industries, Inc. - Common Stock",NASDAQ,Basic Materials,Lumber & Wood Production,5.4,nasdaq,2026-04-10,numerai,True
+UHS,"Universal Health Services, Inc.",NYSE,Healthcare,Medical Care Facilities,11.9,sp500,2026-04-10,numerai,True
+ULTA,"Ulta Beauty, Inc.",NASDAQ,Consumer Cyclical,Specialty Retail,19.9,"sp500,nasdaq",2026-04-10,numerai,True
+UMBF,UMB Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,9.2,nasdaq,2026-04-10,numerai,True
+UNH,UnitedHealth Group Incorporated,NYSE,Healthcare,Healthcare Plans,460.3,"sp500,dow",2026-04-10,numerai,True
+UNIT,Uniti Group Inc. - Common Stock,NASDAQ,Real Estate,REIT - Specialty,2.6,nasdaq,2026-04-10,yfinance,True
+UNP,Union Pacific Corporation,NYSE,Industrials,Railroads,137.2,sp500,2026-04-10,numerai,True
+UPBD,"Upbound Group, Inc. - Common Stock",NASDAQ,Technology,Software - Application,1.1,nasdaq,2026-04-10,yfinance,True
+UPS,"United Parcel Service, Inc.",NYSE,Industrials,Integrated Freight & Logistics,107.3,sp500,2026-04-10,numerai,True
+UPST,"Upstart Holdings, Inc. - Common stock",NASDAQ,Financial Services,Credit Services,2.7,nasdaq,2026-04-10,yfinance,True
+UPWK,Upwork Inc. - Common Stock,NASDAQ,Communication Services,Internet Content & Information,1.4,nasdaq,2026-04-10,numerai,True
+URBN,"Urban Outfitters, Inc. - Common Stock",NASDAQ,Consumer Cyclical,Apparel Retail,6.2,nasdaq,2026-04-10,numerai,True
+URI,"United Rentals, Inc.",NYSE,Industrials,Rental & Leasing Services,47.4,sp500,2026-04-10,numerai,True
+USB,U.S. Bancorp,NYSE,Financial Services,Banks - Regional,74.8,sp500,2026-04-10,numerai,True
+USLM,"United States Lime & Minerals, Inc. - Common Stock",NASDAQ,Basic Materials,Building Materials,3.9,nasdaq,2026-04-10,yfinance,True
+UTHR,United Therapeutics Corporation - Common Stock,NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,25.2,nasdaq,2026-04-10,numerai,True
+UVSP,Univest Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.1,nasdaq,2026-04-10,numerai,True
+V,Visa Inc.,NYSE,Financial Services,Credit Services,615.2,"sp500,dow",2026-04-10,numerai,True
+VC,Visteon Corporation - Common Stock,NASDAQ,Consumer Cyclical,Auto Parts,2.6,nasdaq,2026-04-10,numerai,True
+VCTR,"Victory Capital Holdings, Inc. - Common Stock",NASDAQ,Financial Services,Asset Management,4.4,nasdaq,2026-04-10,numerai,True
+VECO,Veeco Instruments Inc. - Common Stock,NASDAQ,Technology,Semiconductor Equipment & Materials,2.4,nasdaq,2026-04-10,numerai,True
+VEON,VEON Ltd. - American Depositary Shares,NASDAQ,Communication Services,Telecom Services,3.5,nasdaq,2026-04-10,yfinance,True
+VFS,VinFast Auto Ltd. - Ordinary Shares,NASDAQ,Consumer Cyclical,Auto Manufacturers,9.5,nasdaq,2026-04-10,yfinance,True
+VIAV,Viavi Solutions Inc. - Common Stock,NASDAQ,Technology,Communication Equipment,9.9,nasdaq,2026-04-10,numerai,True
+VICI,VICI Properties Inc.,NYSE,Real Estate,REIT - Diversified,30.3,sp500,2026-04-10,yfinance,True
+VICR,Vicor Corporation - Common Stock,NASDAQ,Technology,Electronic Components,8.4,nasdaq,2026-04-10,numerai,True
+VIR,"Vir Biotechnology, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.6,nasdaq,2026-04-10,numerai,True
+VISN,"Vistance Networks, Inc.  - Common Stock",NASDAQ,Technology,Communication Equipment,4.2,nasdaq,2026-04-10,yfinance,True
+VLO,Valero Energy Corporation,NYSE,Energy,Oil & Gas Refining & Marketing,37.5,sp500,2026-04-10,numerai,True
+VLTO,Veralto Corp,NYSE,Industrials,Pollution & Treatment Controls,25.8,sp500,2026-04-10,yfinance,True
+VLY,Valley National Bancorp - Common Stock,NASDAQ,Financial Services,Banks - Regional,7.4,nasdaq,2026-04-10,numerai,True
+VMC,Vulcan Materials Company (Holdi,NYSE,Basic Materials,Building Materials,34.7,sp500,2026-04-10,numerai,True
+VNET,"VNET Group, Inc. - American Depositary Shares",NASDAQ,Technology,Information Technology Services,2.3,nasdaq,2026-04-10,yfinance,True
+VNOM,"Viper Energy, Inc.  - Class A Common Stock",NASDAQ,Energy,Oil & Gas Midstream,16.8,nasdaq,2026-04-10,yfinance,True
+VOD,Vodafone Group Plc - American Depositary Shares each representing ten Ordinary S,NASDAQ,Communication Services,Telecom Services,36.6,nasdaq,2026-04-10,yfinance,True
+VRNS,"Varonis Systems, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,2.5,nasdaq,2026-04-10,numerai,True
+VRSK,"Verisk Analytics, Inc.",NASDAQ,Industrials,Consulting Services,39.1,"sp500,nasdaq",2026-04-10,numerai,True
+VRSN,"VeriSign, Inc.",NASDAQ,Technology,Software - Infrastructure,19.1,"sp500,nasdaq",2026-04-10,numerai,True
+VRTX,Vertex Pharmaceuticals Incorpor,NASDAQ,Healthcare,Biotechnology,102.3,"sp500,nasdaq",2026-04-10,numerai,True
+VSAT,"ViaSat, Inc. - Common Stock",NASDAQ,Technology,Communication Equipment,7.5,nasdaq,2026-04-10,numerai,True
+VSEC,VSE Corporation - Common Stock,NASDAQ,Industrials,Aerospace & Defense,6.1,nasdaq,2026-04-10,numerai,True
+VSNT,"Versant Media Group, Inc. - Class A Common Stock",NASDAQ,Communication Services,Entertainment,5.6,nasdaq,2026-04-10,yfinance,True
+VST,Vistra Corp.,NYSE,Utilities,Utilities - Independent Power Producers,47.6,sp500,2026-04-10,numerai,True
+VTR,"Ventas, Inc.",NYSE,Real Estate,REIT - Healthcare Facilities,24.7,sp500,2026-04-10,yfinance,True
+VTRS,Viatris Inc.,NASDAQ,Healthcare,Drug Manufacturers - Specialty & Generic,14.9,"sp500,nasdaq",2026-04-10,numerai,True
+VZ,Verizon Communications Inc.,NYSE,Communication Services,Telecom Services,168.1,"sp500,dow",2026-04-10,numerai,True
+WAB,Westinghouse Air Brake Technolo,NYSE,Industrials,Railroads,33.2,sp500,2026-04-10,numerai,True
+WABC,Westamerica Bancorporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,1.3,nasdaq,2026-04-10,numerai,True
+WAFD,"WaFd, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,2.5,nasdaq,2026-04-10,numerai,True
+WAT,Waters Corporation,NYSE,Healthcare,Diagnostics & Research,21.9,sp500,2026-04-10,numerai,True
+WAY,Waystar Holding Corp. - Common Stock,NASDAQ,Healthcare,Health Information Services,4.2,nasdaq,2026-04-10,yfinance,True
+WB,Weibo Corporation - American Depositary Shares,NASDAQ,Communication Services,Internet Content & Information,2.2,nasdaq,2026-04-10,yfinance,True
+WBA,"Walgreens Boots Alliance, Inc.",NASDAQ,Healthcare,Pharmaceutical Retailers,8.2,"sp500,dow",2026-04-10,numerai,True
+WBD,"Warner Bros. Discovery, Inc. -",NASDAQ,Communication Services,Entertainment,26.2,"sp500,nasdaq",2026-04-10,yfinance,True
+WBTN,WEBTOON Entertainment Inc. - Common stock,NASDAQ,Communication Services,Internet Content & Information,1.5,nasdaq,2026-04-10,yfinance,True
+WDAY,"Workday, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,29.7,nasdaq,2026-04-10,numerai,True
+WDC,Western Digital Corporation,NASDAQ,Technology,Computer Hardware,20.8,"sp500,nasdaq",2026-04-10,numerai,True
+WDFC,WD-40 Company - Common Stock,NASDAQ,Basic Materials,Specialty Chemicals,3.0,nasdaq,2026-04-10,numerai,True
+WEC,"WEC Energy Group, Inc.",NYSE,Utilities,Utilities - Regulated Electric,29.9,sp500,2026-04-10,numerai,True
+WELL,Welltower Inc.,NYSE,Real Estate,REIT - Healthcare Facilities,77.6,sp500,2026-04-10,yfinance,True
+WEN,Wendy's Company (The) - Common Stock,NASDAQ,Consumer Cyclical,Restaurants,1.4,nasdaq,2026-04-10,numerai,True
+WERN,"Werner Enterprises, Inc. - Common Stock",NASDAQ,Industrials,Trucking,1.9,nasdaq,2026-04-10,numerai,True
+WFC,Wells Fargo & Company,NYSE,Financial Services,Banks - Diversified,234.2,sp500,2026-04-10,numerai,True
+WFRD,Weatherford International plc - Ordinary shares,NASDAQ,Energy,Oil & Gas Equipment & Services,7.4,nasdaq,2026-04-10,numerai,True
+WGS,GeneDx Holdings Corp. - Class A Common Stock,NASDAQ,Healthcare,Diagnostics & Research,1.8,nasdaq,2026-04-10,yfinance,True
+WING,Wingstop Inc. - Common Stock,NASDAQ,Consumer Cyclical,Restaurants,4.9,nasdaq,2026-04-10,numerai,True
+WIX,Wix.com Ltd. - Ordinary Shares,NASDAQ,Technology,Software - Infrastructure,3.9,nasdaq,2026-04-10,numerai,True
+WLTH,Wealthfront Corporation - Common Stock,NASDAQ,Technology,Software - Application,1.5,nasdaq,2026-04-10,yfinance,True
+WM,"Waste Management, Inc.",NYSE,Industrials,Waste Management,82.6,sp500,2026-04-10,numerai,True
+WMB,"Williams Companies, Inc. (The)",NYSE,Energy,Oil & Gas Midstream,65.2,sp500,2026-04-10,numerai,True
+WMG,Warner Music Group Corp. - Class A Common Stock,NASDAQ,Communication Services,Entertainment,14.7,nasdaq,2026-04-10,yfinance,True
+WMT,Walmart Inc.,NYSE,Consumer Defensive,Discount Stores,741.0,"sp500,nasdaq,dow",2026-04-10,numerai,True
+WRB,W.R. Berkley Corporation,NYSE,Financial Services,Insurance - Property & Casualty,22.3,sp500,2026-04-10,numerai,True
+WSBC,"WesBanco, Inc. - Common Stock",NASDAQ,Financial Services,Banks - Regional,3.5,nasdaq,2026-04-10,numerai,True
+WSFS,WSFS Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,3.7,nasdaq,2026-04-10,numerai,True
+WST,"West Pharmaceutical Services, I",NYSE,Healthcare,Medical Instruments & Supplies,24.0,sp500,2026-04-10,numerai,True
+WTFC,Wintrust Financial Corporation - Common Stock,NASDAQ,Financial Services,Banks - Regional,9.9,nasdaq,2026-04-10,numerai,True
+WTW,Willis Towers Watson Public Lim,NASDAQ,Financial Services,Insurance Brokers,32.0,"sp500,nasdaq",2026-04-10,numerai,True
+WWD,"Woodward, Inc. - Common Stock",NASDAQ,Industrials,Aerospace & Defense,23.6,nasdaq,2026-04-10,numerai,True
+WY,Weyerhaeuser Company,NYSE,Real Estate,REIT - Specialty,20.0,sp500,2026-04-10,yfinance,True
+WYNN,"Wynn Resorts, Limited",NASDAQ,Consumer Cyclical,Resorts & Casinos,9.8,"sp500,nasdaq",2026-04-10,numerai,True
+XEL,Xcel Energy Inc.,NASDAQ,Utilities,Utilities - Regulated Electric,38.7,"sp500,nasdaq",2026-04-10,numerai,True
+XERS,"Xeris Biopharma Holdings, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.0,nasdaq,2026-04-10,numerai,True
+XMTR,"Xometry, Inc. - Class A Common Stock",NASDAQ,Industrials,Industrial Distribution,2.1,nasdaq,2026-04-10,yfinance,True
+XOM,Exxon Mobil Corporation,NYSE,Energy,Oil & Gas Integrated,465.3,sp500,2026-04-10,numerai,True
+XP,XP Inc. - Class A Common Stock,NASDAQ,Financial Services,Capital Markets,10.3,nasdaq,2026-04-10,yfinance,True
+XRAY,DENTSPLY SIRONA Inc. - Common Stock,NASDAQ,Healthcare,Medical Instruments & Supplies,2.4,nasdaq,2026-04-10,numerai,True
+XYL,Xylem Inc.,NYSE,Industrials,Specialty Industrial Machinery,28.5,sp500,2026-04-10,numerai,True
+YUM,"Yum! Brands, Inc.",NYSE,Consumer Cyclical,Restaurants,36.9,sp500,2026-04-10,numerai,True
+Z,"Zillow Group, Inc. - Class C Capital Stock",NASDAQ,Communication Services,Internet Content & Information,9.8,nasdaq,2026-04-10,yfinance,True
+ZBH,"Zimmer Biomet Holdings, Inc.",NYSE,Healthcare,Medical Devices,21.3,sp500,2026-04-10,numerai,True
+ZBIO,"Zenas BioPharma, Inc. - Common Stock",NASDAQ,Healthcare,Biotechnology,1.3,nasdaq,2026-04-10,yfinance,True
+ZBRA,Zebra Technologies Corporation,NASDAQ,Technology,Communication Equipment,20.3,"sp500,nasdaq",2026-04-10,numerai,True
+ZD,"Ziff Davis, Inc. - Common Stock",NASDAQ,Communication Services,Advertising Agencies,1.7,nasdaq,2026-04-10,yfinance,True
+ZG,"Zillow Group, Inc. - Class A Common Stock",NASDAQ,Communication Services,Internet Content & Information,9.8,nasdaq,2026-04-10,numerai,True
+ZION,Zions Bancorporation N.A. - Common Stock,NASDAQ,Financial Services,Banks - Regional,9.1,nasdaq,2026-04-10,numerai,True
+ZM,"Zoom Communications, Inc. - Class A Common Stock",NASDAQ,Technology,Software - Application,24.9,nasdaq,2026-04-10,numerai,True
+ZS,"Zscaler, Inc. - Common Stock",NASDAQ,Technology,Software - Infrastructure,19.7,nasdaq,2026-04-10,numerai,True
+ZTS,Zoetis Inc.,NYSE,Healthcare,Drug Manufacturers - Specialty & Generic,74.4,sp500,2026-04-10,numerai,True
+ZYME,Zymeworks Inc. - Common Stock,NASDAQ,Healthcare,Biotechnology,2.0,nasdaq,2026-04-10,yfinance,True

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+edgartools==5.29.0
+openbb==4.7.1
+sse-starlette
+pandas
+jinja2
+scipy
+statsmodels

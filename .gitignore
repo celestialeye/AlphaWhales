@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Generated SEC and market data
+cache/
+
+# Browser and frontend tooling artifacts
+.playwright-mcp/
+node_modules/
+npm-debug.log*
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary outputs
+*.log
+*.tmp
+*.bak
+coverage/
+htmlcov/

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Investor Portfolio Intelligence - Alpha Whales Intelligence{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div>
+        <h1>Investor Portfolio Intelligence</h1>
+        <p class="text-muted">Deep dive into portfolio weights, high-conviction bets, sector concentration, and quarterly positioning.</p>
+    </div>
+    {% if cik %}
+    <div>
+        <a href="/investor" class="btn btn-outline">◀ All 26 Fund Managers</a>
+    </div>
+    {% endif %}
+</div>
+
+{% if not cik %}
+<!-- Group Filters for Investor Cards -->
+<div class="card filter-bar mt-2">
+    <div class="filter-group-item">
+        <label>Filter Strategy Group:</label>
+        <select id="investor-group-filter" onchange="filterInvestorsList()">
+            <option value="All">All Groups (26 Funds)</option>
+            <option value="Value">Value (12 Funds)</option>
+            <option value="High-performance concentrated">High-performance concentrated (4 Funds)</option>
+            <option value="Quality compounder">Quality compounder (4 Funds)</option>
+            <option value="2026 expansion">2026 expansion (6 Funds)</option>
+        </select>
+    </div>
+    <div class="filter-group-item search-item">
+        <label>Search Manager:</label>
+        <input type="text" id="investor-search-input" placeholder="Search fund or manager name..." oninput="filterInvestorsList()">
+    </div>
+</div>
+
+<div id="investors-grid" class="grid investor-grid mt-4">
+    <!-- Populated by JS -->
+    <div class="skeleton-card">Loading investors...</div>
+</div>
+
+{% else %}
+<!-- Specific Investor Detail View -->
+<div id="investor-detail-view">
+    <!-- Investor Hero Card -->
+    <div class="investor-hero-card card">
+        <div class="investor-hero-header">
+            <div>
+                <div class="flex-align-gap">
+                    <h2 id="inv-name" class="investor-title">Fund Name</h2>
+                    <span id="inv-group-badge"></span>
+                </div>
+                <div class="investor-manager-line">
+                    <span class="manager-name" id="inv-manager">Manager Name</span>
+                    <span class="annotation-text" id="inv-annotation">Catalog Annotation</span>
+                </div>
+            </div>
+            <div class="cik-badge" id="inv-cik-display">CIK: {{ cik }}</div>
+        </div>
+
+        <div class="investor-kpi-grid">
+            <div class="inv-kpi">
+                <div class="metric-label">TOTAL AUM</div>
+                <div class="metric-val font-mono text-cyan" id="inv-aum">$0.00 M</div>
+                <div class="metric-sub" id="inv-aum-b">$0.00 B</div>
+            </div>
+            <div class="inv-kpi">
+                <div class="metric-label">TOTAL POSITIONS</div>
+                <div class="metric-val font-mono" id="inv-holdings-count">0</div>
+                <div class="metric-sub" id="inv-active-closed-count">Active + Closed</div>
+            </div>
+            <div class="inv-kpi">
+                <div class="metric-label">TOP 5 CONCENTRATION</div>
+                <div class="metric-val font-mono" id="inv-top5-weight">0.00%</div>
+                <div class="metric-sub">Of total portfolio</div>
+            </div>
+            <div class="inv-kpi">
+                <div class="metric-label">TOP 10 CONCENTRATION</div>
+                <div class="metric-val font-mono" id="inv-top10-weight">0.00%</div>
+                <div class="metric-sub">Of total portfolio</div>
+            </div>
+            <div class="inv-kpi">
+                <div class="metric-label">REPORT PERIOD</div>
+                <div class="metric-val font-mono text-yellow" id="inv-period">--</div>
+                <div class="metric-sub" id="inv-status-label">Status: loaded</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid chart-grid mt-4">
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>Portfolio Allocation (Top Holdings)</h3>
+                <span class="card-badge">Weights %</span>
+            </div>
+            <div id="pie-chart" class="chart-box" style="height: 380px;"></div>
+        </div>
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>Quarterly Position Moves ($M)</h3>
+                <span class="card-badge">QoQ Value Shifts</span>
+            </div>
+            <div id="bar-chart" class="chart-box" style="height: 380px;"></div>
+        </div>
+    </div>
+
+    <!-- Holdings Master Table -->
+    <div class="card table-card mt-4">
+        <div class="card-header">
+            <div>
+                <h3>Complete Portfolio Holdings</h3>
+                <p class="section-sub">Detailed breakdown of all equities, position weights, share counts, and QoQ changes.</p>
+            </div>
+            <div class="section-actions">
+                <button class="btn btn-sm btn-outline" onclick="exportInvestorToCSV()">📥 Export Portfolio CSV</button>
+            </div>
+        </div>
+
+        <!-- Table Filters & Tabs -->
+        <div class="table-tab-bar">
+            <div class="tab-group" id="holdings-tab-group">
+                <button class="tab-btn active" onclick="filterHoldingsTab('ALL')">All Positions (<span id="tab-cnt-all">0</span>)</button>
+                <button class="tab-btn" onclick="filterHoldingsTab('NEW')">New Buys (<span id="tab-cnt-new">0</span>)</button>
+                <button class="tab-btn" onclick="filterHoldingsTab('INCREASED')">Increased (<span id="tab-cnt-inc">0</span>)</button>
+                <button class="tab-btn" onclick="filterHoldingsTab('DECREASED')">Decreased (<span id="tab-cnt-dec">0</span>)</button>
+                <button class="tab-btn" onclick="filterHoldingsTab('UNCHANGED')">Unchanged (<span id="tab-cnt-unc">0</span>)</button>
+                <button class="tab-btn" onclick="filterHoldingsTab('CLOSED')">Closed / Exited (<span id="tab-cnt-closed">0</span>)</button>
+            </div>
+            <div class="filter-group-item search-item" style="margin:0;">
+                <input type="text" id="investor-table-search" placeholder="Filter holdings in portfolio..." oninput="filterInvestorTableRows()">
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="investor-holdings-table" class="data-table">
+                <thead>
+                    <tr onclick="sortInvestorTable(event)">
+                        <th data-sort="ticker">Ticker ↕</th>
+                        <th data-sort="issuer">Company ↕</th>
+                        <th data-sort="portfolio_weight">Portfolio % ↕</th>
+                        <th data-sort="value">Current Value ($M) ↕</th>
+                        <th data-sort="shares">Shares Held ↕</th>
+                        <th data-sort="status">Action ↕</th>
+                        <th data-sort="value_change">Dollar Δ ($M) ↕</th>
+                        <th data-sort="value_change_pct">Value Δ % ↕</th>
+                        <th data-sort="shares_change_pct">Shares Δ % ↕</th>
+                    </tr>
+                </thead>
+                <tbody id="investor-holdings-body">
+                    <tr><td colspan="9" class="text-center py-4">Loading portfolio holdings...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('nav-investor').classList.add('active');
+        const initCik = "{{ cik if cik else '' }}";
+        if (initCik) {
+            loadInvestorDetail(initCik);
+        } else {
+            loadInvestorsList();
+        }
+    });
+</script>
+{% endblock %}

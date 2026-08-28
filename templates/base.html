@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Alpha Whales Intelligence{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f97316' d='M13.2 1 4.5 13h6.1L9.8 23 19.5 9h-6.2z'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260827-26">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <a href="/" class="brand-link">
+                    <span class="brand-icon">⚡</span>
+                    <span class="brand-name">Alpha Whales Intelligence</span>
+                </a>
+                <span class="brand-tag">SEC Institutional Tracker</span>
+            </div>
+            <div class="nav-links">
+                <a href="/" id="nav-overview" class="nav-item">QoQ Changes</a>
+                <a href="/ticker" id="nav-ticker" class="nav-item">Ticker View</a>
+                <a href="/investor" id="nav-investor" class="nav-item">Investor Portfolios</a>
+            </div>
+            <div class="nav-status">
+                <div class="live-badge" title="Live Server-Sent Events stream active">
+                    <span id="live-indicator" class="live-pulse"></span>
+                    <span class="live-label">LIVE</span>
+                </div>
+                <span id="last-updated-text" class="status-time">Loading SEC data...</span>
+                <button id="refresh-btn" class="btn btn-primary" onclick="triggerRefresh()">
+                    <span id="refresh-spinner" class="spinner" style="display:none;"></span>
+                    <span id="refresh-text">↻ Refresh Now</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-content">
+            <p>13F SEC Institutional Holdings Intelligence &bull; Powered by <a href="https://edgartools.readthedocs.io/en/latest/13f-filings/" target="_blank" rel="noopener">edgartools</a> &bull; Tracking 26 Elite Value, Quality & High-Concentration Managers</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js?v=20260827-26"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
