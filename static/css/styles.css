@@ -1743,7 +1743,7 @@ body.period-loading {
 }
 .whale-sentiment-summary {
     display: grid;
-    grid-template-columns: 1.05fr repeat(4, 1fr);
+    grid-template-columns: 1.05fr repeat(5, 1fr);
     gap: 9px;
     margin-bottom: 8px;
 }

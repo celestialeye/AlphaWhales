@@ -1344,10 +1344,10 @@ function renderWhaleContributors(containerId, contributors) {
             <a href="/investor/${item.cik}">
                 <span>
                     <strong>${item.manager}</strong>
-                    <small>${item.status.replace('_', ' ')} · actual ${item.signal_weight_change > 0 ? '+' : ''}${formatPct(item.signal_weight_change).replace('%', 'pp')}</small>
+                    <small>${item.status.replace('_', ' ')} · est. trade ${item.estimated_trade_weight > 0 ? '+' : ''}${formatPct(item.estimated_trade_weight).replace('%', 'pp')} of portfolio</small>
                 </span>
-                <strong class="font-mono ${item.clipped_weight_change > 0 ? 'text-green' : 'text-red'}">
-                    ${item.clipped_weight_change > 0 ? '+' : ''}${formatPct(item.clipped_weight_change).replace('%', 'pp')}
+                <strong class="font-mono ${item.scored_relative_conviction > 0 ? 'text-green' : 'text-red'}">
+                    ${item.scored_relative_conviction > 0 ? '+' : ''}${Number(item.scored_relative_conviction).toFixed(2)}x
                 </strong>
             </a>
         </li>
@@ -1363,6 +1363,8 @@ function resetWhaleSentimentView(message = 'Loading sentiment history...') {
     [
         'td-whale-sentiment-score',
         'td-whale-sentiment-delta',
+        'td-whale-activity',
+        'td-whale-activity-counts',
         'td-whale-breadth',
         'td-whale-breadth-counts',
         'td-whale-conviction',
@@ -1375,7 +1377,7 @@ function resetWhaleSentimentView(message = 'Loading sentiment history...') {
         if (element) element.textContent = '—';
     });
     const cap = document.getElementById('td-whale-winsor-cap');
-    if (cap) cap.textContent = 'Expanding 95% Cap';
+    if (cap) cap.textContent = 'Material ≥0.25x · Cap 2x';
     ['ticker-bullish-contributors', 'ticker-bearish-contributors'].forEach(id => {
         const container = document.getElementById(id);
         if (container) container.innerHTML = `<li class="stats-loading">${message}</li>`;
@@ -1406,16 +1408,18 @@ function renderWhaleSentiment(intelligence) {
         ? 'No prior comparison'
         : `${formatSignedScore(latest.score_change)} vs prior quarter`;
     const hasPublishedScore = latest.score !== null && latest.score !== undefined;
+    document.getElementById('td-whale-activity').textContent = formatSignedScore(latest.activity_breadth_score);
+    document.getElementById('td-whale-activity-counts').textContent = `${latest.activity_bullish_count || 0} buy actions / ${latest.activity_bearish_count || 0} sell actions`;
     document.getElementById('td-whale-breadth').textContent = hasPublishedScore
         ? formatSignedScore(latest.breadth_score)
         : '—';
-    document.getElementById('td-whale-breadth-counts').textContent = `${latest.bullish_count || 0} bullish / ${latest.bearish_count || 0} bearish / ${latest.unchanged_count || 0} unchanged`;
+    document.getElementById('td-whale-breadth-counts').textContent = `${latest.bullish_count || 0} meaningful bull / ${latest.bearish_count || 0} meaningful bear / ${latest.routine_count || 0} routine / ${latest.unscored_count || 0} unavailable`;
     document.getElementById('td-whale-conviction').textContent = hasPublishedScore
         ? formatSignedScore(latest.conviction_score)
         : '—';
     document.getElementById('td-whale-conviction-pp').textContent = !hasPublishedScore
         ? 'Insufficient participation'
-        : `+${formatNum(latest.positive_conviction_pp || 0)}pp / -${formatNum(latest.negative_conviction_pp || 0)}pp`;
+        : `+${formatNum(latest.positive_conviction_x || 0)}x / -${formatNum(latest.negative_conviction_x || 0)}x typical`;
     document.getElementById('td-whale-streak').textContent = latest.regime_streak ? `${latest.regime_streak}Q` : '—';
 
     const flowConfirmation = document.getElementById('td-whale-flow-confirmation');
@@ -1424,20 +1428,20 @@ function renderWhaleSentiment(intelligence) {
     document.getElementById('td-whale-flow-value').textContent = history.length && history.at(-1).net_flow !== null
         ? `${formatFlowMillions(history.at(-1).net_flow, true)} estimated net flow`
         : 'Flow unavailable';
-    document.getElementById('td-whale-winsor-cap').textContent = sentimentData.winsorization_cap_pp
-        ? `95% cap ${formatNum(sentimentData.winsorization_cap_pp)}pp`
-        : 'No clipping required';
+    document.getElementById('td-whale-winsor-cap').textContent = `Material ≥${Number(sentimentData.materiality_threshold_x || 0.25).toFixed(2)}x · Cap ${Number(sentimentData.conviction_cap_x || 2).toFixed(0)}x`;
 
     const periods = history.map(item => item.period);
     const customData = history.map(item => {
         const sentiment = item.sentiment || {};
         return [
             sentiment.regime || 'NO SIGNAL',
+            sentiment.activity_bullish_count || 0,
+            sentiment.activity_bearish_count || 0,
             sentiment.bullish_count || 0,
             sentiment.bearish_count || 0,
-            sentiment.unchanged_count || 0,
-            sentiment.positive_conviction_pp || 0,
-            sentiment.negative_conviction_pp || 0,
+            sentiment.routine_count || 0,
+            sentiment.positive_conviction_x || 0,
+            sentiment.negative_conviction_x || 0,
             item.net_flow === null
                 ? 'Flow unavailable'
                 : formatFlowMillions(item.net_flow, true),
@@ -1463,15 +1467,16 @@ function renderWhaleSentiment(intelligence) {
             hovertemplate:
                 '<b>%{x}</b><br>' +
                 'Sentiment: %{y:.1f} (%{customdata[0]})<br>' +
-                'Managers: %{customdata[1]} bullish / %{customdata[2]} bearish / %{customdata[3]} unchanged<br>' +
-                'Weight shift: +%{customdata[4]:.2f}pp / -%{customdata[5]:.2f}pp<br>' +
-                'Estimated net flow: %{customdata[6]} (%{customdata[7]})' +
+                'Raw actions: %{customdata[1]} buys / %{customdata[2]} sells<br>' +
+                'Meaningful: %{customdata[3]} bullish / %{customdata[4]} bearish / %{customdata[5]} routine<br>' +
+                'Relative conviction: +%{customdata[6]:.2f}x / -%{customdata[7]:.2f}x typical<br>' +
+                'Estimated net flow: %{customdata[8]} (%{customdata[9]})' +
                 '<extra></extra>'
         },
         {
             x: periods,
             y: history.map(item => item.sentiment?.breadth_score ?? null),
-            name: 'BREADTH',
+            name: 'MEANINGFUL BREADTH',
             type: 'scatter',
             mode: 'lines',
             line: {color: '#60a5fa', width: 1.5, dash: 'dot'},
@@ -1480,11 +1485,20 @@ function renderWhaleSentiment(intelligence) {
         {
             x: periods,
             y: history.map(item => item.sentiment?.conviction_score ?? null),
-            name: 'CONVICTION',
+            name: 'RELATIVE CONVICTION',
             type: 'scatter',
             mode: 'lines',
             line: {color: '#c084fc', width: 1.5, dash: 'dot'},
             hovertemplate: 'Conviction: %{y:.1f}<extra></extra>'
+        },
+        {
+            x: periods,
+            y: history.map(item => item.sentiment?.activity_breadth_score ?? null),
+            name: 'RAW ACTIVITY',
+            type: 'scatter',
+            mode: 'lines',
+            line: {color: '#64748b', width: 1.2, dash: 'dash'},
+            hovertemplate: 'Raw activity breadth: %{y:.1f}<extra></extra>'
         }
     ], {
         paper_bgcolor: 'rgba(0,0,0,0)',
@@ -1514,7 +1528,7 @@ function renderWhaleSentiment(intelligence) {
         history.flatMap(item => item.investor_changes.map(change => change.manager))
     )];
     const latestChanges = new Map(
-        (history.at(-1)?.investor_changes || []).map(change => [change.manager, Math.abs(change.signal_weight_change)])
+        (history.at(-1)?.investor_changes || []).map(change => [change.manager, Math.abs(change.relative_conviction || 0)])
     );
     managerNames.sort((a, b) => (latestChanges.get(b) || 0) - (latestChanges.get(a) || 0) || a.localeCompare(b));
 
@@ -1524,23 +1538,31 @@ function renderWhaleSentiment(intelligence) {
     const directionalStatuses = new Set(['NEW', 'INCREASED', 'DECREASED', 'CLOSED']);
     const zValues = managerNames.map(manager => changeMaps.map(map => {
         const change = map.get(manager);
-        return change && directionalStatuses.has(change.status)
-            ? change.signal_weight_change
+        return change
+            && directionalStatuses.has(change.status)
+            && change.scored_relative_conviction !== null
+            && change.scored_relative_conviction !== undefined
+            ? change.scored_relative_conviction
             : null;
     }));
     const heatmapCustom = managerNames.map(manager => changeMaps.map(map => {
         const change = map.get(manager);
-        if (!change) return ['NO DATA', '—', '—', 'No directional observation'];
+        if (!change) return ['NO DATA', '—', '—', '—', 'No directional observation'];
         return [
             change.status,
-            `${Number(change.previous_weight).toFixed(2)}%`,
-            `${Number(change.current_weight).toFixed(2)}%`,
-            directionalStatuses.has(change.status)
-                ? `${change.signal_weight_change > 0 ? '+' : ''}${Number(change.signal_weight_change).toFixed(2)}pp`
-                : 'Excluded from sentiment (unchanged shares)'
+            change.estimated_trade_weight === null
+                ? 'Unavailable'
+                : `${change.estimated_trade_weight > 0 ? '+' : ''}${Number(change.estimated_trade_weight).toFixed(2)}pp`,
+            change.typical_position_weight === null
+                ? 'Unavailable'
+                : `${Number(change.typical_position_weight).toFixed(2)}%`,
+            change.relative_conviction === null
+                ? 'Unavailable'
+                : `${change.relative_conviction > 0 ? '+' : ''}${Number(change.relative_conviction).toFixed(2)}x`,
+            change.conviction_class
         ];
     }));
-    const cap = Math.max(sentimentData.winsorization_cap_pp || 1, 0.1);
+    const cap = Number(sentimentData.conviction_cap_x || 2);
     const heatmap = document.getElementById('ticker-conviction-heatmap');
     heatmap.style.height = `${Math.max(480, managerNames.length * 25 + 100)}px`;
 
@@ -1560,13 +1582,14 @@ function renderWhaleSentiment(intelligence) {
             [0.65, '#166534'],
             [1, '#22c55e']
         ],
-        colorbar: {title: 'Weight Δ pp', thickness: 13},
+        colorbar: {title: 'Trade / Typical', thickness: 13},
         hovertemplate:
             '<b>%{y}</b><br>%{x}<br>' +
             'Action: %{customdata[0]}<br>' +
-            'Previous: %{customdata[1]}<br>' +
-            'Current: %{customdata[2]}<br>' +
-            'Sentiment weight change: %{customdata[3]}' +
+            'Estimated trade weight: %{customdata[1]}<br>' +
+            'Typical manager position: %{customdata[2]}<br>' +
+            'Relative conviction: %{customdata[3]}<br>' +
+            'Classification: %{customdata[4]}' +
             '<extra></extra>'
     }], {
         paper_bgcolor: 'rgba(0,0,0,0)',

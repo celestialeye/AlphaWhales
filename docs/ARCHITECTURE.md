@@ -77,6 +77,12 @@ Managers that changed reporting entities can define `historical_ciks`.
 Pershing Square uses its current CIK first and falls back to its former CIK
 when that chain provides the usable comparison.
 
+SEC ingestion normalizes legacy dollar/thousand-dollar value scales from
+implied per-share prices, rebuilds portfolio totals and weights from holdings,
+and selects the latest complete filing among original/amended submissions.
+QoQ comparisons are then constructed from the normalized current and previous
+snapshots.
+
 ## Concurrency
 
 - edgartools and OpenBB calls run through `run_in_executor`.
@@ -97,7 +103,10 @@ The relevant peer reference and calculation patterns are maintained locally.
 ## Ticker sentiment flow
 
 `DataService.get_ticker_intelligence()` retains manager-level changes for each
-of the 20 historical quarters. It derives breadth, robust portfolio-weight
-conviction, composite sentiment regimes, score changes, streaks, dollar-flow
-cross-checks, and latest-quarter contributors. The frontend receives completed
-calculations and only renders the sentiment trend and manager heatmap.
+of the 20 historical quarters. It derives raw share activity, estimated trade
+weight, manager-relative conviction, meaningful breadth, composite sentiment
+regimes, streaks, dollar-flow cross-checks, and contributors. The frontend
+receives completed calculations and only renders the trend and heatmap.
+
+Ticker history derives actions directly from consecutive cached snapshots,
+which preserves continuity across reporting-entity CIK changes.

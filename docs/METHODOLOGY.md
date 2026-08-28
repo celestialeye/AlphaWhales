@@ -9,6 +9,13 @@ actual manager performance or trade proceeds.
 
 ## Holdings and ownership
 
+- Legacy 13F filings may expose market values in dollars, thousands of dollars,
+  or with a 1,000x amendment error. Values are normalized using the median
+  implied price (`Value / Shares`), and portfolio totals and weights are rebuilt
+  from normalized holdings rather than trusting inconsistent summary totals.
+- When original and amended filings share a report date, the application keeps
+  candidates with the largest holdings count and selects the latest complete
+  submission.
 - A holder is one configured manager with a positive reported position.
 - Holder counts use funds, not holding rows.
 - Mean weight is calculated among holders only.
@@ -130,53 +137,76 @@ positions, correlations, taxes, liquidity, horizon, or risk tolerance.
 
 ## Alpha Whale Sentiment
 
-The ticker sentiment view combines manager participation and portfolio-weight
-outcomes while keeping estimated dollar flow separate.
+The ticker sentiment view separates raw share activity from manager-relative
+trade conviction while keeping estimated dollar flow separate.
 
-### Breadth
-
-```text
-bullish managers = NEW + INCREASED
-bearish managers = DECREASED + CLOSED
-
-breadth =
-  100 * (bullish managers - bearish managers)
-  / (bullish managers + bearish managers)
-```
-
-Unchanged managers remain visible but do not enter the directional
-denominator.
-
-### Portfolio-weight conviction
-
-For directional share actions, each manager contributes its signed portfolio
-weight change:
+### Raw share activity
 
 ```text
-weight change = current portfolio weight - previous portfolio weight
+buy actions = NEW + INCREASED
+sell actions = DECREASED + CLOSED
+
+raw activity breadth =
+  100 * (buy actions - sell actions)
+  / (buy actions + sell actions)
 ```
 
-Only managers with directional share actions enter this component. The sign
-remains the actual portfolio-weight outcome, so it can oppose the share action.
-An expanding 95th-percentile cap uses only observations available through each
-quarter. This limits outlier influence without using future quarters to restate
-older results.
+Raw activity is displayed as context but does not directly determine the
+sentiment regime.
+
+### Estimated trade weight
+
+For each directional action:
 
 ```text
-conviction =
-  100 * (positive clipped weight changes - negative clipped weight changes)
-  / total absolute clipped weight changes
+estimated trade weight =
+  share change * quarter-average market price
+  / manager's prior reported portfolio value
 ```
 
-Share direction and portfolio-weight direction can disagree when security
-prices or the manager's total reported portfolio value changed.
+This estimates how many percentage points of the manager's portfolio the trade
+represented while avoiding price appreciation being mistaken for trading.
+Quarter-end price is used only when the quarter-average price is unavailable.
+Execution dates and prices remain unknown, so it is still an estimate.
+
+### Manager-relative conviction
+
+Managers have different normal position sizes. A 2-point trade is routine for
+a five-position fund but potentially exceptional for a fifty-position fund.
+
+```text
+relative conviction =
+  estimated trade weight / manager's median prior position weight
+```
+
+Classification:
+
+| Absolute relative conviction | Classification |
+|---|---|
+| Below 0.25x normal position | Routine |
+| 0.25x to below 0.75x | Meaningful |
+| 0.75x to below 1.50x | High |
+| 1.50x or more | Exceptional |
+
+Only meaningful, high, and exceptional trades enter sentiment. Contributions
+are capped at 2x a manager's typical position.
+
+```text
+meaningful breadth =
+  100 * (meaningful bullish trades - meaningful bearish trades)
+  / total meaningful trades
+
+relative conviction score =
+  100 * (positive capped conviction - negative capped conviction)
+  / total absolute capped conviction
+```
 
 ### Composite and regimes
 
-At least three directional managers are required:
+At least three meaningful managers are required:
 
 ```text
-sentiment = 50% breadth + 50% conviction
+sentiment = 50% meaningful breadth + 50% relative conviction score
 ```
 
 | Score | Regime |
@@ -186,16 +216,15 @@ sentiment = 50% breadth + 50% conviction
 | Above -25 to below 25 | Neutral |
 | Above -60 to -25 | Bearish |
 | -100 to -60 | Strongly bearish |
-| Fewer than three directional managers | Low participation |
+| Fewer than three meaningful managers | Low participation |
 
 Estimated net dollar flow is a dollar-weighted cross-check, not a score input.
 It `CONFIRMS` when its direction agrees with a non-neutral sentiment regime,
 `DIVERGES` when it opposes the regime, and is otherwise `NEUTRAL`.
 
-The manager conviction heatmap uses portfolio-weight changes from directional
-share-action observations.
-Contributor lists display the same clipped changes used by the conviction
-score and retain the actual change in supporting text.
+The manager conviction heatmap displays estimated trade size as a multiple of
+each manager's normal position. Contributor lists display the capped multiple
+used by the score and the estimated trade weight as secondary context.
 
 ## Pair-trading research
 

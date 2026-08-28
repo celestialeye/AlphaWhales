@@ -5,7 +5,6 @@ import math
 import os
 import statistics
 from datetime import date, datetime, timedelta, timezone
-import numpy as np
 import pandas as pd
 from edgar import set_identity, Company
 from config import FUND_MANAGERS, SEC_IDENTITY, CACHE_DIR, CACHE_TTL_HOURS
@@ -55,6 +54,93 @@ class DataService:
     def _get_disk_cache_path(self, cik: str) -> str:
         return os.path.join(CACHE_DIR, f"{cik}.json")
 
+    @staticmethod
+    def _detect_13f_value_scale(values, shares):
+        valid = pd.DataFrame({
+            "value": pd.to_numeric(values, errors="coerce"),
+            "shares": pd.to_numeric(shares, errors="coerce")
+        }).dropna()
+        valid = valid[
+            (valid["value"] > 0)
+            & (valid["shares"] > 0)
+        ]
+        if valid.empty:
+            return 1.0
+        median_implied_price = float(
+            (valid["value"] / valid["shares"]).median()
+        )
+        if median_implied_price < 1.0:
+            return 1000.0
+        if median_implied_price > 10000.0:
+            return 0.001
+        return 1.0
+
+    @classmethod
+    def _normalize_holdings_values(cls, holdings):
+        if (
+            holdings is None
+            or holdings.empty
+            or "Value" not in holdings.columns
+            or "SharesPrnAmount" not in holdings.columns
+        ):
+            return holdings, 1.0
+        normalized = holdings.copy()
+        scale = cls._detect_13f_value_scale(
+            normalized["Value"],
+            normalized["SharesPrnAmount"]
+        )
+        normalized["Value"] = (
+            pd.to_numeric(normalized["Value"], errors="coerce")
+            .fillna(0.0)
+            * scale
+        )
+        total_value = float(normalized["Value"].sum())
+        normalized["PortfolioWeight"] = (
+            normalized["Value"] / total_value * 100.0
+            if total_value > 0
+            else 0.0
+        )
+        return normalized, scale
+
+    @classmethod
+    def _normalize_comparison_values(cls, comparison):
+        if comparison is None or comparison.empty:
+            return comparison
+        normalized = comparison.copy()
+        if {"Value", "Shares"}.issubset(normalized.columns):
+            current_scale = cls._detect_13f_value_scale(
+                normalized["Value"],
+                normalized["Shares"]
+            )
+            normalized["Value"] = (
+                pd.to_numeric(normalized["Value"], errors="coerce")
+                .fillna(0.0)
+                * current_scale
+            )
+        if {"PrevValue", "PrevShares"}.issubset(normalized.columns):
+            previous_scale = cls._detect_13f_value_scale(
+                normalized["PrevValue"],
+                normalized["PrevShares"]
+            )
+            normalized["PrevValue"] = (
+                pd.to_numeric(normalized["PrevValue"], errors="coerce")
+                .fillna(0.0)
+                * previous_scale
+            )
+        if {"Value", "PrevValue"}.issubset(normalized.columns):
+            normalized["ValueChange"] = (
+                normalized["Value"] - normalized["PrevValue"]
+            )
+            normalized["ValueChangePct"] = normalized.apply(
+                lambda row: (
+                    row["ValueChange"] / row["PrevValue"] * 100.0
+                    if row["PrevValue"] > 0
+                    else None
+                ),
+                axis=1
+            )
+        return normalized
+
     def _save_fund_to_disk_cache(self, cik: str):
         try:
             fund_data = self.cache.get(cik)
@@ -89,9 +175,23 @@ class DataService:
                     holdings_df = pd.DataFrame(data.get("holdings", [])) if data.get("holdings") else None
                     comparison_df = pd.DataFrame(data.get("comparison", [])) if data.get("comparison") else None
                     previous_comparison_df = pd.DataFrame(data.get("previous_comparison", [])) if data.get("previous_comparison") else None
+                    holdings_df, _ = self._normalize_holdings_values(
+                        holdings_df
+                    )
+                    comparison_df = self._normalize_comparison_values(
+                        comparison_df
+                    )
+                    previous_comparison_df = self._normalize_comparison_values(
+                        previous_comparison_df
+                    )
 
                     self.cache[cik]["status"] = data.get("status", "loaded")
-                    self.cache[cik]["metadata"] = data.get("metadata", {})
+                    metadata = data.get("metadata", {})
+                    if holdings_df is not None and not holdings_df.empty:
+                        metadata["total_value"] = float(
+                            holdings_df["Value"].sum()
+                        )
+                    self.cache[cik]["metadata"] = metadata
                     self.cache[cik]["last_updated"] = data.get("last_updated")
                     self.cache[cik]["holdings"] = holdings_df
                     self.cache[cik]["comparison"] = comparison_df
@@ -698,20 +798,27 @@ class DataService:
             fund_payloads = payload.get("funds", {})
             for fund in FUND_MANAGERS:
                 data = fund_payloads.get(fund["cik"], {})
+                holdings = (
+                    pd.DataFrame(data.get("holdings", []))
+                    if data.get("holdings")
+                    else None
+                )
+                comparison = (
+                    pd.DataFrame(data.get("comparison", []))
+                    if data.get("comparison")
+                    else None
+                )
+                holdings, _ = self._normalize_holdings_values(holdings)
+                comparison = self._normalize_comparison_values(comparison)
+                metadata = data.get("metadata", {})
+                if holdings is not None and not holdings.empty:
+                    metadata["total_value"] = float(holdings["Value"].sum())
                 period_cache[fund["cik"]] = {
                     "fund_info": fund,
                     "status": data.get("status", "unavailable"),
-                    "metadata": data.get("metadata", {}),
-                    "holdings": (
-                        pd.DataFrame(data.get("holdings", []))
-                        if data.get("holdings")
-                        else None
-                    ),
-                    "comparison": (
-                        pd.DataFrame(data.get("comparison", []))
-                        if data.get("comparison")
-                        else None
-                    ),
+                    "metadata": metadata,
+                    "holdings": holdings,
+                    "comparison": comparison,
                     "previous_comparison": None,
                     "last_updated": data.get("last_updated"),
                     "error": data.get("error")
@@ -873,6 +980,111 @@ class DataService:
             "total_funds": len(FUND_MANAGERS)
         }
 
+    def _get_ticker_snapshot_changes(
+        self,
+        current_ticker_data,
+        previous_ticker_data,
+        current_cache,
+        previous_cache,
+        current_available_funds,
+        previous_available_funds
+    ):
+        current_holders = {
+            holder["cik"]: holder
+            for holder in (
+                current_ticker_data["holders"]
+                if current_ticker_data
+                else []
+            )
+        }
+        previous_holders = {
+            holder["cik"]: holder
+            for holder in (
+                previous_ticker_data["holders"]
+                if previous_ticker_data
+                else []
+            )
+        }
+        changes = []
+
+        for cik in set(current_holders) | set(previous_holders):
+            if (
+                cik not in current_available_funds
+                or cik not in previous_available_funds
+            ):
+                continue
+            current_holder = current_holders.get(cik)
+            previous_holder = previous_holders.get(cik)
+            current_shares = (
+                float(current_holder["shares"])
+                if current_holder
+                else 0.0
+            )
+            previous_shares = (
+                float(previous_holder["shares"])
+                if previous_holder
+                else 0.0
+            )
+            if current_shares > 0 and previous_shares <= 0:
+                status = "NEW"
+            elif current_shares <= 0 and previous_shares > 0:
+                status = "CLOSED"
+            elif current_shares > previous_shares:
+                status = "INCREASED"
+            elif current_shares < previous_shares:
+                status = "DECREASED"
+            else:
+                status = "UNCHANGED"
+
+            fund_data = current_cache.get(cik) or previous_cache.get(cik)
+            previous_fund = previous_cache.get(cik, {})
+            previous_total_value = float(
+                previous_fund.get("metadata", {}).get("total_value", 0.0)
+            )
+            previous_holdings = previous_fund.get("holdings")
+            typical_position_weight = None
+            if (
+                previous_holdings is not None
+                and not previous_holdings.empty
+                and "PortfolioWeight" in previous_holdings.columns
+            ):
+                weights = pd.to_numeric(
+                    previous_holdings["PortfolioWeight"],
+                    errors="coerce"
+                ).dropna()
+                weights = weights[weights > 0]
+                if not weights.empty:
+                    typical_position_weight = float(
+                        statistics.median(weights.tolist())
+                    )
+
+            current_weight = (
+                float(current_holder["portfolio_weight"])
+                if current_holder
+                else 0.0
+            )
+            previous_weight = (
+                float(previous_holder["portfolio_weight"])
+                if previous_holder
+                else 0.0
+            )
+            changes.append({
+                "cik": cik,
+                "manager": fund_data["fund_info"]["manager"],
+                "fund_name": fund_data["fund_info"]["name"],
+                "status": status,
+                "shares_change": current_shares - previous_shares,
+                "previous_portfolio_weight": previous_weight,
+                "portfolio_weight": current_weight,
+                "portfolio_weight_change_raw": (
+                    current_weight - previous_weight
+                ),
+                "previous_portfolio_value_raw": previous_total_value,
+                "manager_typical_position_weight": typical_position_weight
+            })
+
+        return changes
+
     async def get_ticker_intelligence(self, ticker: str):
         normalized = ticker.strip().upper()
         market = await self.get_ticker_market_data(normalized)
@@ -882,6 +1094,9 @@ class DataService:
         history = []
         positions_by_period = {}
         available_funds_by_period = {}
+        previous_period_cache = None
+        previous_ticker_data = None
+        previous_available_funds = None
 
         for period in reversed(periods):
             period_cache = await self.get_period_cache(period)
@@ -894,10 +1109,21 @@ class DataService:
                 normalized,
                 fund_cache=period_cache
             )
-            changes = self.get_qoq_changes(
-                include_unchanged=True,
-                fund_cache=period_cache,
-                ticker=normalized
+            changes = (
+                self._get_ticker_snapshot_changes(
+                    ticker_data,
+                    previous_ticker_data,
+                    period_cache,
+                    previous_period_cache,
+                    available_funds_by_period[period],
+                    previous_available_funds
+                )
+                if previous_period_cache is not None
+                else self.get_qoq_changes(
+                    include_unchanged=True,
+                    fund_cache=period_cache,
+                    ticker=normalized
+                )
             )
             action_counts = {
                 "new": 0,
@@ -909,6 +1135,10 @@ class DataService:
             gross_inflow = 0.0
             gross_outflow = 0.0
             quarter_price = quarter_end_prices.get(period)
+            quarter_trade_price = (
+                quarter_average_prices.get(period)
+                or quarter_price
+            )
             flow_available = quarter_price is not None
             investor_changes = []
 
@@ -927,6 +1157,50 @@ class DataService:
                     if move["status"] in {"NEW", "INCREASED", "DECREASED", "CLOSED"}
                     else 0.0
                 )
+                previous_portfolio_value = float(
+                    move.get("previous_portfolio_value_raw", 0.0)
+                )
+                typical_position_weight = move.get(
+                    "manager_typical_position_weight"
+                )
+                estimated_trade_weight = (
+                    (
+                        float(move["shares_change"])
+                        * float(quarter_trade_price)
+                        / previous_portfolio_value
+                        * 100.0
+                    )
+                    if quarter_trade_price is not None
+                    and previous_portfolio_value > 0
+                    else None
+                )
+                relative_conviction = (
+                    estimated_trade_weight / float(typical_position_weight)
+                    if estimated_trade_weight is not None
+                    and typical_position_weight is not None
+                    and typical_position_weight > 0
+                    else None
+                )
+                relative_conviction_valid = (
+                    relative_conviction is not None
+                    and math.isfinite(relative_conviction)
+                )
+                relative_magnitude = (
+                    abs(relative_conviction)
+                    if relative_conviction_valid
+                    else 0.0
+                )
+                conviction_class = (
+                    "UNAVAILABLE"
+                    if not relative_conviction_valid
+                    else "ROUTINE"
+                    if relative_magnitude < 0.25
+                    else "MEANINGFUL"
+                    if relative_magnitude < 0.75
+                    else "HIGH"
+                    if relative_magnitude < 1.50
+                    else "EXCEPTIONAL"
+                )
                 investor_changes.append({
                     "cik": move["cik"],
                     "manager": move["manager"],
@@ -935,7 +1209,19 @@ class DataService:
                     "previous_weight": move.get("previous_portfolio_weight", 0.0),
                     "current_weight": move.get("portfolio_weight", 0.0),
                     "weight_change": round(raw_weight_change, 2),
-                    "signal_weight_change": signal_weight_change
+                    "signal_weight_change": signal_weight_change,
+                    "estimated_trade_weight": (
+                        round(estimated_trade_weight, 4)
+                        if estimated_trade_weight is not None
+                        else None
+                    ),
+                    "typical_position_weight": typical_position_weight,
+                    "relative_conviction": (
+                        round(relative_conviction, 4)
+                        if relative_conviction_valid
+                        else None
+                    ),
+                    "conviction_class": conviction_class
                 })
                 if quarter_price is not None:
                     estimated_flow = (
@@ -972,49 +1258,76 @@ class DataService:
                 ),
                 "quarter_end_price": quarter_price
             })
+            previous_period_cache = period_cache
+            previous_ticker_data = ticker_data
+            previous_available_funds = available_funds_by_period[period]
 
-        observed_weight_changes = []
-        winsor_cap = 0.0
+        materiality_threshold = 0.25
+        conviction_cap = 2.0
         previous_score = None
         previous_regime_bucket = None
         regime_streak = 0
 
         for item in history:
-            observed_weight_changes.extend(
-                abs(change["signal_weight_change"])
-                for change in item["investor_changes"]
-                if change["signal_weight_change"] != 0
-            )
-            winsor_cap = (
-                float(np.percentile(observed_weight_changes, 95))
-                if observed_weight_changes
-                else 0.0
-            )
             actions = item["actions"]
-            bullish_count = actions["new"] + actions["increased"]
-            bearish_count = actions["decreased"] + actions["closed"]
-            directional_count = bullish_count + bearish_count
-            breadth_score = (
-                100.0 * (bullish_count - bearish_count) / directional_count
-                if directional_count > 0
+            activity_bullish_count = actions["new"] + actions["increased"]
+            activity_bearish_count = actions["decreased"] + actions["closed"]
+            activity_directional_count = (
+                activity_bullish_count + activity_bearish_count
+            )
+            activity_breadth_score = (
+                100.0
+                * (activity_bullish_count - activity_bearish_count)
+                / activity_directional_count
+                if activity_directional_count > 0
                 else None
             )
 
             positive_conviction = 0.0
             negative_conviction = 0.0
+            meaningful_bullish_count = 0
+            meaningful_bearish_count = 0
+            routine_count = 0
+            unscored_count = 0
             for change in item["investor_changes"]:
-                raw_change = change["signal_weight_change"]
-                clipped_change = (
-                    max(-winsor_cap, min(winsor_cap, raw_change))
-                    if winsor_cap > 0
-                    else raw_change
-                )
-                change["clipped_weight_change"] = round(clipped_change, 2)
-                if clipped_change > 0:
-                    positive_conviction += clipped_change
-                elif clipped_change < 0:
-                    negative_conviction += abs(clipped_change)
+                relative_conviction = change["relative_conviction"]
+                if change["status"] == "UNCHANGED":
+                    change["scored_relative_conviction"] = None
+                    continue
+                if relative_conviction is None:
+                    unscored_count += 1
+                    change["scored_relative_conviction"] = None
+                    continue
+                if abs(relative_conviction) < materiality_threshold:
+                    routine_count += 1
+                    change["scored_relative_conviction"] = 0.0
+                    continue
 
+                scored_conviction = max(
+                    -conviction_cap,
+                    min(conviction_cap, relative_conviction)
+                )
+                change["scored_relative_conviction"] = round(
+                    scored_conviction,
+                    4
+                )
+                if scored_conviction > 0:
+                    meaningful_bullish_count += 1
+                    positive_conviction += scored_conviction
+                else:
+                    meaningful_bearish_count += 1
+                    negative_conviction += abs(scored_conviction)
+
+            meaningful_count = (
+                meaningful_bullish_count + meaningful_bearish_count
+            )
+            meaningful_breadth_score = (
+                100.0
+                * (meaningful_bullish_count - meaningful_bearish_count)
+                / meaningful_count
+                if meaningful_count > 0
+                else None
+            )
             conviction_total = positive_conviction + negative_conviction
             conviction_score = (
                 100.0
@@ -1024,17 +1337,18 @@ class DataService:
                 else None
             )
             sentiment_score = (
-                (breadth_score + conviction_score) / 2.0
-                if breadth_score is not None and conviction_score is not None
+                (meaningful_breadth_score + conviction_score) / 2.0
+                if meaningful_breadth_score is not None
+                and conviction_score is not None
                 else None
             )
 
             published_score = (
                 sentiment_score
-                if directional_count >= 3
+                if meaningful_count >= 3
                 else None
             )
-            if directional_count < 3 and directional_count > 0:
+            if meaningful_count < 3 and activity_directional_count > 0:
                 regime = "LOW PARTICIPATION"
                 regime_bucket = "NO SIGNAL"
             elif sentiment_score is None:
@@ -1091,22 +1405,32 @@ class DataService:
                 regime_streak = 1
 
             item["sentiment"] = {
-                "bullish_count": bullish_count,
-                "bearish_count": bearish_count,
-                "unchanged_count": actions["unchanged"],
-                "breadth_score": (
-                    round(breadth_score, 2)
-                    if breadth_score is not None
+                "activity_bullish_count": activity_bullish_count,
+                "activity_bearish_count": activity_bearish_count,
+                "activity_breadth_score": (
+                    round(activity_breadth_score, 2)
+                    if activity_breadth_score is not None
                     else None
                 ),
-                "positive_conviction_pp": round(positive_conviction, 2),
-                "negative_conviction_pp": round(negative_conviction, 2),
+                "bullish_count": meaningful_bullish_count,
+                "bearish_count": meaningful_bearish_count,
+                "unchanged_count": actions["unchanged"],
+                "routine_count": routine_count,
+                "unscored_count": unscored_count,
+                "breadth_score": (
+                    round(meaningful_breadth_score, 2)
+                    if meaningful_breadth_score is not None
+                    else None
+                ),
+                "positive_conviction_x": round(positive_conviction, 2),
+                "negative_conviction_x": round(negative_conviction, 2),
                 "conviction_score": (
                     round(conviction_score, 2)
                     if conviction_score is not None
                     else None
                 ),
-                "winsorization_cap_pp": round(winsor_cap, 2),
+                "materiality_threshold_x": materiality_threshold,
+                "conviction_cap_x": conviction_cap,
                 "score": (
                     round(published_score, 2)
                     if published_score is not None
@@ -1142,18 +1466,24 @@ class DataService:
             (
                 change
                 for change in latest_investor_changes
-                if change["signal_weight_change"] > 0
+                if (
+                    change.get("scored_relative_conviction") is not None
+                    and change["scored_relative_conviction"] > 0
+                )
             ),
-            key=lambda change: change["signal_weight_change"],
+            key=lambda change: change["scored_relative_conviction"],
             reverse=True
         )[:5]
         bearish_contributors = sorted(
             (
                 change
                 for change in latest_investor_changes
-                if change["signal_weight_change"] < 0
+                if (
+                    change.get("scored_relative_conviction") is not None
+                    and change["scored_relative_conviction"] < 0
+                )
             ),
-            key=lambda change: change["signal_weight_change"]
+            key=lambda change: change["scored_relative_conviction"]
         )[:5]
 
         basis_states = {}
@@ -1259,7 +1589,8 @@ class DataService:
             "latest": history[-1] if history else None,
             "history": history,
             "sentiment": {
-                "winsorization_cap_pp": round(winsor_cap, 2),
+                "materiality_threshold_x": materiality_threshold,
+                "conviction_cap_x": conviction_cap,
                 "latest": history[-1]["sentiment"] if history else None,
                 "bullish_contributors": bullish_contributors,
                 "bearish_contributors": bearish_contributors
@@ -1318,20 +1649,31 @@ class DataService:
             except Exception:
                 pass
 
-    def _build_fund_result(self, report, cik: str, include_previous_comparison=True):
-        holdings = report.holdings
+    def _build_fund_result(
+        self,
+        report,
+        cik: str,
+        include_previous_comparison=True,
+        include_comparison=True
+    ):
+        holdings, value_scale = self._normalize_holdings_values(
+            report.holdings
+        )
         comp_data = None
         previous_comp_data = None
         previous_report_period = ""
         two_quarters_ago_period = ""
 
-        try:
-            comparison = report.compare_holdings()
-            if comparison is not None and hasattr(comparison, 'data') and comparison.data is not None:
-                comp_data = comparison.data
-                previous_report_period = str(comparison.previous_period or "")
-        except Exception as comp_err:
-            logger.warning(f"Could not compute QoQ comparison for {cik}: {comp_err}")
+        if include_comparison:
+            try:
+                comparison = report.compare_holdings()
+                if comparison is not None and hasattr(comparison, 'data') and comparison.data is not None:
+                    comp_data = self._normalize_comparison_values(
+                        comparison.data
+                    )
+                    previous_report_period = str(comparison.previous_period or "")
+            except Exception as comp_err:
+                logger.warning(f"Could not compute QoQ comparison for {cik}: {comp_err}")
 
         if include_previous_comparison:
             try:
@@ -1340,13 +1682,15 @@ class DataService:
                     previous_report_period = str(previous_report.report_period or previous_report_period)
                     previous_comparison = previous_report.compare_holdings()
                     if previous_comparison is not None and hasattr(previous_comparison, 'data') and previous_comparison.data is not None:
-                        previous_comp_data = previous_comparison.data
+                        previous_comp_data = self._normalize_comparison_values(
+                            previous_comparison.data
+                        )
                         two_quarters_ago_period = str(previous_comparison.previous_period or "")
             except Exception as previous_comp_err:
                 logger.warning(f"Could not compute prior-quarter comparison for {cik}: {previous_comp_err}")
 
         if holdings is not None and not holdings.empty:
-            total_val = float(report.total_value) if report.total_value else float(holdings['Value'].sum())
+            total_val = float(holdings["Value"].sum())
             if total_val > 0:
                 holdings['PortfolioWeight'] = (holdings['Value'].astype(float) / total_val) * 100.0
             else:
@@ -1355,8 +1699,10 @@ class DataService:
             if 'Ticker' in holdings.columns:
                 holdings['Ticker'] = holdings['Ticker'].fillna('').astype(str).str.strip().str.upper()
 
-        total_val_num = float(report.total_value) if report.total_value else (
-            float(holdings['Value'].sum()) if holdings is not None and not holdings.empty else 0.0
+        total_val_num = (
+            float(holdings["Value"].sum())
+            if holdings is not None and not holdings.empty
+            else 0.0
         )
         total_holdings_num = int(report.total_holdings) if report.total_holdings else (
             len(holdings) if holdings is not None else 0
@@ -1370,6 +1716,7 @@ class DataService:
                 "total_holdings": total_holdings_num,
                 "report_period": str(report.report_period or ""),
                 "filing_date": str(getattr(report, 'filing_date', '')),
+                "value_scale_applied": value_scale,
                 "previous_report_period": previous_report_period,
                 "two_quarters_ago_period": two_quarters_ago_period
             },
@@ -1377,6 +1724,187 @@ class DataService:
             "comparison": comp_data,
             "previous_comparison": previous_comp_data
         }
+
+    @staticmethod
+    def _compare_report_holdings(current_report, previous_report):
+        def prepare(report, current):
+            holdings, _ = DataService._normalize_holdings_values(
+                report.holdings
+            )
+            if holdings is None or holdings.empty:
+                return pd.DataFrame()
+            frame = holdings[
+                ["Cusip", "Ticker", "Issuer", "SharesPrnAmount", "Value"]
+            ].copy()
+            frame["Cusip"] = frame["Cusip"].astype(str).str.strip()
+            frame["SharesPrnAmount"] = pd.to_numeric(
+                frame["SharesPrnAmount"],
+                errors="coerce"
+            ).fillna(0.0)
+            frame["Value"] = pd.to_numeric(
+                frame["Value"],
+                errors="coerce"
+            ).fillna(0.0)
+            frame = frame[frame["Cusip"] != ""]
+            frame = frame.groupby("Cusip", as_index=False).agg({
+                "Ticker": "first",
+                "Issuer": "first",
+                "SharesPrnAmount": "sum",
+                "Value": "sum"
+            })
+            return frame.rename(columns={
+                "Ticker": "TickerCurrent" if current else "TickerPrevious",
+                "Issuer": "IssuerCurrent" if current else "IssuerPrevious",
+                "SharesPrnAmount": "Shares" if current else "PrevShares",
+                "Value": "Value" if current else "PrevValue"
+            })
+
+        current = prepare(current_report, True)
+        previous = prepare(previous_report, False)
+        merged = pd.merge(current, previous, on="Cusip", how="outer")
+        merged["Ticker"] = merged["TickerCurrent"].combine_first(
+            merged["TickerPrevious"]
+        )
+        merged["Issuer"] = merged["IssuerCurrent"].combine_first(
+            merged["IssuerPrevious"]
+        )
+        merged["Shares"] = pd.to_numeric(
+            merged["Shares"], errors="coerce"
+        ).fillna(0.0)
+        merged["PrevShares"] = pd.to_numeric(
+            merged["PrevShares"], errors="coerce"
+        ).fillna(0.0)
+        merged["Value"] = pd.to_numeric(
+            merged["Value"], errors="coerce"
+        ).fillna(0.0)
+        merged["PrevValue"] = pd.to_numeric(
+            merged["PrevValue"], errors="coerce"
+        ).fillna(0.0)
+        merged["ShareChange"] = merged["Shares"] - merged["PrevShares"]
+        merged["ValueChange"] = merged["Value"] - merged["PrevValue"]
+        merged["ShareChangePct"] = merged.apply(
+            lambda row: (
+                row["ShareChange"] / row["PrevShares"] * 100.0
+                if row["PrevShares"] > 0
+                else None
+            ),
+            axis=1
+        )
+        merged["ValueChangePct"] = merged.apply(
+            lambda row: (
+                row["ValueChange"] / row["PrevValue"] * 100.0
+                if row["PrevValue"] > 0
+                else None
+            ),
+            axis=1
+        )
+
+        def classify(row):
+            if row["Shares"] > 0 and row["PrevShares"] <= 0:
+                return "NEW"
+            if row["Shares"] <= 0 and row["PrevShares"] > 0:
+                return "CLOSED"
+            if row["Shares"] > row["PrevShares"]:
+                return "INCREASED"
+            if row["Shares"] < row["PrevShares"]:
+                return "DECREASED"
+            return "UNCHANGED"
+
+        merged["Status"] = merged.apply(classify, axis=1)
+        return merged[[
+            "Cusip",
+            "Ticker",
+            "Issuer",
+            "Shares",
+            "Value",
+            "PrevShares",
+            "PrevValue",
+            "ShareChange",
+            "ShareChangePct",
+            "ValueChange",
+            "ValueChangePct",
+            "Status"
+        ]]
+
+    def _find_best_report_for_period(self, fund, report_period):
+        candidates = []
+        for cik in [fund["cik"], *fund.get("historical_ciks", [])]:
+            try:
+                filings = Company(cik).get_filings(form="13F-HR")
+                for filing in filings:
+                    if str(filing.report_date or "") == report_period:
+                        report = filing.obj()
+                        candidates.append((
+                            report,
+                            cik,
+                            str(filing.form),
+                            str(filing.filing_date)
+                        ))
+            except Exception as e:
+                logger.warning(
+                    f"Could not inspect {report_period} filing for "
+                    f"{fund['manager']} under CIK {cik}: {e}"
+                )
+        if not candidates:
+            return None, None
+
+        def holding_count(candidate):
+            holdings = candidate[0].holdings
+            return len(holdings) if holdings is not None else 0
+
+        max_holding_count = max(
+            holding_count(candidate)
+            for candidate in candidates
+        )
+        complete_candidates = [
+            candidate
+            for candidate in candidates
+            if holding_count(candidate) == max_holding_count
+        ]
+        selected = max(
+            complete_candidates,
+            key=lambda candidate: candidate[3]
+        )
+        return selected[0], selected[1]
+
+    def _build_cross_cik_fund_result(
+        self,
+        fund,
+        report,
+        include_previous_comparison=True
+    ):
+        result = self._build_fund_result(
+            report,
+            fund["cik"],
+            include_previous_comparison=False,
+            include_comparison=False
+        )
+        current_period = pd.Period(str(report.report_period), freq="Q")
+        previous_period = (current_period - 1).end_time.date().isoformat()
+        older_period = (current_period - 2).end_time.date().isoformat()
+        previous_report, _ = self._find_best_report_for_period(
+            fund,
+            previous_period
+        )
+        older_report = None
+        if include_previous_comparison:
+            older_report, _ = self._find_best_report_for_period(
+                fund,
+                older_period
+            )
+        if previous_report is not None:
+            result["comparison"] = self._compare_report_holdings(
+                report,
+                previous_report
+            )
+            result["metadata"]["previous_report_period"] = previous_period
+        if previous_report is not None and older_report is not None:
+            result["previous_comparison"] = self._compare_report_holdings(
+                previous_report,
+                older_report
+            )
+            result["metadata"]["two_quarters_ago_period"] = older_period
+        return result
 
     def _fetch_fund_sync(self, cik: str):
         try:
@@ -1387,37 +1915,52 @@ class DataService:
             if not filings or len(filings) == 0:
                 return {"status": "error", "error": "No 13F filings found on EDGAR"}
 
+            fund = next(
+                (
+                    item
+                    for item in FUND_MANAGERS
+                    if item["cik"] == cik
+                ),
+                None
+            )
+            if fund:
+                latest_period = str(filings[0].report_date or "")
+                report, _ = self._find_best_report_for_period(
+                    fund,
+                    latest_period
+                )
+                if report is not None:
+                    return self._build_cross_cik_fund_result(fund, report)
             return self._build_fund_result(filings[0].obj(), cik)
         except Exception as e:
             logger.error(f"Error fetching fund {cik}: {e}")
             return {"status": "error", "error": str(e)}
 
     def _fetch_fund_period_sync(self, fund, report_period: str):
-        fallback_result = None
-        for cik in [fund["cik"], *fund.get("historical_ciks", [])]:
-            try:
-                filings = Company(cik).get_filings(form='13F-HR')
-                for filing in filings:
-                    if str(filing.report_date or "") == report_period:
-                        result = self._build_fund_result(
-                            filing.obj(),
-                            cik,
-                            include_previous_comparison=False
-                        )
-                        if result.get("comparison") is not None:
-                            return result
-                        fallback_result = fallback_result or result
-            except Exception as e:
-                logger.warning(
-                    f"Could not fetch {report_period} filing for {fund['manager']} under CIK {cik}: {e}"
+        try:
+            report, _ = self._find_best_report_for_period(
+                fund,
+                report_period
+            )
+            if report is not None:
+                return self._build_cross_cik_fund_result(
+                    fund,
+                    report,
+                    include_previous_comparison=False
                 )
-
-        if fallback_result is not None:
-            return fallback_result
-        return {
-            "status": "unavailable",
-            "error": f"No 13F filing found for {report_period}"
-        }
+            return {
+                "status": "unavailable",
+                "error": f"No 13F filing found for {report_period}"
+            }
+        except Exception as e:
+            logger.warning(
+                f"Could not build {report_period} snapshot for "
+                f"{fund['manager']}: {e}"
+            )
+            return {
+                "status": "unavailable",
+                "error": str(e)
+            }
 
     async def refresh_fund(self, cik: str):
         loop = asyncio.get_event_loop()
@@ -1706,6 +2249,20 @@ class DataService:
                     if "PrevValue" in comp_df.columns
                     else 0.0
                 )
+                previous_position_values = (
+                    pd.to_numeric(comp_df["PrevValue"], errors="coerce")
+                    .dropna()
+                    .loc[lambda values: values > 0]
+                    if "PrevValue" in comp_df.columns
+                    else pd.Series(dtype=float)
+                )
+                manager_typical_position_weight = (
+                    float(statistics.median(
+                        (previous_position_values / previous_total_value * 100.0).tolist()
+                    ))
+                    if previous_total_value > 0 and not previous_position_values.empty
+                    else None
+                )
 
                 # Merge logic to get current portfolio weight if available
                 if hold_df is not None and not hold_df.empty and 'Cusip' in hold_df.columns:
@@ -1791,6 +2348,12 @@ class DataService:
                         ),
                         "portfolio_weight_change_raw": (
                             portfolio_weight - previous_portfolio_weight
+                        ),
+                        "previous_portfolio_value_raw": previous_total_value,
+                        "manager_typical_position_weight": (
+                            round(manager_typical_position_weight, 4)
+                            if manager_typical_position_weight is not None
+                            else None
                         ),
                         "value": round(val_raw / 1_000_000.0, 2), # In $M
                         "prev_value": round(prev_val_raw / 1_000_000.0, 2), # In $M
