@@ -1907,6 +1907,7 @@ async function loadTickerDetail(ticker) {
 
     } catch(err) {
         console.error('Error loading ticker detail:', err);
+        showWhaleSentimentUnavailable('Ticker sentiment could not be loaded.');
         showToast('Could not load complete ticker intelligence', 'error');
     } finally {
         const remaining = Math.max(0, 700 - (performance.now() - loaderStartedAt));
