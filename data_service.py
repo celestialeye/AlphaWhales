@@ -5,6 +5,7 @@ import math
 import os
 import statistics
 from datetime import date, datetime, timedelta, timezone
+import numpy as np
 import pandas as pd
 from edgar import set_identity, Company
 from config import FUND_MANAGERS, SEC_IDENTITY, CACHE_DIR, CACHE_TTL_HOURS
@@ -908,11 +909,34 @@ class DataService:
             gross_inflow = 0.0
             gross_outflow = 0.0
             quarter_price = quarter_end_prices.get(period)
+            flow_available = quarter_price is not None
+            investor_changes = []
 
             for move in changes:
                 status_key = move["status"].lower()
                 if status_key in action_counts:
                     action_counts[status_key] += 1
+                raw_weight_change = float(
+                    move.get(
+                        "portfolio_weight_change_raw",
+                        move.get("portfolio_weight_change", 0.0)
+                    )
+                )
+                signal_weight_change = (
+                    raw_weight_change
+                    if move["status"] in {"NEW", "INCREASED", "DECREASED", "CLOSED"}
+                    else 0.0
+                )
+                investor_changes.append({
+                    "cik": move["cik"],
+                    "manager": move["manager"],
+                    "fund_name": move["fund_name"],
+                    "status": move["status"],
+                    "previous_weight": move.get("previous_portfolio_weight", 0.0),
+                    "current_weight": move.get("portfolio_weight", 0.0),
+                    "weight_change": round(raw_weight_change, 2),
+                    "signal_weight_change": signal_weight_change
+                })
                 if quarter_price is not None:
                     estimated_flow = (
                         float(move["shares_change"]) * float(quarter_price)
@@ -938,11 +962,199 @@ class DataService:
                 "total_shares": ticker_data["total_shares"] if ticker_data else 0,
                 "median_weight": ticker_data["median_weight"] if ticker_data else 0.0,
                 "actions": action_counts,
-                "gross_inflow": round(gross_inflow, 2),
-                "gross_outflow": round(gross_outflow, 2),
-                "net_flow": round(gross_inflow - gross_outflow, 2),
+                "investor_changes": investor_changes,
+                "gross_inflow": round(gross_inflow, 2) if flow_available else None,
+                "gross_outflow": round(gross_outflow, 2) if flow_available else None,
+                "net_flow": (
+                    round(gross_inflow - gross_outflow, 2)
+                    if flow_available
+                    else None
+                ),
                 "quarter_end_price": quarter_price
             })
+
+        observed_weight_changes = []
+        winsor_cap = 0.0
+        previous_score = None
+        previous_regime_bucket = None
+        regime_streak = 0
+
+        for item in history:
+            observed_weight_changes.extend(
+                abs(change["signal_weight_change"])
+                for change in item["investor_changes"]
+                if change["signal_weight_change"] != 0
+            )
+            winsor_cap = (
+                float(np.percentile(observed_weight_changes, 95))
+                if observed_weight_changes
+                else 0.0
+            )
+            actions = item["actions"]
+            bullish_count = actions["new"] + actions["increased"]
+            bearish_count = actions["decreased"] + actions["closed"]
+            directional_count = bullish_count + bearish_count
+            breadth_score = (
+                100.0 * (bullish_count - bearish_count) / directional_count
+                if directional_count > 0
+                else None
+            )
+
+            positive_conviction = 0.0
+            negative_conviction = 0.0
+            for change in item["investor_changes"]:
+                raw_change = change["signal_weight_change"]
+                clipped_change = (
+                    max(-winsor_cap, min(winsor_cap, raw_change))
+                    if winsor_cap > 0
+                    else raw_change
+                )
+                change["clipped_weight_change"] = round(clipped_change, 2)
+                if clipped_change > 0:
+                    positive_conviction += clipped_change
+                elif clipped_change < 0:
+                    negative_conviction += abs(clipped_change)
+
+            conviction_total = positive_conviction + negative_conviction
+            conviction_score = (
+                100.0
+                * (positive_conviction - negative_conviction)
+                / conviction_total
+                if conviction_total > 0
+                else None
+            )
+            sentiment_score = (
+                (breadth_score + conviction_score) / 2.0
+                if breadth_score is not None and conviction_score is not None
+                else None
+            )
+
+            published_score = (
+                sentiment_score
+                if directional_count >= 3
+                else None
+            )
+            if directional_count < 3 and directional_count > 0:
+                regime = "LOW PARTICIPATION"
+                regime_bucket = "NO SIGNAL"
+            elif sentiment_score is None:
+                regime = "NO SIGNAL"
+                regime_bucket = "NO SIGNAL"
+            elif sentiment_score >= 60:
+                regime = "STRONGLY BULLISH"
+                regime_bucket = "BULLISH"
+            elif sentiment_score >= 25:
+                regime = "BULLISH"
+                regime_bucket = "BULLISH"
+            elif sentiment_score <= -60:
+                regime = "STRONGLY BEARISH"
+                regime_bucket = "BEARISH"
+            elif sentiment_score <= -25:
+                regime = "BEARISH"
+                regime_bucket = "BEARISH"
+            else:
+                regime = "NEUTRAL"
+                regime_bucket = "NEUTRAL"
+
+            flow_total = (
+                item["gross_inflow"] + item["gross_outflow"]
+                if item["gross_inflow"] is not None
+                and item["gross_outflow"] is not None
+                else None
+            )
+            flow_balance_score = (
+                100.0 * item["net_flow"] / flow_total
+                if flow_total is not None and flow_total > 0
+                else None
+            )
+            if (
+                published_score is None
+                or abs(published_score) < 25
+                or flow_balance_score is None
+                or abs(flow_balance_score) < 10
+            ):
+                flow_confirmation = "NEUTRAL"
+            elif (
+                published_score > 0 and flow_balance_score > 0
+            ) or (
+                published_score < 0 and flow_balance_score < 0
+            ):
+                flow_confirmation = "CONFIRMS"
+            else:
+                flow_confirmation = "DIVERGES"
+
+            if regime_bucket == "NO SIGNAL":
+                regime_streak = 0
+            elif regime_bucket == previous_regime_bucket:
+                regime_streak += 1
+            else:
+                regime_streak = 1
+
+            item["sentiment"] = {
+                "bullish_count": bullish_count,
+                "bearish_count": bearish_count,
+                "unchanged_count": actions["unchanged"],
+                "breadth_score": (
+                    round(breadth_score, 2)
+                    if breadth_score is not None
+                    else None
+                ),
+                "positive_conviction_pp": round(positive_conviction, 2),
+                "negative_conviction_pp": round(negative_conviction, 2),
+                "conviction_score": (
+                    round(conviction_score, 2)
+                    if conviction_score is not None
+                    else None
+                ),
+                "winsorization_cap_pp": round(winsor_cap, 2),
+                "score": (
+                    round(published_score, 2)
+                    if published_score is not None
+                    else None
+                ),
+                "score_change": (
+                    round(published_score - previous_score, 2)
+                    if published_score is not None and previous_score is not None
+                    else None
+                ),
+                "regime": regime,
+                "regime_streak": regime_streak,
+                "flow_balance_score": (
+                    round(flow_balance_score, 2)
+                    if flow_balance_score is not None
+                    else None
+                ),
+                "flow_confirmation": flow_confirmation
+            }
+            previous_score = published_score
+            previous_regime_bucket = (
+                regime_bucket
+                if regime_bucket != "NO SIGNAL"
+                else None
+            )
+
+        latest_investor_changes = (
+            history[-1]["investor_changes"]
+            if history
+            else []
+        )
+        bullish_contributors = sorted(
+            (
+                change
+                for change in latest_investor_changes
+                if change["signal_weight_change"] > 0
+            ),
+            key=lambda change: change["signal_weight_change"],
+            reverse=True
+        )[:5]
+        bearish_contributors = sorted(
+            (
+                change
+                for change in latest_investor_changes
+                if change["signal_weight_change"] < 0
+            ),
+            key=lambda change: change["signal_weight_change"]
+        )[:5]
 
         basis_states = {}
         for item in history:
@@ -988,7 +1200,7 @@ class DataService:
         valuation_state = valuation.get("assessment", "UNAVAILABLE")
         trend_state = technical.get("trend_regime", "UNAVAILABLE")
         timing_state = technical.get("entry_timing", "UNAVAILABLE")
-        latest_flow = history[-1]["net_flow"] if history else 0.0
+        latest_flow = (history[-1]["net_flow"] or 0.0) if history else 0.0
         latest_holders = history[-1]["investor_count"] if history else 0
 
         if valuation_state == "UNAVAILABLE" or trend_state == "UNAVAILABLE":
@@ -1046,6 +1258,12 @@ class DataService:
             "market": market,
             "latest": history[-1] if history else None,
             "history": history,
+            "sentiment": {
+                "winsorization_cap_pp": round(winsor_cap, 2),
+                "latest": history[-1]["sentiment"] if history else None,
+                "bullish_contributors": bullish_contributors,
+                "bearish_contributors": bearish_contributors
+            },
             "estimated_whale_basis": (
                 round(estimated_basis, 2)
                 if estimated_basis is not None
@@ -1570,6 +1788,9 @@ class DataService:
                         "portfolio_weight_change": round(
                             portfolio_weight - previous_portfolio_weight,
                             2
+                        ),
+                        "portfolio_weight_change_raw": (
+                            portfolio_weight - previous_portfolio_weight
                         ),
                         "value": round(val_raw / 1_000_000.0, 2), # In $M
                         "prev_value": round(prev_val_raw / 1_000_000.0, 2), # In $M

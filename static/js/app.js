@@ -1316,33 +1316,269 @@ function renderTickerHistoryCharts(history) {
         yaxis: {...commonLayout.yaxis, title: 'Reported Value ($M)', tickformat: '~s'}
     }, plotConfig);
 
-    const actionDefinitions = [
-        {key: 'new', name: 'NEW', color: '#22c55e', direction: 1},
-        {key: 'increased', name: 'INCREASED', color: '#06b6d4', direction: 1},
-        {key: 'decreased', name: 'DECREASED', color: '#f97316', direction: -1},
-        {key: 'closed', name: 'EXITED', color: '#ef4444', direction: -1}
-    ];
-    Plotly.newPlot(
-        'ticker-action-history-chart',
-        actionDefinitions.map(definition => ({
-            x: periods,
-            y: history.map(item => (item.actions?.[definition.key] || 0) * definition.direction),
-            name: definition.name,
-            type: 'bar',
-            marker: {color: definition.color},
-            customdata: history.map(item => item.actions?.[definition.key] || 0),
-            hovertemplate: `${definition.name}: %{customdata} investors<extra></extra>`
-        })),
+}
+
+function sentimentColor(regime) {
+    if (regime?.includes('BULLISH')) return '#22c55e';
+    if (regime?.includes('BEARISH')) return '#ef4444';
+    if (regime === 'NEUTRAL') return '#f59e0b';
+    return '#64748b';
+}
+
+function formatSignedScore(value) {
+    if (value === null || value === undefined || isNaN(value)) return '—';
+    const number = Number(value);
+    return `${number > 0 ? '+' : ''}${number.toFixed(1)}`;
+}
+
+function renderWhaleContributors(containerId, contributors) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!contributors?.length) {
+        container.innerHTML = '<li class="stats-loading">No directional weight changes.</li>';
+        return;
+    }
+
+    container.innerHTML = contributors.map(item => `
+        <li>
+            <a href="/investor/${item.cik}">
+                <span>
+                    <strong>${item.manager}</strong>
+                    <small>${item.status.replace('_', ' ')} · actual ${item.signal_weight_change > 0 ? '+' : ''}${formatPct(item.signal_weight_change).replace('%', 'pp')}</small>
+                </span>
+                <strong class="font-mono ${item.clipped_weight_change > 0 ? 'text-green' : 'text-red'}">
+                    ${item.clipped_weight_change > 0 ? '+' : ''}${formatPct(item.clipped_weight_change).replace('%', 'pp')}
+                </strong>
+            </a>
+        </li>
+    `).join('');
+}
+
+function resetWhaleSentimentView(message = 'Loading sentiment history...') {
+    const regime = document.getElementById('td-whale-sentiment-regime');
+    if (regime) {
+        regime.textContent = 'LOADING';
+        regime.className = 'whale-sentiment-regime';
+    }
+    [
+        'td-whale-sentiment-score',
+        'td-whale-sentiment-delta',
+        'td-whale-breadth',
+        'td-whale-breadth-counts',
+        'td-whale-conviction',
+        'td-whale-conviction-pp',
+        'td-whale-streak',
+        'td-whale-flow-confirmation',
+        'td-whale-flow-value'
+    ].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '—';
+    });
+    const cap = document.getElementById('td-whale-winsor-cap');
+    if (cap) cap.textContent = 'Expanding 95% Cap';
+    ['ticker-bullish-contributors', 'ticker-bearish-contributors'].forEach(id => {
+        const container = document.getElementById(id);
+        if (container) container.innerHTML = `<li class="stats-loading">${message}</li>`;
+    });
+    ['ticker-sentiment-history-chart', 'ticker-conviction-heatmap'].forEach(id => {
+        const chart = document.getElementById(id);
+        if (chart && chart.data) Plotly.purge(chart);
+    });
+}
+
+function showWhaleSentimentUnavailable(message) {
+    resetWhaleSentimentView(message);
+    const regime = document.getElementById('td-whale-sentiment-regime');
+    if (regime) regime.textContent = 'UNAVAILABLE';
+}
+
+function renderWhaleSentiment(intelligence) {
+    const history = intelligence.history || [];
+    const sentimentData = intelligence.sentiment || {};
+    const latest = sentimentData.latest || {};
+    const regime = latest.regime || 'NO SIGNAL';
+    const regimeElement = document.getElementById('td-whale-sentiment-regime');
+    regimeElement.textContent = regime;
+    regimeElement.className = `whale-sentiment-regime ${regime.toLowerCase().replaceAll(' ', '-')}`;
+
+    document.getElementById('td-whale-sentiment-score').textContent = formatSignedScore(latest.score);
+    document.getElementById('td-whale-sentiment-delta').textContent = latest.score_change === null || latest.score_change === undefined
+        ? 'No prior comparison'
+        : `${formatSignedScore(latest.score_change)} vs prior quarter`;
+    const hasPublishedScore = latest.score !== null && latest.score !== undefined;
+    document.getElementById('td-whale-breadth').textContent = hasPublishedScore
+        ? formatSignedScore(latest.breadth_score)
+        : '—';
+    document.getElementById('td-whale-breadth-counts').textContent = `${latest.bullish_count || 0} bullish / ${latest.bearish_count || 0} bearish / ${latest.unchanged_count || 0} unchanged`;
+    document.getElementById('td-whale-conviction').textContent = hasPublishedScore
+        ? formatSignedScore(latest.conviction_score)
+        : '—';
+    document.getElementById('td-whale-conviction-pp').textContent = !hasPublishedScore
+        ? 'Insufficient participation'
+        : `+${formatNum(latest.positive_conviction_pp || 0)}pp / -${formatNum(latest.negative_conviction_pp || 0)}pp`;
+    document.getElementById('td-whale-streak').textContent = latest.regime_streak ? `${latest.regime_streak}Q` : '—';
+
+    const flowConfirmation = document.getElementById('td-whale-flow-confirmation');
+    flowConfirmation.textContent = latest.flow_confirmation || 'NEUTRAL';
+    flowConfirmation.className = `flow-confirmation ${(latest.flow_confirmation || 'neutral').toLowerCase()}`;
+    document.getElementById('td-whale-flow-value').textContent = history.length && history.at(-1).net_flow !== null
+        ? `${formatFlowMillions(history.at(-1).net_flow, true)} estimated net flow`
+        : 'Flow unavailable';
+    document.getElementById('td-whale-winsor-cap').textContent = sentimentData.winsorization_cap_pp
+        ? `95% cap ${formatNum(sentimentData.winsorization_cap_pp)}pp`
+        : 'No clipping required';
+
+    const periods = history.map(item => item.period);
+    const customData = history.map(item => {
+        const sentiment = item.sentiment || {};
+        return [
+            sentiment.regime || 'NO SIGNAL',
+            sentiment.bullish_count || 0,
+            sentiment.bearish_count || 0,
+            sentiment.unchanged_count || 0,
+            sentiment.positive_conviction_pp || 0,
+            sentiment.negative_conviction_pp || 0,
+            item.net_flow === null
+                ? 'Flow unavailable'
+                : formatFlowMillions(item.net_flow, true),
+            sentiment.flow_confirmation || 'NEUTRAL'
+        ];
+    });
+    const scoreValues = history.map(item => item.sentiment?.score ?? null);
+
+    Plotly.react('ticker-sentiment-history-chart', [
         {
-            ...commonLayout,
-            barmode: 'relative',
-            showlegend: true,
-            legend: {orientation: 'h', y: -0.23},
-            margin: {t: 15, b: 82, l: 52, r: 24},
-            yaxis: {...commonLayout.yaxis, title: 'Investor Actions'}
+            x: periods,
+            y: scoreValues,
+            name: 'SENTIMENT',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: {color: '#e2e8f0', width: 4},
+            marker: {
+                size: 9,
+                color: history.map(item => sentimentColor(item.sentiment?.regime)),
+                line: {color: '#0f172a', width: 1}
+            },
+            customdata: customData,
+            hovertemplate:
+                '<b>%{x}</b><br>' +
+                'Sentiment: %{y:.1f} (%{customdata[0]})<br>' +
+                'Managers: %{customdata[1]} bullish / %{customdata[2]} bearish / %{customdata[3]} unchanged<br>' +
+                'Weight shift: +%{customdata[4]:.2f}pp / -%{customdata[5]:.2f}pp<br>' +
+                'Estimated net flow: %{customdata[6]} (%{customdata[7]})' +
+                '<extra></extra>'
         },
-        plotConfig
+        {
+            x: periods,
+            y: history.map(item => item.sentiment?.breadth_score ?? null),
+            name: 'BREADTH',
+            type: 'scatter',
+            mode: 'lines',
+            line: {color: '#60a5fa', width: 1.5, dash: 'dot'},
+            hovertemplate: 'Breadth: %{y:.1f}<extra></extra>'
+        },
+        {
+            x: periods,
+            y: history.map(item => item.sentiment?.conviction_score ?? null),
+            name: 'CONVICTION',
+            type: 'scatter',
+            mode: 'lines',
+            line: {color: '#c084fc', width: 1.5, dash: 'dot'},
+            hovertemplate: 'Conviction: %{y:.1f}<extra></extra>'
+        }
+    ], {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {color: '#cbd5e1', family: 'Inter, sans-serif'},
+        margin: {t: 20, b: 62, l: 58, r: 28},
+        hovermode: 'x unified',
+        legend: {orientation: 'h', y: -0.18},
+        xaxis: {gridcolor: '#1e293b', tickangle: -35},
+        yaxis: {
+            title: 'Sentiment (-100 to +100)',
+            range: [-105, 105],
+            gridcolor: '#1e293b',
+            zeroline: true,
+            zerolinecolor: '#64748b'
+        },
+        shapes: [
+            {type: 'rect', xref: 'paper', x0: 0, x1: 1, y0: 25, y1: 100, fillcolor: 'rgba(34,197,94,0.055)', line: {width: 0}, layer: 'below'},
+            {type: 'rect', xref: 'paper', x0: 0, x1: 1, y0: -25, y1: 25, fillcolor: 'rgba(148,163,184,0.035)', line: {width: 0}, layer: 'below'},
+            {type: 'rect', xref: 'paper', x0: 0, x1: 1, y0: -100, y1: -25, fillcolor: 'rgba(239,68,68,0.055)', line: {width: 0}, layer: 'below'},
+            {type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 25, y1: 25, line: {color: 'rgba(34,197,94,0.35)', dash: 'dot'}},
+            {type: 'line', xref: 'paper', x0: 0, x1: 1, y0: -25, y1: -25, line: {color: 'rgba(239,68,68,0.35)', dash: 'dot'}}
+        ]
+    }, {displayModeBar: false, responsive: true});
+
+    const managerNames = [...new Set(
+        history.flatMap(item => item.investor_changes.map(change => change.manager))
+    )];
+    const latestChanges = new Map(
+        (history.at(-1)?.investor_changes || []).map(change => [change.manager, Math.abs(change.signal_weight_change)])
     );
+    managerNames.sort((a, b) => (latestChanges.get(b) || 0) - (latestChanges.get(a) || 0) || a.localeCompare(b));
+
+    const changeMaps = history.map(item => new Map(
+        item.investor_changes.map(change => [change.manager, change])
+    ));
+    const directionalStatuses = new Set(['NEW', 'INCREASED', 'DECREASED', 'CLOSED']);
+    const zValues = managerNames.map(manager => changeMaps.map(map => {
+        const change = map.get(manager);
+        return change && directionalStatuses.has(change.status)
+            ? change.signal_weight_change
+            : null;
+    }));
+    const heatmapCustom = managerNames.map(manager => changeMaps.map(map => {
+        const change = map.get(manager);
+        if (!change) return ['NO DATA', '—', '—', 'No directional observation'];
+        return [
+            change.status,
+            `${Number(change.previous_weight).toFixed(2)}%`,
+            `${Number(change.current_weight).toFixed(2)}%`,
+            directionalStatuses.has(change.status)
+                ? `${change.signal_weight_change > 0 ? '+' : ''}${Number(change.signal_weight_change).toFixed(2)}pp`
+                : 'Excluded from sentiment (unchanged shares)'
+        ];
+    }));
+    const cap = Math.max(sentimentData.winsorization_cap_pp || 1, 0.1);
+    const heatmap = document.getElementById('ticker-conviction-heatmap');
+    heatmap.style.height = `${Math.max(480, managerNames.length * 25 + 100)}px`;
+
+    Plotly.react('ticker-conviction-heatmap', [{
+        x: periods,
+        y: managerNames,
+        z: zValues,
+        customdata: heatmapCustom,
+        type: 'heatmap',
+        zmid: 0,
+        zmin: -cap,
+        zmax: cap,
+        colorscale: [
+            [0, '#b91c1c'],
+            [0.35, '#7f1d1d'],
+            [0.5, '#1e293b'],
+            [0.65, '#166534'],
+            [1, '#22c55e']
+        ],
+        colorbar: {title: 'Weight Δ pp', thickness: 13},
+        hovertemplate:
+            '<b>%{y}</b><br>%{x}<br>' +
+            'Action: %{customdata[0]}<br>' +
+            'Previous: %{customdata[1]}<br>' +
+            'Current: %{customdata[2]}<br>' +
+            'Sentiment weight change: %{customdata[3]}' +
+            '<extra></extra>'
+    }], {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {color: '#cbd5e1', family: 'Inter, sans-serif', size: 10},
+        margin: {t: 16, b: 64, l: 145, r: 72},
+        xaxis: {tickangle: -35, gridcolor: '#1e293b'},
+        yaxis: {automargin: false}
+    }, {displayModeBar: false, responsive: true});
+
+    renderWhaleContributors('ticker-bullish-contributors', sentimentData.bullish_contributors);
+    renderWhaleContributors('ticker-bearish-contributors', sentimentData.bearish_contributors);
 }
 
 function renderTickerIntelligence(intelligence) {
@@ -1467,6 +1703,7 @@ function renderTickerIntelligence(intelligence) {
     document.getElementById('td-chart-symbol').textContent = chartSymbol;
     renderTradingViewChart(chartSymbol);
     renderTickerHistoryCharts(intelligence.history || []);
+    renderWhaleSentiment(intelligence);
 }
 
 function renderPairSignal(pair) {
@@ -1541,16 +1778,11 @@ async function loadTickerDetail(ticker) {
     const allView = document.getElementById('all-tickers-view');
     if (detailView) detailView.style.display = 'block';
     if (allView) allView.style.display = 'block';
+    resetWhaleSentimentView();
     const loaderStartedAt = performance.now();
     showTickerLoader(ticker);
 
     try {
-        const intelligenceRequest = fetch(
-            `/api/ticker/${encodeURIComponent(ticker)}/intelligence`
-        );
-        const pairRequest = fetch(
-            `/api/ticker/${encodeURIComponent(ticker)}/pair-signal`
-        );
         const r = await fetch(`/api/ticker/${encodeURIComponent(ticker)}`);
         updateTickerLoader(1, '13F holdings loaded. Building market and valuation intelligence...', 'SEC filings');
         if (r.status === 404) {
@@ -1561,9 +1793,16 @@ async function loadTickerDetail(ticker) {
             document.getElementById('td-total-shares').textContent = '0';
             document.getElementById('td-median-weight').textContent = '0.00%';
             document.getElementById('holders-table-body').innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No positions in ${ticker.toUpperCase()} found among the 26 elite managers.</td></tr>`;
+            showWhaleSentimentUnavailable('No tracked filing history for this ticker.');
             return;
         }
 
+        const intelligenceRequest = fetch(
+            `/api/ticker/${encodeURIComponent(ticker)}/intelligence`
+        );
+        const pairRequest = fetch(
+            `/api/ticker/${encodeURIComponent(ticker)}/pair-signal`
+        );
         const {data} = await r.json();
 
         document.getElementById('td-ticker').textContent = data.ticker;
@@ -1587,6 +1826,7 @@ async function loadTickerDetail(ticker) {
             document.getElementById('ticker-tradingview-chart').innerHTML = (
                 '<div class="stats-loading">Market chart unavailable for this ticker.</div>'
             );
+            showWhaleSentimentUnavailable('Ticker sentiment intelligence is unavailable.');
         }
 
         const pairResponse = await pairRequest;

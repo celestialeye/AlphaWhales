@@ -93,3 +93,11 @@ when that chain provides the usable comparison.
 
 The application has no runtime dependency on the sibling `invest` repository.
 The relevant peer reference and calculation patterns are maintained locally.
+
+## Ticker sentiment flow
+
+`DataService.get_ticker_intelligence()` retains manager-level changes for each
+of the 20 historical quarters. It derives breadth, robust portfolio-weight
+conviction, composite sentiment regimes, score changes, streaks, dollar-flow
+cross-checks, and latest-quarter contributors. The frontend receives completed
+calculations and only renders the sentiment trend and manager heatmap.

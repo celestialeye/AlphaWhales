@@ -11,6 +11,7 @@ An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB*
 - [Architecture](docs/ARCHITECTURE.md)
 - [Methodology and financial definitions](docs/METHODOLOGY.md)
 - [Operations and cache management](docs/OPERATIONS.md)
+- [Universe-wide investor screening data project](investor_screening/README.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
@@ -91,6 +92,7 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 - **Pair Trading Research**: Same-industry economic peers are tested with five years of dividend-adjusted prices, bidirectional cointegration, multiple-testing correction, out-of-sample persistence, sub-window stability, and half-life gates. The view distinguishes READY, WAIT, and NO VALID PAIR and shows both stock/short-stock and stock/paired-put execution structures only when actionable.
 - **Institutional Flow Pulse**: Latest-quarter counts of new, increased, decreased, and exited investors plus estimated net flow with gross inflow and outflow detail.
 - **20-Quarter Trends**: Historical tracked-investor count, total reported holdings value, and investor action trends.
+- **Alpha Whale Sentiment**: A bounded 20-quarter bullish/bearish index combining investor breadth and robust portfolio-weight conviction, with dollar-flow divergence, regime streaks, a manager heatmap, and contributor attribution.
 - **Consensus Analytics**: Total value held across all funds, total shares, median portfolio weight, and elite-holder count.
 - **Visuals**:
   - Top 20 Most Popular Tickers across elite managers (Plotly).

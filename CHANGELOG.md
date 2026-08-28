@@ -21,6 +21,8 @@
 - Local hypothesis-tier pair-trading diagnostics.
 - Three-stage ticker loading experience.
 - SSE refresh notifications and manual refresh controls.
+- Alpha Whale Sentiment index combining investor breadth and portfolio-weight
+  conviction, with a manager heatmap and flow-divergence cross-check.
 
 ### Data corrections
 

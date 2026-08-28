@@ -1712,6 +1712,144 @@ body.period-loading {
 .ticker-action-history-chart {
     height: 390px;
 }
+.whale-sentiment-card {
+    background:
+        radial-gradient(circle at 92% 8%, rgba(192, 132, 252, 0.08), transparent 30%),
+        var(--bg-card);
+}
+.whale-sentiment-regime {
+    padding: 6px 9px;
+    color: #94a3b8;
+    background: rgba(100, 116, 139, 0.12);
+    border: 1px solid rgba(100, 116, 139, 0.25);
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+.whale-sentiment-regime.bullish,
+.whale-sentiment-regime.strongly-bullish {
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.28);
+}
+.whale-sentiment-regime.bearish,
+.whale-sentiment-regime.strongly-bearish {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.28);
+}
+.whale-sentiment-regime.neutral {
+    color: #fde68a;
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.28);
+}
+.whale-sentiment-summary {
+    display: grid;
+    grid-template-columns: 1.05fr repeat(4, 1fr);
+    gap: 9px;
+    margin-bottom: 8px;
+}
+.whale-sentiment-summary > div {
+    display: grid;
+    align-content: center;
+    gap: 4px;
+    min-height: 82px;
+    padding: 11px 13px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid #293449;
+    border-radius: 8px;
+}
+.whale-sentiment-summary span {
+    color: var(--text-dim);
+    font-size: 0.63rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.whale-sentiment-summary strong {
+    color: #f8fafc;
+    font-size: 1rem;
+}
+.whale-sentiment-summary small {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    line-height: 1.35;
+}
+.whale-score-block strong {
+    font-size: 1.6rem;
+}
+.flow-confirmation {
+    width: fit-content;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-size: 0.72rem !important;
+}
+.flow-confirmation.confirms {
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.1);
+}
+.flow-confirmation.diverges {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.1);
+}
+.flow-confirmation.neutral {
+    color: #94a3b8;
+    background: rgba(100, 116, 139, 0.1);
+}
+.ticker-sentiment-history-chart {
+    height: 390px;
+}
+.whale-heatmap-card {
+    overflow: hidden;
+}
+.whale-heatmap-scroll {
+    overflow-x: auto;
+}
+.ticker-conviction-heatmap {
+    min-width: 920px;
+}
+.whale-contributor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+.whale-contributor-list {
+    display: grid;
+    gap: 5px;
+    margin-top: 7px;
+    list-style: none;
+}
+.whale-contributor-list li > a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 9px;
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(50, 59, 82, 0.55);
+    border-radius: 6px;
+    text-decoration: none;
+}
+.whale-contributor-list li > a:hover {
+    background: rgba(30, 41, 59, 0.65);
+    border-color: var(--border-color-light);
+}
+.whale-contributor-list li span {
+    display: grid;
+    gap: 2px;
+}
+.whale-contributor-list li strong {
+    color: #e5edf8;
+    font-size: 0.76rem;
+}
+.whale-contributor-list li small {
+    color: var(--text-dim);
+    font-size: 0.62rem;
+}
 .ticker-hero-main {
     display: flex;
     align-items: center;
@@ -1778,6 +1916,9 @@ body.period-loading {
     }
     .pair-signal-layout {
         grid-template-columns: 1fr;
+    }
+    .whale-sentiment-summary {
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
@@ -1992,6 +2133,13 @@ body.period-loading {
     }
     .pair-evidence-note {
         display: grid;
+    }
+    .whale-sentiment-summary,
+    .whale-contributor-grid {
+        grid-template-columns: 1fr;
+    }
+    .ticker-sentiment-history-chart {
+        height: 430px;
     }
     .ticker-tradingview-chart {
         height: 440px;

@@ -128,6 +128,75 @@ positions, correlations, taxes, liquidity, horizon, or risk tolerance.
 - Missing data, overvaluation, or a bearish trend produces zero.
 - Annualized volatility of 30% or more reduces the range.
 
+## Alpha Whale Sentiment
+
+The ticker sentiment view combines manager participation and portfolio-weight
+outcomes while keeping estimated dollar flow separate.
+
+### Breadth
+
+```text
+bullish managers = NEW + INCREASED
+bearish managers = DECREASED + CLOSED
+
+breadth =
+  100 * (bullish managers - bearish managers)
+  / (bullish managers + bearish managers)
+```
+
+Unchanged managers remain visible but do not enter the directional
+denominator.
+
+### Portfolio-weight conviction
+
+For directional share actions, each manager contributes its signed portfolio
+weight change:
+
+```text
+weight change = current portfolio weight - previous portfolio weight
+```
+
+Only managers with directional share actions enter this component. The sign
+remains the actual portfolio-weight outcome, so it can oppose the share action.
+An expanding 95th-percentile cap uses only observations available through each
+quarter. This limits outlier influence without using future quarters to restate
+older results.
+
+```text
+conviction =
+  100 * (positive clipped weight changes - negative clipped weight changes)
+  / total absolute clipped weight changes
+```
+
+Share direction and portfolio-weight direction can disagree when security
+prices or the manager's total reported portfolio value changed.
+
+### Composite and regimes
+
+At least three directional managers are required:
+
+```text
+sentiment = 50% breadth + 50% conviction
+```
+
+| Score | Regime |
+|---|---|
+| 60 to 100 | Strongly bullish |
+| 25 to below 60 | Bullish |
+| Above -25 to below 25 | Neutral |
+| Above -60 to -25 | Bearish |
+| -100 to -60 | Strongly bearish |
+| Fewer than three directional managers | Low participation |
+
+Estimated net dollar flow is a dollar-weighted cross-check, not a score input.
+It `CONFIRMS` when its direction agrees with a non-neutral sentiment regime,
+`DIVERGES` when it opposes the regime, and is otherwise `NEUTRAL`.
+
+The manager conviction heatmap uses portfolio-weight changes from directional
+share-action observations.
+Contributor lists display the same clipped changes used by the conviction
+score and retain the actual change in supporting text.
+
 ## Pair-trading research
 
 Pair signals are hypothesis-tier and have no live forward record. Economic
