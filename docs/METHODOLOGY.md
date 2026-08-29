@@ -7,6 +7,26 @@ does not disclose transaction dates, execution prices, cost basis, cash,
 short positions, or a manager's complete portfolio. Derived metrics are not
 actual manager performance or trade proceeds.
 
+Universe-wide manager screening uses the separately documented model in
+`investor_screening/SCREENING_MODEL.md`. Its default is a configurable research
+preset, not a claim that $10 billion, 40% top-10 concentration, or any other
+cutoff is a universal predictor of manager skill.
+
+The default screening result requires:
+
+- A four-quarter median reported 13F value of at least $10 billion.
+- Twelve consecutive quarterly observations.
+- At least 80% direct-company-stock exposure in the non-option sleeve.
+- At least 40% in the top ten direct-stock positions.
+- The concentration threshold in at least six of eight quarters.
+- Estimated annualized material turnover no greater than 100%.
+
+Routine adjustments below either 0.25 portfolio-weight percentage points or a
+10% share-count change do not contribute to the material-turnover proxy.
+New/closed positions below 0.5% are retained as reported facts but excluded
+from material conviction turnover. Full price-drift adjustment remains a
+documented future refinement, so turnover is labeled an estimate.
+
 ## Holdings and ownership
 
 - Legacy 13F filings may expose market values in dollars, thousands of dollars,
@@ -51,6 +71,37 @@ net flow = gross inflow - gross outflow
 ```
 
 This is not actual cash flow because execution dates and prices are unknown.
+
+## Latest 52-week-low context
+
+The ticker hero and overview value signal use the latest cached OpenBB market
+close and trailing 52-week low, even when the user is viewing an older 13F
+filing period:
+
+```text
+percentage above 52-week low =
+  100 * (latest close / latest trailing 52-week low - 1)
+```
+
+The ticker hero displays both the low price and the percentage above it.
+Proximity is colored green at 10% or less, yellow above 10% through 25%, and
+orange above 25%. This is current market context, not a manager return, cost
+basis, or valuation conclusion.
+
+Investor portfolio tables use the same cached market context without issuing
+one live request per holding:
+
+```text
+implied reported price = filing-period reported value / reported shares
+
+since-report price movement =
+  100 * (latest cached price / implied reported price - 1)
+```
+
+The implied reported price is a quarter-end filing value, not an execution
+price. Since-report movement is security-price context, not manager return or
+gain/loss. Rows without cached market coverage display unavailable values
+rather than triggering a live fan-out.
 
 ## Estimated Alpha Whale price
 
@@ -241,13 +292,36 @@ The sentiment chart keeps all diagnostic series visible by default:
   magnitudes.
 - `RAW ACTIVITY` shows unfiltered buy-versus-sell action counts.
 - `LOW PARTICIPATION` marks quarters that are calculable but not validated.
+- `STOCK PRICE` overlays daily OpenBB closes on a separate right-hand dollar
+  axis. The series starts at the oldest of the 20 report periods and continues
+  through the latest available close.
+- `EXPECTED 13F DEADLINE` places a cyan marker and vertical guide exactly 45
+  calendar days after each report-period end.
 
 The component traces use subdued opacity so they explain the score without
 competing visually with the validated regime.
 
+The 45-day marker is a standardized availability assumption, not an actual
+filing timestamp and not a claim that every manager files on that date.
+Managers may file earlier, and calendar or amendment timing may differ. The
+marker exists to separate the quarter-end holdings measurement from the
+approximate date when an observer could expect the filings to be public.
+Its hover detail uses the latest trading close on or before the 45-day mark.
+
+The daily price overlay and expected-deadline markers support visual
+leading/lagging analysis. They do not enter any sentiment formula, and visual
+co-movement does not establish predictive correlation or causation.
+
 Estimated net dollar flow is a dollar-weighted cross-check, not a score input.
 It `CONFIRMS` when its direction agrees with a non-neutral sentiment regime,
 `DIVERGES` when it opposes the regime, and is otherwise `NEUTRAL`.
+
+The sentiment summary displays exact `NEW`, `INCREASED`, `DECREASED`, and
+`CLOSED` counts rather than combining them into ambiguous buy/sell wording.
+Gross inflow and gross outflow are shown inside the Dollar Flow Cross-Check
+metric. Each metric tooltip contains its formula and interpretation; the
+section-level tooltip only explains the current ticker's composite arithmetic
+and regime threshold.
 
 The manager conviction heatmap displays reported share adjustment versus
 normal adjustment for continuing positions, and position size versus normal

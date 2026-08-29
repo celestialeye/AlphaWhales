@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-08-29 - Ticker sentiment and market context
+
+### Changed
+
+- Consensus cards now show separate increased/new and decreased/exited
+  investor counts instead of combined "or" descriptions.
+- The overview 52-week-low signal always uses the latest cached market data.
+- Ticker details show the latest 52-week-low price and percentage above it with
+  proximity-aware coloring.
+- Alpha Whale Sentiment is the first Purchase Decision Support section and
+  includes exact action counts, formula-and-interpretation tooltips, dynamic
+  regime explanations, and integrated net/gross flow evidence.
+- The sentiment chart overlays daily stock prices only across the displayed
+  20-quarter window and extends through the latest OpenBB close.
+- Standard expected 13F deadline markers and vertical guides appear 45
+  calendar days after each report-period end for leading/lagging visual
+  analysis.
+- Ticker market cache version 5 serializes daily close history.
+- Investor portfolio tables now group position, market-context, and quarterly
+  activity columns, including implied reported price, latest cached price,
+  since-report movement, 52-week-low proximity, market-data date, and expanded
+  CSV export fields.
+
 ## 2026-08-28 - Initial repository release
 
 ### Added
@@ -39,6 +62,16 @@
 - Standalone SEC ownership research foundation with official flattened archive
   ingestion, raw provenance storage, Parquet bronze data, DuckDB analytical
   views, quality validation, and accession-level EdgarTools verification.
+- Complete official bulk-history loaders for Form 13F, Forms 3/4/5, N-PORT,
+  and N-MFP, retaining source archives and lossless schema-evolving Parquet.
+- Accession-level ingestion for Schedule 13D/G, Form 144, N-CEN,
+  N-CSR/N-CSRS, and N-PX with typed, XML, and raw-only provenance states.
+- Full integrity-audit command covering archive hashes, raw-submission hashes,
+  Parquet row counts, accession coverage, orphan records, and screening
+  snapshot readability.
+- Atomically published read-only Investor Screening snapshot with a $10B
+  default, material-operation turnover deadbands, CIK-history continuity,
+  dynamic presets, responsive filtering, and keyboard-accessible sorting.
 
 ### Data corrections
 

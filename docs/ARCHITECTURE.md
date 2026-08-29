@@ -45,7 +45,7 @@ Ticker intelligence adds two independent branches:
 OpenBB/yfinance
   -> quote, profile, fundamentals, and daily prices
   -> six-hour ticker market cache
-  -> valuation, technical timing, and TradingView symbol
+  -> valuation, technical timing, serialized daily close history, and TradingView symbol
 
 Local semantic universe
   -> same-industry candidate peers
@@ -66,12 +66,14 @@ filing universe and historical row set.
 | `cache/<cik>.json` | Latest filing, holdings, and QoQ comparisons |
 | `cache/history/<period>.json` | All-manager snapshot for one quarter |
 | `cache/market_insights.json` | Batched high-conviction market context |
-| `cache/ticker_market/<ticker>.json` | Quote, fundamentals, valuation, and timing |
+| `cache/ticker_market/<ticker>.json` | Quote, fundamentals, valuation, timing, and six years of daily closes |
 | `cache/pair_signals/<ticker>.json` | Pair diagnostics and readiness result |
 | `data/investor_screening/investor_screening.duckdb` | Normalized SEC metadata and analytical models |
 | `data/investor_screening/lake/` | ZSTD Parquet bronze storage for large flattened SEC families |
+| `data/investor_screening/lake/npx_votes/` | Yearly lossless N-PX proxy-vote Parquet files |
 | `data/investor_screening/raw/` | Compressed accession-level source submissions and provenance |
-| `data/investor_screening/screening_snapshot.duckdb` | Compact read-only runtime screening snapshot |
+| `data/investor_screening/screening_snapshot.json` | Atomic pointer to the current immutable screening generation |
+| `data/investor_screening/screening_snapshot.<generation>.duckdb` | Compact read-only runtime screening generation |
 
 All listed cache and generated screening-data paths are excluded from Git.
 
@@ -113,11 +115,19 @@ The relevant peer reference and calculation patterns are maintained locally.
 Investor Screening is a separate data subsystem inside the repository:
 
 ```text
-Official SEC flattened archives and EDGAR accessions
-  -> raw archive and provenance manifests
-  -> Parquet bronze lake and normalized DuckDB analytical models
-  -> validated analytical views
-  -> compact read-only screening snapshot
+Official SEC 13F, insider, N-PORT, and N-MFP flattened archives
+  -> immutable ZIP archives and SHA-256 manifests
+  -> lossless ZSTD Parquet bronze tables
+
+EDGAR accession indexes
+  -> compressed full submissions
+  -> EdgarTools typed objects or lossless XML/raw fallback
+  -> hashed detail rows and normalized ownership/fund views
+
+13F normalized holdings and manager identity history
+  -> screening metrics and durable-position calculations
+  -> immutable screening generation
+  -> atomically published JSON generation pointer
   -> ScreeningService
   -> /api/screening
   -> /screening
@@ -131,13 +141,60 @@ Generated screening data lives under `data/investor_screening/` and is
 excluded from Git. Source modules and screening methodology documentation are
 versioned.
 
+### Storage layers
+
+| Layer | Storage | Purpose |
+|---|---|---|
+| Source | SEC ZIP and compressed `.txt.gz` submissions | Immutable provenance and rebuildability |
+| Bronze | ZSTD Parquet | Lossless flattened SEC tables with schema evolution |
+| Catalog | DuckDB | Dataset/file manifests, hashes, schemas, row counts, filing metadata, and quality results |
+| Silver | DuckDB views/tables | Amendment-aware 13F holdings and normalized cross-form research views |
+| Runtime | Compact DuckDB snapshot | Stable, low-latency `/api/screening` queries |
+
+DuckDB is used as an embedded analytical engine, not a concurrently written
+web-service database. Ingestion has one writer. The web application resolves
+the generation pointer and opens that immutable screening database in read-only
+mode. Existing requests may finish against an older generation while a new
+generation is published.
+
+### Filing-family coverage
+
+- Form 13F structured archives from the June 30, 2013 report period onward.
+- Forms 3/4/5 official flattened archives from 2006 onward.
+- N-PORT official flattened archives from 2019 onward.
+- N-MFP official flattened archives from 2010 onward across schema generations.
+- Structured accession histories for Schedule 13D/G, Form 144, N-CEN,
+  N-CSR/N-CSRS, and N-PX.
+- Legacy documents without a reliable typed/XML representation remain
+  `RAW_ONLY`; they are retained rather than silently discarded.
+
+The subsystem is independent from the sibling `invest` repository. It neither
+imports its modules nor reads its runtime data.
+
 ## Ticker sentiment flow
 
 `DataService.get_ticker_intelligence()` retains manager-level changes for each
 of the 20 historical quarters. It derives raw share activity, manager-relative
-share-adjustment or position-size conviction, meaningful breadth, composite sentiment
-regimes, streaks, dollar-flow cross-checks, and contributors. The frontend
-receives completed calculations and only renders the trend and heatmap.
+share-adjustment or position-size conviction, meaningful breadth, composite
+sentiment regimes, streaks, dollar-flow cross-checks, and contributors.
+
+Ticker market cache version 5 serializes the OpenBB daily close series used by
+the sentiment chart. The frontend clips that price series to the oldest of the
+20 report periods, overlays it on a separate dollar axis, and extends it
+through the latest available close. It also derives an expected 13F deadline
+at `report period + 45 calendar days` and renders cyan vertical guides and
+bottom-rail markers. Those dates are standardized expectations, not actual
+manager filing timestamps.
+
+Market price, 52-week-low proximity, and the price overlay are presentation
+context only. They do not enter raw activity, manager-relative conviction,
+meaningful breadth, the composite sentiment score, or regime assignment.
+
+`DataService.get_investor_view()` also enriches holdings from existing
+`market_insights` and fresh ticker-market caches. It derives filing-period
+reported price from value divided by shares and calculates current-price drift
+from that reference. The synchronous investor route never launches one
+OpenBB request per holding; uncached rows remain unavailable.
 
 Ticker history derives actions directly from consecutive cached snapshots,
 which preserves continuity across reporting-entity CIK changes.

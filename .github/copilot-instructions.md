@@ -29,6 +29,8 @@ python -c "import main; print(type(main.app).__name__, len(main.data_service.cac
 
 # Focused unit tests
 python -m pip install pytest
+python -m pytest tests/test_market_insights.py -q
+python -m pytest tests/test_investor_history.py -q
 python -m pytest tests/test_sentiment_conviction.py -q
 python -m pytest tests/test_investor_screening.py -q
 
@@ -37,7 +39,7 @@ python -m investor_screening.cli refresh-screening
 ```
 
 `prefetch.py` and `/api/refresh` make live SEC EDGAR requests. The repository
-has focused pytest coverage for sentiment conviction and
+has focused pytest coverage for market insights, sentiment conviction, and
 Investor Screening. It does not currently configure a linter, formatter, or
 frontend build step.
 
@@ -48,7 +50,7 @@ The shared `.github/mcp.json` configures Playwright MCP. Start the application f
 - `config.py` is the catalog and runtime configuration source. `FUND_MANAGERS` supplies the exact CIK, display metadata, and strategy group for every tracked fund. CIKs are zero-padded strings and also serve as cache keys and filenames.
 - `data_service.py` is the application core. The singleton `DataService` loads disk snapshots into pandas DataFrames at import time, fetches current 13F data through `edgartools`, compares quarters, persists snapshots, and converts DataFrames into JSON-ready dashboard models.
 - OpenBB's yfinance provider supplies one year of daily prices for holdings that reach at least 5% in any tracked portfolio. The derived 52-week-low metrics are persisted separately in `cache/market_insights.json`.
-- Ticker detail pages fetch OpenBB quote, fundamental metrics, company profile, and six years of prices on demand. Persist these six-hour responses in `cache/ticker_market/<ticker>.json`; `/api/ticker/{ticker}/intelligence` combines them with all 20 filing-period snapshots.
+- Ticker detail pages fetch OpenBB quote, fundamental metrics, company profile, and six years of prices on demand. Persist these six-hour responses, including serialized daily closes, in cache-version-5 `cache/ticker_market/<ticker>.json`; `/api/ticker/{ticker}/intelligence` combines them with all 20 filing-period snapshots.
 - Pair signals are implemented locally in `pair_service.py` using the copied `data/reference/full_universe.csv` semantic peer snapshot. Do not import from or runtime-couple to the sibling `invest` repository. Cache six-hour results under `cache/pair_signals/<ticker>.json`.
 - `investor_screening/` is an independent SEC ownership-research subsystem. It owns official flattened archive ingestion, accession-level detail ingestion, DuckDB/Parquet storage, quality checks, analytical views, and the compact snapshot consumed by `ScreeningService`.
 - Generated screening databases, archives, Parquet files, and snapshots live under `data/investor_screening/` and are excluded from Git. The `/api/screening` route must query the compact read-only snapshot rather than scanning the historical foundation per request.
@@ -59,6 +61,10 @@ The shared `.github/mcp.json` configures Playwright MCP. Start the application f
 - Preserve `indicative_score` whenever meaningful breadth and conviction are calculable, even below the three-manager validation floor. Chart it as a dashed low-confidence trend; publish the primary `score` and regime only with at least three meaningful managers. Never fill a true no-signal quarter with zero.
 - Estimated ticker flow is only a dollar-weighted cross-check for sentiment. It must not enter the sentiment score. Label agreement as `CONFIRMS`, opposition as `DIVERGES`, and sparse/flat cases as `NEUTRAL`.
 - The sentiment heatmap and contributor lists must use manager-relative conviction. Show reported share change versus normal adjustment for continuing positions and position size versus normal holding for new/closed positions.
+- The sentiment summary must show exact `NEW`, `INCREASED`, `DECREASED`, and `CLOSED` action counts. Keep estimated net flow plus gross inflow/outflow inside the Dollar Flow Cross-Check metric rather than duplicating standalone action or flow cards.
+- The sentiment chart overlays OpenBB daily closes only from the oldest displayed report period through the latest market date. Keep price on a separate right-hand axis and outside every sentiment calculation.
+- Plot the standardized expected 13F deadline at exactly 45 calendar days after each report-period end using a cyan bottom marker and vertical guide. Do not substitute actual manager filing-date ranges in this chart or describe the marker as the actual publication date.
+- Investor portfolio market context must reuse `market_insights` or an already-cached ticker-market response; do not issue one live OpenBB request per holding. Derive implied reported price as reported value divided by reported shares, and label current-versus-reported movement as market context rather than manager return or cost basis.
 - edgartools filing lists may place partial amendments before complete originals, and legacy values may be dollars, thousands, or 1,000x malformed. Normalize values from median implied per-share price, rebuild total value/weights from holdings, select the latest candidate among those with the largest holdings count, then compare normalized snapshots. Do not trust the first accession or filing summary total.
 - `main.py` is a thin FastAPI layer. It creates the process-wide `DataService`, starts its refresh loop through the application lifespan, renders Jinja pages, exposes JSON endpoints, and streams refresh notifications over `/events`.
 - `templates/` provides page structure only. The list and detail forms of ticker and investor pages share templates and receive an optional `ticker` or `cik` from FastAPI.
@@ -92,7 +98,7 @@ The primary data flow is:
 - Ticker-view responses reconstruct prior-quarter ownership from each fund's comparison `PrevValue` records. `holder_count_change` is the unique-holder count delta, while `avg_weight_change` and `median_weight_change` are percentage-point changes from reconstructed prior portfolio weights.
 - Ticker-view QoQ activity counts aggregate each fund's comparison rows by normalized ticker and classify the net share change as `increased`, `decreased`, `new`, `closed`, or `unchanged`. `median_position_change` is the median portfolio-weight percentage-point change among continuing holders only.
 - Ticker `holder_count_change` must equal `qoq_actions.new - qoq_actions.closed`, using only comparable fund filings. Keep the total current holder count separate and expose `qoq_unavailable_holders` when a current holder has no usable QoQ comparison; never infer that missing prior data means a new position.
-- OpenBB market insights retain the filing-period close as `quarter_end_price` and calculate `price_return_since_quarter` against the latest close. This is market-price context, not investor cost basis or gain/loss; keep that distinction explicit in labels and tooltips.
+- OpenBB market insights retain the filing-period close as `quarter_end_price` and calculate `price_return_since_quarter` against the latest close. The overview 52-week-low signal and ticker hero use the latest cached close and latest trailing low regardless of the selected 13F period. This is market-price context, not investor cost basis or gain/loss; keep that distinction explicit in labels and tooltips.
 - Normalize tickers with trim plus uppercase and omit empty, `NAN`, or `NONE` values from dashboard aggregates. Closed positions come from the comparison DataFrame and are returned separately from active holdings.
 - Do not hand-edit cache snapshots as application data. Change fetch/transformation logic or `config.py`, then regenerate snapshots with `python prefetch.py` when live SEC access is intended.
 - Frontend behavior is implemented with plain global JavaScript and inline Jinja page initializers; there is no bundler or component framework. Keep API property names synchronized with `app.js`, and guard shared DOM operations because the same script loads on every page.

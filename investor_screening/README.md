@@ -7,6 +7,8 @@ runtime storage with the sibling `invest` repository.
 
 The agreed screening methodology and default UI values are documented in
 [SCREENING_MODEL.md](SCREENING_MODEL.md).
+The latest committed coverage and integrity evidence is documented in
+[../docs/INVESTOR_SCREENING_DATA_QUALITY.md](../docs/INVESTOR_SCREENING_DATA_QUALITY.md).
 
 ## Historical range
 
@@ -161,7 +163,11 @@ python -m investor_screening.cli ingest-details --family beneficial_ownership --
 # Make every imported flattened SEC table directly queryable in DuckDB
 python -m investor_screening.cli refresh-bulk-views
 
-# Rebuild the small read-only snapshot used by the Investor Screening UI
+# Build lossless yearly N-PX vote tables and record Parquet hashes
+python -m investor_screening.cli refresh-npx-votes
+python -m investor_screening.cli refresh-integrity-metadata
+
+# Build a new immutable screening generation and atomically publish its pointer
 python -m investor_screening.cli refresh-screening
 
 # Compare one imported accession against EdgarTools' parsed filing
@@ -182,7 +188,9 @@ Generated archives and the DuckDB file live under
 
 The screening page is available at `http://127.0.0.1:8000/screening`. Its
 default minimum reported 13F value is $10 billion, while the UI can lower or
-raise the threshold without rebuilding the snapshot.
+raise the threshold without rebuilding the snapshot. Each refresh creates an
+immutable `screening_snapshot.<generation>.duckdb` and atomically updates
+`screening_snapshot.json`; active readers never share the writer's file.
 
 ## Amendment handling
 

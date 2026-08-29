@@ -12,6 +12,7 @@ An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB*
 - [Methodology and financial definitions](docs/METHODOLOGY.md)
 - [Operations and cache management](docs/OPERATIONS.md)
 - [Universe-wide investor screening data project](investor_screening/README.md)
+- [Investor screening data quality report](docs/INVESTOR_SCREENING_DATA_QUALITY.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
@@ -58,7 +59,7 @@ An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB*
 ## 📊 Core Dashboards
 
 ### 1. QoQ Changes Across The Board (`/`)
-- **Actionable Signal KPIs**: Leading consensus buy and sell, largest net aggregate reported value inflow and outflow, broadest new idea, highest median conviction with a five-holder floor, and the closest high-conviction holding to its 52-week low. Each card links directly to its ticker detail.
+- **Actionable Signal KPIs**: Leading consensus buy and sell with separate increased/new and decreased/exited counts, largest net aggregate reported value inflow and outflow, broadest new idea, highest median conviction with a five-holder floor, and the closest high-conviction holding to its latest OpenBB-derived 52-week low. Each card links directly to its ticker detail.
 - **Symmetric QoQ Trade Panels**: Current-quarter buy and sell rankings by reported value change, plus largest additions and reductions by portfolio/share percentage.
 - **Manager Activity Matrix**: One row per tracked manager with the five largest share buys and sells, each labeled with the change in portfolio weight in percentage points.
 - **20-Quarter Filing History**: The QoQ dashboard defaults to the latest quarter and can switch among the latest 20 quarter-ends. Historical cross-fund snapshots are fetched lazily through edgartools and persisted under `cache/history/<period>.json`.
@@ -84,23 +85,25 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 - **Master QoQ Table**: Multi-column sortable, real-time search, filter by Strategy Group, Action Status (NEW, INCREASED, DECREASED, CLOSED), Min $M move, pagination, and one-click CSV export.
 
 ### 2. Ticker Level Intelligence (`/ticker` & `/ticker/{ticker}`)
-- **Market Snapshot**: OpenBB/yfinance current price, daily move, market cap, trailing and forward P/E, 52-week range, beta, one-year return, sector, industry, and exchange.
+- **Market Snapshot**: OpenBB/yfinance current price, daily move, latest 52-week-low price and percentage above that low, market cap, trailing and forward P/E, 52-week range, beta, one-year return, sector, industry, and exchange.
 - **Estimated Alpha Whale Price**: A clearly labeled 20-quarter weighted-average basis model for currently tracked shares. This is an estimate, not reported investor cost basis.
-- **Purchase Decision Support**: Fiscal-windowed historical median P/E, Graham Number, conservative bond-adjusted Graham value, normalized P/E value, composite fair value, and a 20% margin-of-safety purchase price. Valuation is classified as undervalued, neutral, overvalued, or unavailable.
+- **Purchase Decision Support**: Opens with Alpha Whale Sentiment, followed by fiscal-windowed historical median P/E, Graham Number, conservative bond-adjusted Graham value, normalized P/E value, composite fair value, a 20% margin-of-safety purchase price, technical timing, and educational risk sizing.
 - **Technical Timing**: RSI(14), RSI(2), 50/200-day trend distance, six-month momentum, annualized volatility, trend regime, and entry-timing state.
 - **Illustrative Risk Budget**: A non-personalized position range combining valuation, long-term trend, whale flow, and volatility. It caps a stock at 5% of an assumed 30% All Weather-style equity sleeve.
 - **Pair Trading Research**: Same-industry economic peers are tested with five years of dividend-adjusted prices, bidirectional cointegration, multiple-testing correction, out-of-sample persistence, sub-window stability, and half-life gates. The view distinguishes READY, WAIT, and NO VALID PAIR and shows both stock/short-stock and stock/paired-put execution structures only when actionable.
-- **Institutional Flow Pulse**: Latest-quarter counts of new, increased, decreased, and exited investors plus estimated net flow with gross inflow and outflow detail.
-- **20-Quarter Trends**: Historical tracked-investor count, total reported holdings value, validated and indicative sentiment, meaningful breadth, relative conviction, and raw activity.
-- **Alpha Whale Sentiment**: Separates raw buy/sell activity from meaningful manager-relative conviction without using an external price series or estimated execution/cost basis. Continuing positions compare share-change percentage with the manager's normal adjustment; new and closed positions compare reported position size with the manager's normal holding.
+- **20-Quarter Trends**: Historical tracked-investor count, total reported holdings value, validated and indicative sentiment, meaningful breadth, relative conviction, raw activity, and a daily stock-price overlay clipped to the same 20-quarter window.
+- **Alpha Whale Sentiment**: Separates raw share activity from meaningful manager-relative conviction without using market price or estimated execution/cost basis in the score. The card shows exact new, increased, decreased, and exited counts; continuing positions compare share-change percentage with the manager's normal adjustment; new and closed positions compare reported position size with the manager's normal holding.
+- **Integrated Flow Cross-Check**: Estimated net flow, gross inflow, and gross outflow are displayed inside the sentiment section. Flow can confirm or diverge from a directional regime but never enters the sentiment score.
+- **Expected 13F Timeline**: Cyan deadline markers and vertical guide lines sit exactly 45 calendar days after each report-period end. They are a standard disclosure expectation, not the selected managers' actual filing dates.
 - **Consensus Analytics**: Total value held across all funds, total shares, median portfolio weight, and elite-holder count.
 - **Visuals**:
   - Top 20 Most Popular Tickers across elite managers (Plotly).
   - Free embedded TradingView market-price chart.
-  - Investor-count and reported-value trends, a multi-trace sentiment chart, and a manager conviction heatmap across 20 quarters.
+  - Investor-count and reported-value trends, a multi-trace sentiment chart with daily stock price and expected 13F deadline markers, and a manager conviction heatmap across 20 quarters.
   - Ownership Distribution Donut Chart (Plotly).
   - QoQ Value Shift by Fund Bar Chart (Plotly).
 - **Holders Table**: Complete breakdown of which funds hold the stock, individual weights, dollar values, share counts, and QoQ actions.
+- **Investor Portfolio Market Context**: Investor holdings tables group position, market, and activity columns. Market context includes implied reported price, latest cached price, price movement since the report, 52-week low, and percentage above the low, with CSV export support.
 - **Search & Quick-Picks**: Auto-suggestions and instant filter chips (`AAPL`, `GOOGL`, `MSFT`, `AMZN`, `META`, `NVDA`, `FICO`, `SPGI`, `MCO`, etc.).
 
 ### 3. Investor Portfolio View (`/investor` & `/investor/{cik}`)
@@ -135,7 +138,7 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 - **Manual Refresh**: Click **"Refresh Now"** in the top navigation bar to trigger a background re-fetch.
 - **Automated Caching**: In-memory + persistent disk cache (`cache/`) with a 6-hour TTL and fast cached startup.
 - **Market Context**: OpenBB's yfinance provider supplies daily price history for high-conviction holdings; results are persisted in `cache/market_insights.json`.
-- **Ticker Market Cache**: On-demand OpenBB quote, fundamental, profile, and price-history data is cached for six hours under `cache/ticker_market/<ticker>.json`.
+- **Ticker Market Cache**: On-demand OpenBB quote, fundamental, profile, valuation, technical, and serialized daily close history is cached for six hours under `cache/ticker_market/<ticker>.json`.
 - **Pair Signal Cache**: Pair candidates and statistical diagnostics are cached for six hours under `cache/pair_signals/<ticker>.json`. The semantic peer universe is owned locally at `data/reference/full_universe.csv`; the application has no runtime dependency on the sibling `invest` repository.
 
 ---
@@ -190,6 +193,8 @@ python -c "import main; print(type(main.app).__name__, len(main.data_service.cac
 
 # Focused unit tests
 python -m pip install pytest
+python -m pytest tests/test_market_insights.py -q
 python -m pytest tests/test_sentiment_conviction.py -q
 python -m pytest tests/test_investor_screening.py -q
+python -m pytest tests/test_market_insights.py tests/test_investor_history.py -q
 ```
