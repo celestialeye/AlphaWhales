@@ -222,6 +222,13 @@ sentiment = 50% meaningful breadth + 50% relative conviction score
 | -100 to -60 | Strongly bearish |
 | Fewer than three meaningful managers | Low participation |
 
+The chart still displays an `INDICATIVE TREND` when one or two meaningful
+managers provide a calculable score. These values are connected with a dashed
+line and marked as low participation. The thicker validated sentiment trace
+appears only when at least three managers qualify. The dashed line may bridge
+quarters with no meaningful trades for visual continuity, but those quarters
+have no marker or hover score and are never assigned a neutral zero.
+
 Estimated net dollar flow is a dollar-weighted cross-check, not a score input.
 It `CONFIRMS` when its direction agrees with a non-neutral sentiment regime,
 `DIVERGES` when it opposes the regime, and is otherwise `NEUTRAL`.

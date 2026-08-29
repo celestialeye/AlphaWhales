@@ -1573,6 +1573,11 @@ class DataService:
                 ),
                 "materiality_threshold_x": materiality_threshold,
                 "conviction_cap_x": conviction_cap,
+                "indicative_score": (
+                    round(sentiment_score, 2)
+                    if sentiment_score is not None
+                    else None
+                ),
                 "score": (
                     round(published_score, 2)
                     if published_score is not None

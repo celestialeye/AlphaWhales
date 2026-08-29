@@ -31,6 +31,8 @@
   including cross-CIK comparison continuity.
 - Legacy 13F dollar/thousand-dollar normalization and rejection of 1,000x
   amendment scaling errors.
+- Indicative low-participation sentiment history with a separate validated
+  overlay, preserving true no-signal gaps.
 
 ### Data corrections
 

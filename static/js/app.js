@@ -1454,6 +1454,9 @@ function renderWhaleSentiment(intelligence) {
         ];
     });
     const scoreValues = history.map(item => item.sentiment?.score ?? null);
+    const indicativeValues = history.map(
+        item => item.sentiment?.indicative_score ?? null
+    );
     const lowParticipationValues = history.map(item => {
         const sentiment = item.sentiment || {};
         if (
@@ -1470,16 +1473,31 @@ function renderWhaleSentiment(intelligence) {
         ) {
             return null;
         }
-        return (
-            sentiment.breadth_score + sentiment.conviction_score
-        ) / 2;
+        return sentiment.indicative_score ?? null;
     });
 
     Plotly.react('ticker-sentiment-history-chart', [
         {
             x: periods,
+            y: indicativeValues,
+            name: 'INDICATIVE TREND',
+            type: 'scatter',
+            mode: 'lines',
+            connectgaps: true,
+            line: {
+                color: '#94a3b8',
+                width: 2,
+                dash: 'dash'
+            },
+            hovertemplate:
+                'Indicative score: %{y:.1f}<br>' +
+                'Low-sample quarters are not validated' +
+                '<extra></extra>'
+        },
+        {
+            x: periods,
             y: scoreValues,
-            name: 'SENTIMENT',
+            name: 'VALIDATED SENTIMENT',
             type: 'scatter',
             mode: 'lines+markers',
             line: {color: '#e2e8f0', width: 4},
@@ -1491,7 +1509,7 @@ function renderWhaleSentiment(intelligence) {
             customdata: customData,
             hovertemplate:
                 '<b>%{x}</b><br>' +
-                'Sentiment: %{y:.1f} (%{customdata[0]})<br>' +
+                'Validated sentiment: %{y:.1f} (%{customdata[0]})<br>' +
                 'Raw actions: %{customdata[1]} buys / %{customdata[2]} sells<br>' +
                 'Meaningful: %{customdata[3]} bullish / %{customdata[4]} bearish / %{customdata[5]} routine<br>' +
                 'Relative conviction: +%{customdata[6]:.2f}x / -%{customdata[7]:.2f}x typical<br>' +
