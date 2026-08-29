@@ -7,8 +7,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from data_service import DataService
+from investor_screening.screener import ScreeningService
 
 data_service = DataService()
+screening_service = ScreeningService()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,6 +47,10 @@ async def investor_view(request: Request):
 @app.get("/investor/{cik}", response_class=HTMLResponse)
 async def investor_view_specific(request: Request, cik: str):
     return templates.TemplateResponse("investor.html", {"request": request, "cik": cik})
+
+@app.get("/screening", response_class=HTMLResponse)
+async def screening_view(request: Request):
+    return templates.TemplateResponse("screening.html", {"request": request})
 
 
 # --- API Routes ---
@@ -174,6 +180,54 @@ async def api_investor_specific(cik: str):
     if not data:
         return JSONResponse(status_code=404, content={"error": "Investor not found"})
     return {"data": data}
+
+@app.get("/api/investor/{cik}/history")
+async def api_investor_history(cik: str):
+    try:
+        data = await data_service.get_investor_history(cik)
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        logger.error(f"Investor history failed for {cik}: {e}")
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": f"Could not load investor history for {cik}",
+                "detail": str(e)
+            }
+        )
+    if not data:
+        return JSONResponse(status_code=404, content={"error": "Investor not found"})
+    return {"data": data}
+
+@app.get("/api/screening")
+async def api_screening(
+    minimum_size_billions: float = 10.0,
+    minimum_direct_stock_pct: float = 80.0,
+    minimum_top10_pct: float = 40.0,
+    minimum_concentration_quarters: int = 6,
+    maximum_turnover_pct: float = 100.0,
+    require_durable_position: bool = False,
+    roster_only: bool = False,
+    search: str = None
+):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: screening_service.get_screening_results(
+            minimum_size_billions=max(0.1, minimum_size_billions),
+            minimum_direct_stock_pct=min(100.0, max(0.0, minimum_direct_stock_pct)),
+            minimum_top10_pct=min(100.0, max(0.0, minimum_top10_pct)),
+            minimum_concentration_quarters=min(
+                8,
+                max(1, minimum_concentration_quarters)
+            ),
+            maximum_turnover_pct=max(0.0, maximum_turnover_pct),
+            require_durable_position=require_durable_position,
+            roster_only=roster_only,
+            search=search
+        )
+    )
 
 @app.get("/api/fund-status")
 async def api_fund_status():

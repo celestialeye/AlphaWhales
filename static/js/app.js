@@ -22,6 +22,14 @@ let currentHoldingsTab = 'ALL';
 let investorSortCol = 'portfolio_weight';
 let investorSortAsc = false;
 
+let screeningData = [];
+let screeningSortColumn = 'median_reported_value_4q';
+let screeningSortAsc = false;
+let screeningPage = 1;
+const screeningPageSize = 50;
+let screeningLoadTimer = null;
+let screeningAbortController = null;
+
 // Global SSE Setup
 const evtSource = new EventSource('/events');
 evtSource.onmessage = function(e) {
@@ -143,6 +151,34 @@ function formatFilingPeriodLabel(period) {
     const date = new Date(`${period}T00:00:00Z`);
     const quarter = Math.floor(date.getUTCMonth() / 3) + 1;
     return `Q${quarter} ${date.getUTCFullYear()} · ${period}`;
+}
+
+function formatCalendarDate(value) {
+    if (!value) return 'Unavailable';
+    return new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC'
+    });
+}
+
+function addCalendarDays(value, days) {
+    const result = new Date(`${value}T00:00:00Z`);
+    result.setUTCDate(result.getUTCDate() + days);
+    return result.toISOString().slice(0, 10);
+}
+
+function closeOnOrBefore(priceHistory, targetDate) {
+    if (!targetDate) return null;
+    let result = null;
+    for (const point of priceHistory) {
+        if (!point.date || point.date > targetDate) break;
+        if (point.close !== null && point.close !== undefined) {
+            result = Number(point.close);
+        }
+    }
+    return result;
 }
 
 async function initializeOverviewPeriodSelector() {
@@ -453,7 +489,7 @@ function renderSignalKpis(tickers, changes, portfolioStats) {
         'signal-consensus-buy',
         consensusBuy,
         consensusBuy
-            ? `${consensusBuy.buyerCount} investors added or initiated · ${consensusBuy.num_holders} holders`
+            ? `${consensusBuy.qoq_actions.increased} increased · ${consensusBuy.qoq_actions.new} initiated · ${consensusBuy.num_holders} current holders`
             : null
     );
     updateSignalKpi(
@@ -467,7 +503,7 @@ function renderSignalKpis(tickers, changes, portfolioStats) {
         'signal-consensus-sell',
         consensusSell,
         consensusSell
-            ? `${consensusSell.sellerCount} investors reduced or exited · ${consensusSell.num_holders} holders`
+            ? `${consensusSell.qoq_actions.decreased} reduced · ${consensusSell.qoq_actions.closed} exited · ${consensusSell.num_holders} current holders`
             : null
     );
     updateSignalKpi(
@@ -1237,6 +1273,54 @@ function formatFlowMillions(value, includeSign = false) {
     return `${sign}$${formatNum(absoluteValue)}M`;
 }
 
+function describeSentimentRegime(ticker, sentiment) {
+    const score = sentiment.score;
+    const breadth = sentiment.breadth_score;
+    const conviction = sentiment.conviction_score;
+    const meaningfulCount = (
+        (sentiment.bullish_count || 0)
+        + (sentiment.bearish_count || 0)
+    );
+    const label = ticker || 'This ticker';
+
+    if (score !== null && score !== undefined) {
+        let thresholdExplanation;
+        if (score >= 60) {
+            thresholdExplanation = `${formatSignedScore(score)} meets the +60 strongly bullish threshold`;
+        } else if (score >= 25) {
+            thresholdExplanation = `${formatSignedScore(score)} is at least +25 but below +60`;
+        } else if (score <= -60) {
+            thresholdExplanation = `${formatSignedScore(score)} meets the -60 strongly bearish threshold`;
+        } else if (score <= -25) {
+            thresholdExplanation = `${formatSignedScore(score)} is at most -25 but above -60`;
+        } else {
+            thresholdExplanation = `${formatSignedScore(score)} is above -25 and below +25`;
+        }
+        return (
+            `Current ${label}: Meaningful Breadth ${formatSignedScore(breadth)} and `
+            + `Relative Conviction ${formatSignedScore(conviction)} average to `
+            + `Current Score ${formatSignedScore(score)}. The overall regime is `
+            + `${sentiment.regime || 'NEUTRAL'} because ${thresholdExplanation}. `
+            + 'Raw Share Activity and Dollar Flow Cross-Check do not enter this composite.'
+        );
+    }
+
+    if (sentiment.indicative_score !== null && sentiment.indicative_score !== undefined) {
+        return (
+            `Current ${label}: the indicative score is `
+            + `${formatSignedScore(sentiment.indicative_score)}, but only `
+            + `${meaningfulCount} meaningful manager${meaningfulCount === 1 ? '' : 's'} `
+            + 'qualified. At least 3 are required to publish an overall score and regime.'
+        );
+    }
+
+    return (
+        `Current ${label}: no overall score is available because meaningful breadth `
+        + 'and relative conviction could not both be calculated. Raw activity alone '
+        + 'does not produce a sentiment regime.'
+    );
+}
+
 function renderTradingViewChart(symbol) {
     const container = document.getElementById('ticker-tradingview-chart');
     if (!container) return;
@@ -1403,10 +1487,17 @@ function renderWhaleSentiment(intelligence) {
     const history = intelligence.history || [];
     const sentimentData = intelligence.sentiment || {};
     const latest = sentimentData.latest || {};
+    const latestActions = history.at(-1)?.actions || {};
     const regime = latest.regime || 'NO SIGNAL';
     const regimeElement = document.getElementById('td-whale-sentiment-regime');
     regimeElement.textContent = regime;
     regimeElement.className = `whale-sentiment-regime ${regime.toLowerCase().replaceAll(' ', '-')}`;
+    const regimeExplanation = describeSentimentRegime(intelligence.ticker, latest);
+    regimeElement.title = regimeExplanation;
+    const sentimentInfo = document.getElementById('td-whale-sentiment-info');
+    if (sentimentInfo) {
+        sentimentInfo.dataset.tooltip = regimeExplanation;
+    }
 
     document.getElementById('td-whale-sentiment-score').textContent = formatSignedScore(latest.score);
     document.getElementById('td-whale-sentiment-delta').textContent = latest.score_change === null || latest.score_change === undefined
@@ -1414,7 +1505,10 @@ function renderWhaleSentiment(intelligence) {
         : `${formatSignedScore(latest.score_change)} vs prior quarter`;
     const hasPublishedScore = latest.score !== null && latest.score !== undefined;
     document.getElementById('td-whale-activity').textContent = formatSignedScore(latest.activity_breadth_score);
-    document.getElementById('td-whale-activity-counts').textContent = `${latest.activity_bullish_count || 0} buy actions / ${latest.activity_bearish_count || 0} sell actions`;
+    document.getElementById('td-whale-activity-counts').textContent = (
+        `${latestActions.new || 0} new · ${latestActions.increased || 0} increased / `
+        + `${latestActions.decreased || 0} decreased · ${latestActions.closed || 0} exited`
+    );
     document.getElementById('td-whale-breadth').textContent = hasPublishedScore
         ? formatSignedScore(latest.breadth_score)
         : '—';
@@ -1430,8 +1524,13 @@ function renderWhaleSentiment(intelligence) {
     const flowConfirmation = document.getElementById('td-whale-flow-confirmation');
     flowConfirmation.textContent = latest.flow_confirmation || 'NEUTRAL';
     flowConfirmation.className = `flow-confirmation ${(latest.flow_confirmation || 'neutral').toLowerCase()}`;
-    document.getElementById('td-whale-flow-value').textContent = history.length && history.at(-1).net_flow !== null
-        ? `${formatFlowMillions(history.at(-1).net_flow, true)} estimated net flow`
+    const latestNetFlow = history.at(-1)?.net_flow;
+    const flowValue = document.getElementById('td-whale-flow-value');
+    flowValue.className = `font-mono ${
+        latestNetFlow > 0 ? 'text-green' : latestNetFlow < 0 ? 'text-red' : 'text-dim'
+    }`;
+    flowValue.textContent = latestNetFlow !== null && latestNetFlow !== undefined
+        ? `${formatFlowMillions(latestNetFlow, true)} estimated net flow`
         : 'Flow unavailable';
     document.getElementById('td-whale-winsor-cap').textContent = `Routine <${Number(sentimentData.materiality_threshold_x || 0.25).toFixed(2)}x · Cap ${Number(sentimentData.conviction_cap_x || 2).toFixed(0)}x`;
 
@@ -1474,6 +1573,72 @@ function renderWhaleSentiment(intelligence) {
             return null;
         }
         return sentiment.indicative_score ?? null;
+    });
+    const chartStartDate = periods[0] || null;
+    const dailyPriceHistory = (intelligence.market?.price_history || [])
+        .filter(point => (
+            point.date
+            && point.close !== null
+            && point.close !== undefined
+            && (!chartStartDate || point.date >= chartStartDate)
+        ))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    const priceDates = dailyPriceHistory.map(point => point.date);
+    const priceValues = dailyPriceHistory.map(point => Number(point.close));
+    const priceHoverContext = dailyPriceHistory.map(point => (
+        `Daily close: ${formatCalendarDate(point.date)}`
+    ));
+    const latestMarketDate = intelligence.market_price_as_of;
+    const latestMarketPrice = intelligence.market?.quote?.last_price;
+    if (
+        !priceDates.length
+        && periods.length
+    ) {
+        priceDates.push(...periods);
+        priceValues.push(
+            ...history.map(item => item.quarter_end_price ?? null)
+        );
+        priceHoverContext.push(
+            ...history.map(item => (
+                `Quarter-end close: ${formatCalendarDate(item.period)}`
+            ))
+        );
+    }
+    if (
+        latestMarketDate
+        && latestMarketPrice !== null
+        && latestMarketPrice !== undefined
+        && (!priceDates.length || latestMarketDate > priceDates.at(-1))
+    ) {
+        priceDates.push(latestMarketDate);
+        priceValues.push(latestMarketPrice);
+        priceHoverContext.push(
+            `Latest market close: ${formatCalendarDate(latestMarketDate)}`
+        );
+    }
+    const expectedFilingPoints = history.map(item => ({
+        ...item,
+        expected_filing_date: addCalendarDays(item.period, 45)
+    }));
+    const expectedFilingCustomData = expectedFilingPoints.map(item => {
+        const expectedDateClose = closeOnOrBefore(
+            dailyPriceHistory,
+            item.expected_filing_date
+        );
+        return [
+            formatCalendarDate(item.period),
+            formatCalendarDate(item.expected_filing_date),
+            item.sentiment?.score !== null
+            && item.sentiment?.score !== undefined
+                ? `${formatSignedScore(item.sentiment.score)} validated`
+                : item.sentiment?.indicative_score !== null
+                  && item.sentiment?.indicative_score !== undefined
+                    ? `${formatSignedScore(item.sentiment.indicative_score)} indicative`
+                    : 'No sentiment score',
+            expectedDateClose === null
+                ? 'Unavailable'
+                : `$${formatNum(expectedDateClose)}`
+        ];
     });
 
     Plotly.react('ticker-sentiment-history-chart', [
@@ -1576,12 +1741,81 @@ function renderWhaleSentiment(intelligence) {
                 '%{customdata[0]} meaningful bull / %{customdata[1]} meaningful bear / %{customdata[2]} routine<br>' +
                 'Fewer than 3 meaningful managers' +
                 '<extra></extra>'
+        },
+        {
+            x: expectedFilingPoints.map(item => item.expected_filing_date),
+            y: expectedFilingPoints.map(() => 0.04),
+            yaxis: 'y3',
+            name: 'EXPECTED 13F DEADLINE',
+            type: 'scatter',
+            mode: 'markers',
+            marker: {
+                symbol: 'triangle-up',
+                size: 10,
+                color: '#22d3ee',
+                line: {color: '#ecfeff', width: 1}
+            },
+            customdata: expectedFilingCustomData,
+            hovertemplate:
+                '<b>Expected 13F availability</b><br>' +
+                'Report period ended: %{customdata[0]}<br>' +
+                'Standard 45-day mark: %{customdata[1]}<br>' +
+                'Sentiment: %{customdata[2]}<br>' +
+                'Stock close on/before 45-day mark: %{customdata[3]}' +
+                '<extra></extra>'
+        },
+        {
+            x: priceDates,
+            y: priceValues,
+            name: 'STOCK PRICE',
+            type: 'scatter',
+            mode: 'lines',
+            yaxis: 'y2',
+            connectgaps: false,
+            line: {color: '#f59e0b', width: 1.7},
+            customdata: priceHoverContext,
+            hovertemplate:
+                'Stock price: $%{y:,.2f}<br>' +
+                '%{customdata}' +
+                '<extra></extra>'
+        },
+        {
+            x: periods,
+            y: history.map(item => item.quarter_end_price ?? null),
+            type: 'scatter',
+            mode: 'markers',
+            yaxis: 'y2',
+            showlegend: false,
+            hoverinfo: 'skip',
+            marker: {
+                symbol: 'circle',
+                size: 6,
+                color: '#fbbf24',
+                line: {color: '#78350f', width: 1}
+            }
+        },
+        {
+            x: latestMarketDate ? [latestMarketDate] : [],
+            y: latestMarketPrice !== null && latestMarketPrice !== undefined
+                ? [latestMarketPrice]
+                : [],
+            type: 'scatter',
+            mode: 'markers',
+            yaxis: 'y2',
+            showlegend: false,
+            hoverinfo: 'skip',
+            marker: {
+                symbol: 'diamond',
+                size: 8,
+                color: '#fbbf24',
+                line: {color: '#78350f', width: 1}
+            }
         }
     ], {
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         font: {color: '#cbd5e1', family: 'Inter, sans-serif'},
-        margin: {t: 20, b: 62, l: 58, r: 28},
+        margin: {t: 20, b: 62, l: 58, r: 70},
         hovermode: 'x unified',
         legend: {orientation: 'h', y: -0.18},
         xaxis: {gridcolor: '#1e293b', tickangle: -35},
@@ -1592,10 +1826,40 @@ function renderWhaleSentiment(intelligence) {
             zeroline: true,
             zerolinecolor: '#64748b'
         },
+        yaxis2: {
+            title: 'Stock Price ($)',
+            overlaying: 'y',
+            side: 'right',
+            showgrid: false,
+            tickprefix: '$',
+            separatethousands: true
+        },
+        yaxis3: {
+            overlaying: 'y',
+            visible: false,
+            fixedrange: true,
+            range: [0, 1]
+        },
         shapes: [
             {type: 'rect', xref: 'paper', x0: 0, x1: 1, y0: 25, y1: 100, fillcolor: 'rgba(34,197,94,0.055)', line: {width: 0}, layer: 'below'},
             {type: 'rect', xref: 'paper', x0: 0, x1: 1, y0: -25, y1: 25, fillcolor: 'rgba(148,163,184,0.035)', line: {width: 0}, layer: 'below'},
             {type: 'rect', xref: 'paper', x0: 0, x1: 1, y0: -100, y1: -25, fillcolor: 'rgba(239,68,68,0.055)', line: {width: 0}, layer: 'below'},
+            {type: 'line', xref: 'paper', yref: 'y3', x0: 0, x1: 1, y0: 0.04, y1: 0.04, line: {color: 'rgba(34,211,238,0.18)', width: 1}, layer: 'below'},
+            ...expectedFilingPoints.map(item => ({
+                type: 'line',
+                xref: 'x',
+                yref: 'paper',
+                x0: item.expected_filing_date,
+                x1: item.expected_filing_date,
+                y0: 0,
+                y1: 1,
+                line: {
+                    color: 'rgba(34,211,238,0.22)',
+                    width: 1,
+                    dash: 'dot'
+                },
+                layer: 'below'
+            })),
             {type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 25, y1: 25, line: {color: 'rgba(34,197,94,0.35)', dash: 'dot'}},
             {type: 'line', xref: 'paper', x0: 0, x1: 1, y0: -25, y1: -25, line: {color: 'rgba(239,68,68,0.35)', dash: 'dot'}}
         ]
@@ -1700,7 +1964,6 @@ function renderTickerIntelligence(intelligence) {
     const technical = market.technical || {};
     const decision = intelligence.decision_support || {};
     const latest = intelligence.latest || {};
-    const actions = latest.actions || {};
     const currentPrice = quote.last_price;
     const dayChange = quote.day_change;
     const dayChangePct = quote.day_change_pct;
@@ -1720,6 +1983,26 @@ function renderTickerIntelligence(intelligence) {
                 ? `${dayChange < 0 ? '-' : sign}$${formatNum(Math.abs(dayChange))} (${sign}${formatPct(dayChangePct)}) today`
                 : 'Daily change unavailable'
         );
+    }
+    const lowDistance = intelligence.price_above_52_week_low_pct;
+    const lowDistanceElement = document.getElementById('td-52w-low-distance');
+    if (lowDistanceElement) {
+        const hasLowDistance = lowDistance !== null && lowDistance !== undefined;
+        const lowDistanceClass = !hasLowDistance
+            ? 'text-dim'
+            : lowDistance <= 10
+                ? 'text-green'
+                : lowDistance <= 25
+                    ? 'text-yellow'
+                    : 'text-orange';
+        document.getElementById('td-52w-low-value').textContent = hasLowDistance
+            ? `$${formatNum(quote.year_low)}`
+            : '—';
+        const lowPercentElement = document.getElementById('td-52w-low-percent');
+        lowPercentElement.className = `ticker-price-low-percent ${lowDistanceClass}`;
+        lowPercentElement.textContent = hasLowDistance
+            ? `${formatPct(lowDistance)} above`
+            : 'Unavailable';
     }
 
     document.getElementById('td-sector').textContent = profile.sector || 'Sector unavailable';
@@ -1761,19 +2044,9 @@ function renderTickerIntelligence(intelligence) {
             : '20-quarter model unavailable';
     }
 
-    document.getElementById('td-qoq-period').textContent = latest.period || 'Latest quarter';
     document.getElementById('td-filing-period').textContent = latest.period
         ? `Filing period ${latest.period}`
         : 'Filing period unavailable';
-    document.getElementById('td-qoq-new').textContent = formatInt(actions.new);
-    document.getElementById('td-qoq-increased').textContent = formatInt(actions.increased);
-    document.getElementById('td-qoq-decreased').textContent = formatInt(actions.decreased);
-    document.getElementById('td-qoq-closed').textContent = formatInt(actions.closed);
-
-    const netFlow = Number(latest.net_flow) || 0;
-    const netFlowElement = document.getElementById('td-net-flow');
-    netFlowElement.className = `ticker-net-flow font-mono ${netFlow > 0 ? 'text-green' : netFlow < 0 ? 'text-red' : 'text-dim'}`;
-    netFlowElement.textContent = `${netFlow > 0 ? '+' : ''}${formatFlowMillions(netFlow)}`;
     document.getElementById('td-gross-inflow').textContent = formatFlowMillions(latest.gross_inflow);
     document.getElementById('td-gross-outflow').textContent = formatFlowMillions(latest.gross_outflow);
 
@@ -2115,6 +2388,12 @@ async function loadInvestorDetail(cik) {
         document.getElementById('inv-period').textContent = data.metadata.report_period;
         document.getElementById('inv-top5-weight').textContent = formatPct(data.stats.top5_weight);
         document.getElementById('inv-top10-weight').textContent = formatPct(data.stats.top10_weight);
+        const marketAsOf = document.getElementById('inv-market-as-of');
+        if (marketAsOf) {
+            marketAsOf.textContent = data.stats.market_price_as_of
+                ? `Market data through ${formatCalendarDate(data.stats.market_price_as_of)}`
+                : 'Market data unavailable';
+        }
 
         // Populate Tab Counts
         globalInvestorHoldings = data.holdings_list || [];
@@ -2244,7 +2523,7 @@ function sortAndRenderInvestorTable(rows) {
     });
 
     if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">No holdings found for this tab or filter.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-4 text-muted">No holdings found for this tab or filter.</td></tr>`;
         return;
     }
 
@@ -2253,6 +2532,36 @@ function sortAndRenderInvestorTable(rows) {
         const valChangeClass = h.value_change > 0 ? 'text-green' : (h.value_change < 0 ? 'text-red' : 'text-muted');
         const valChangeSign = h.value_change > 0 ? '+' : '';
         const pctChangeClass = h.value_change_pct > 0 ? 'text-green' : (h.value_change_pct < 0 ? 'text-red' : 'text-muted');
+        const marketMoveClass = h.current_vs_reported_pct > 0
+            ? 'text-green'
+            : h.current_vs_reported_pct < 0
+                ? 'text-red'
+                : 'text-muted';
+        const lowDistanceClass = h.pct_above_low === null || h.pct_above_low === undefined
+            ? 'text-muted'
+            : h.pct_above_low <= 10
+                ? 'text-green'
+                : h.pct_above_low <= 25
+                    ? 'text-yellow'
+                    : 'text-orange';
+        const reportedPrice = h.reported_price === null || h.reported_price === undefined
+            ? '—'
+            : `$${formatNum(h.reported_price)}`;
+        const currentPrice = h.current_price === null || h.current_price === undefined
+            ? '—'
+            : `$${formatNum(h.current_price)}`;
+        const currentVsReported = h.current_vs_reported_pct === null || h.current_vs_reported_pct === undefined
+            ? '—'
+            : `${h.current_vs_reported_pct > 0 ? '+' : ''}${formatPct(h.current_vs_reported_pct)}`;
+        const low52Week = h.low_52_week === null || h.low_52_week === undefined
+            ? '—'
+            : `$${formatNum(h.low_52_week)}`;
+        const pctAboveLow = h.pct_above_low === null || h.pct_above_low === undefined
+            ? '—'
+            : formatPct(h.pct_above_low);
+        const marketPriceTitle = h.market_price_as_of
+            ? `Latest cached close as of ${formatCalendarDate(h.market_price_as_of)}`
+            : 'Latest cached close unavailable';
 
         html += `
             <tr>
@@ -2261,6 +2570,11 @@ function sortAndRenderInvestorTable(rows) {
                 <td class="font-mono">${renderSparkline(h.portfolio_weight)}</td>
                 <td class="font-mono"><strong>$${formatNum(h.value)}</strong></td>
                 <td class="font-mono">${formatInt(h.shares)}</td>
+                <td class="font-mono investor-market-cell">${reportedPrice}</td>
+                <td class="font-mono investor-market-cell" title="${marketPriceTitle}"><strong>${currentPrice}</strong></td>
+                <td class="font-mono investor-market-cell ${marketMoveClass}"><strong>${currentVsReported}</strong></td>
+                <td class="font-mono investor-market-cell">${low52Week}</td>
+                <td class="font-mono investor-market-cell ${lowDistanceClass}">${pctAboveLow}</td>
                 <td><span class="badge ${getStatusClass(h.status)}">${h.status}</span></td>
                 <td class="font-mono ${valChangeClass}"><strong>${valChangeSign}${formatNum(h.value_change)}</strong></td>
                 <td class="font-mono ${pctChangeClass}">${formatPct(h.value_change_pct)}</td>
@@ -2276,7 +2590,24 @@ function exportInvestorToCSV() {
     const allRows = [...globalInvestorHoldings, ...globalInvestorClosed];
     if (allRows.length === 0) return;
 
-    const headers = ["Ticker", "Company", "Cusip", "WeightPct", "Value_M", "Shares", "Action", "Change_M", "ChangePct", "SharesChangePct"];
+    const headers = [
+        "Ticker",
+        "Company",
+        "Cusip",
+        "WeightPct",
+        "Value_M",
+        "Shares",
+        "ReportedPrice",
+        "LatestPrice",
+        "SinceReportPct",
+        "52WeekLow",
+        "PctAbove52WeekLow",
+        "MarketPriceAsOf",
+        "Action",
+        "Change_M",
+        "ChangePct",
+        "SharesChangePct"
+    ];
     const rows = allRows.map(h => [
         `"${h.ticker}"`,
         `"${h.issuer}"`,
@@ -2284,6 +2615,12 @@ function exportInvestorToCSV() {
         h.portfolio_weight,
         h.value,
         h.shares,
+        h.reported_price ?? '',
+        h.current_price ?? '',
+        h.current_vs_reported_pct ?? '',
+        h.low_52_week ?? '',
+        h.pct_above_low ?? '',
+        `"${h.market_price_as_of || ''}"`,
         `"${h.status}"`,
         h.value_change,
         h.value_change_pct,
@@ -2298,4 +2635,270 @@ function exportInvestorToCSV() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// ==========================================
+// 4. Investor Screening
+// ==========================================
+
+const screeningPresets = {
+    broad: {
+        size: 1,
+        directStock: 60,
+        top10: 30,
+        persistence: 4,
+        turnover: 150,
+        durable: false
+    },
+    mega: {
+        size: 10,
+        directStock: 80,
+        top10: 40,
+        persistence: 6,
+        turnover: 100,
+        durable: false
+    },
+    patient: {
+        size: 1,
+        directStock: 90,
+        top10: 50,
+        persistence: 8,
+        turnover: 50,
+        durable: true
+    }
+};
+
+function escapeScreeningHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function updateScreeningRange(inputId, outputId, suffix) {
+    const input = document.getElementById(inputId);
+    const output = document.getElementById(outputId);
+    if (input && output) output.textContent = `${input.value}${suffix}`;
+}
+
+function setScreeningControl(id, value) {
+    const element = document.getElementById(id);
+    if (!element) return;
+    if (element.type === 'checkbox') element.checked = Boolean(value);
+    else element.value = value;
+}
+
+function applyScreeningPreset(name) {
+    const preset = screeningPresets[name];
+    if (!preset) return;
+    setScreeningControl('screen-min-size', preset.size);
+    setScreeningControl('screen-direct-stock', preset.directStock);
+    setScreeningControl('screen-top10', preset.top10);
+    setScreeningControl('screen-persistence', preset.persistence);
+    setScreeningControl('screen-turnover', preset.turnover);
+    setScreeningControl('screen-durable', preset.durable);
+    updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
+    updateScreeningRange('screen-top10', 'screen-top10-value', '%');
+    updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
+    updateScreeningRange('screen-turnover', 'screen-turnover-value', '%');
+    document.querySelectorAll('.screening-preset').forEach(button => {
+        button.classList.toggle('active', button.dataset.preset === name);
+    });
+    screeningPage = 1;
+    loadInvestorScreening();
+}
+
+function resetScreeningDefaults() {
+    setScreeningControl('screen-roster-only', false);
+    setScreeningControl('screening-search', '');
+    applyScreeningPreset('mega');
+}
+
+function scheduleScreeningLoad() {
+    clearTimeout(screeningLoadTimer);
+    screeningLoadTimer = setTimeout(() => {
+        screeningPage = 1;
+        loadInvestorScreening();
+    }, 250);
+}
+
+async function initializeInvestorScreening() {
+    updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
+    updateScreeningRange('screen-top10', 'screen-top10-value', '%');
+    updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
+    updateScreeningRange('screen-turnover', 'screen-turnover-value', '%');
+    await loadInvestorScreening();
+}
+
+async function loadInvestorScreening() {
+    const tbody = document.getElementById('screening-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4">Applying screening criteria...</td></tr>';
+
+    const params = new URLSearchParams({
+        minimum_size_billions: document.getElementById('screen-min-size')?.value || '10',
+        minimum_direct_stock_pct: document.getElementById('screen-direct-stock')?.value || '80',
+        minimum_top10_pct: document.getElementById('screen-top10')?.value || '40',
+        minimum_concentration_quarters: document.getElementById('screen-persistence')?.value || '6',
+        maximum_turnover_pct: document.getElementById('screen-turnover')?.value || '100',
+        require_durable_position: document.getElementById('screen-durable')?.checked || false,
+        roster_only: document.getElementById('screen-roster-only')?.checked || false
+    });
+    const search = document.getElementById('screening-search')?.value.trim();
+    if (search) params.set('search', search);
+
+    screeningAbortController?.abort();
+    screeningAbortController = new AbortController();
+    const activeController = screeningAbortController;
+    try {
+        const response = await fetch(
+            `/api/screening?${params}`,
+            {signal: activeController.signal}
+        );
+        if (!response.ok) throw new Error(`Screening request failed with HTTP ${response.status}`);
+        const result = await response.json();
+        if (activeController !== screeningAbortController) return;
+        if (result.error) throw new Error(result.error);
+        screeningData = result.data || [];
+        updateScreeningSummary(result.summary || {}, result.metadata || {});
+        sortScreeningData();
+        renderScreeningTable();
+    } catch (error) {
+        if (error.name === 'AbortError') return;
+        console.error('Investor screening failed:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-4 text-red">
+                    Could not load the screening snapshot: ${escapeScreeningHtml(error.message)}
+                </td>
+            </tr>`;
+    }
+}
+
+function updateScreeningSummary(summary, metadata) {
+    const setText = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    };
+    setText('screening-count', formatInt(summary.candidate_count || 0));
+    setText('screening-roster-count', formatInt(summary.roster_count || 0));
+    setText('screening-median-size', `$${formatNum(summary.median_size_billions || 0)}B`);
+    setText('screening-median-turnover', formatPct(summary.median_turnover_pct || 0));
+    setText(
+        'screening-count-note',
+        `$${document.getElementById('screen-min-size')?.value || 10}B minimum reported value`
+    );
+    if (metadata.report_period) {
+        setText('screening-report-period', formatFilingPeriodLabel(String(metadata.report_period)));
+    }
+    if (metadata.generated_at) {
+        const generated = new Date(metadata.generated_at);
+        setText('screening-generated-at', `Snapshot built ${generated.toLocaleString()}`);
+    }
+}
+
+function sortScreening(column) {
+    if (screeningSortColumn === column) screeningSortAsc = !screeningSortAsc;
+    else {
+        screeningSortColumn = column;
+        screeningSortAsc = column === 'manager_name';
+    }
+    screeningPage = 1;
+    sortScreeningData();
+    renderScreeningTable();
+}
+
+function sortScreeningData() {
+    screeningData.sort((a, b) => {
+        const aValue = a[screeningSortColumn];
+        const bValue = b[screeningSortColumn];
+        if (typeof aValue === 'string') {
+            return screeningSortAsc
+                ? aValue.localeCompare(bValue)
+                : bValue.localeCompare(aValue);
+        }
+        return screeningSortAsc
+            ? (Number(aValue) || 0) - (Number(bValue) || 0)
+            : (Number(bValue) || 0) - (Number(aValue) || 0);
+    });
+}
+
+function formatScreeningSize(value) {
+    const billions = (Number(value) || 0) / 1_000_000_000;
+    return billions >= 1000
+        ? `$${(billions / 1000).toFixed(2)}T`
+        : `$${billions.toFixed(2)}B`;
+}
+
+function renderScreeningTable() {
+    const tbody = document.getElementById('screening-table-body');
+    const summary = document.getElementById('screening-page-summary');
+    if (!tbody) return;
+
+    const pageCount = Math.max(1, Math.ceil(screeningData.length / screeningPageSize));
+    screeningPage = Math.min(screeningPage, pageCount);
+    const start = (screeningPage - 1) * screeningPageSize;
+    const rows = screeningData.slice(start, start + screeningPageSize);
+
+    if (!rows.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="screening-empty">
+                    <strong>No managers match this combination.</strong>
+                    <span>Lower the size, concentration, or direct-stock threshold.</span>
+                </td>
+            </tr>`;
+    } else {
+        tbody.innerHTML = rows.map(manager => {
+            const positionChips = (manager.durable_positions || []).slice(0, 3).map(position => `
+                <span class="screening-position-chip">
+                    ${escapeScreeningHtml(position.ticker || position.issuer)}
+                    <b>${Number(position.latest_weight_pct).toFixed(1)}%</b>
+                </span>
+            `).join('');
+            const concentrationRisk = Number(manager.maximum_position_pct) > 20
+                ? '<span class="screening-risk-flag" title="Largest position exceeds 20%">CONCENTRATED</span>'
+                : '';
+            const rosterBadge = manager.is_current_roster
+                ? `<span class="screening-roster-badge">${escapeScreeningHtml(manager.roster_name || 'Roster')}</span>`
+                : '';
+            return `
+                <tr>
+                    <td>
+                        <div class="screening-manager-cell">
+                            <div>
+                                <strong>${escapeScreeningHtml(manager.manager_name)}</strong>
+                                ${rosterBadge}${concentrationRisk}
+                            </div>
+                            <span class="font-mono">${escapeScreeningHtml(manager.cik)}</span>
+                            ${positionChips ? `<div class="screening-position-chips">${positionChips}</div>` : ''}
+                        </div>
+                    </td>
+                    <td class="font-mono"><strong>${formatScreeningSize(manager.median_reported_value_4q)}</strong></td>
+                    <td class="font-mono">${formatPct(manager.direct_stock_pct)}</td>
+                    <td class="font-mono">${formatPct(manager.top10_pct)}</td>
+                    <td class="font-mono">${formatPct(manager.maximum_position_pct)}</td>
+                    <td class="font-mono">${formatPct(manager.annualized_turnover_pct)}</td>
+                    <td>
+                        <span class="screening-durable-count">${formatInt(manager.durable_position_count)}</span>
+                    </td>
+                </tr>`;
+        }).join('');
+    }
+
+    if (summary) {
+        const end = Math.min(start + screeningPageSize, screeningData.length);
+        summary.textContent = screeningData.length
+            ? `${start + 1}-${end} of ${screeningData.length} managers`
+            : '0 managers';
+    }
+}
+
+function changeScreeningPage(direction) {
+    const pageCount = Math.max(1, Math.ceil(screeningData.length / screeningPageSize));
+    screeningPage = Math.max(1, Math.min(pageCount, screeningPage + direction));
+    renderScreeningTable();
+    document.querySelector('.screening-table-card')?.scrollIntoView({behavior: 'smooth', block: 'start'});
 }

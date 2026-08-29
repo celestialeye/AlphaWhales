@@ -253,7 +253,7 @@ class DataService:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
-            if payload.get("cache_version") != 4:
+            if payload.get("cache_version") != 5:
                 return None
             updated_at = datetime.fromisoformat(payload["last_updated"])
             if datetime.now(timezone.utc) - updated_at > timedelta(hours=CACHE_TTL_HOURS):
@@ -281,6 +281,30 @@ class DataService:
             else:
                 cleaned[key] = value
         return cleaned
+
+    @staticmethod
+    def _serialize_price_history(prices):
+        if (
+            prices is None
+            or prices.empty
+            or not {"date", "close"}.issubset(prices.columns)
+        ):
+            return []
+        history = prices[["date", "close"]].copy()
+        history["date"] = pd.to_datetime(history["date"], errors="coerce")
+        history["close"] = pd.to_numeric(history["close"], errors="coerce")
+        history = (
+            history.dropna(subset=["date", "close"])
+            .drop_duplicates(subset=["date"], keep="last")
+            .sort_values("date")
+        )
+        return [
+            {
+                "date": row["date"].date().isoformat(),
+                "close": round(float(row["close"]), 2)
+            }
+            for _, row in history.iterrows()
+        ]
 
     @staticmethod
     def _rsi(close: pd.Series, period: int):
@@ -702,12 +726,16 @@ class DataService:
             len(pe_observations[:5])
         )
         technical = self._compute_technical_analysis(prices)
+        price_history = self._serialize_price_history(prices)
+        price_as_of = price_history[-1]["date"] if price_history else None
 
         payload = {
-            "cache_version": 4,
+            "cache_version": 5,
             "ticker": ticker,
             "market_symbol": market_symbol,
             "last_updated": datetime.now(timezone.utc).isoformat(),
+            "price_as_of": price_as_of,
+            "price_history": price_history,
             "quote": {
                 **quote,
                 "last_price": round(float(current_price), 2) if current_price is not None else None,
@@ -1665,6 +1693,20 @@ class DataService:
             else None
         )
         current_price = market.get("quote", {}).get("last_price")
+        market_price_as_of = (
+            market.get("price_as_of")
+            or self.market_insights.get(normalized, {}).get("price_as_of")
+            or str(market.get("last_updated", ""))[:10]
+            or None
+        )
+        year_low = market.get("quote", {}).get("year_low")
+        price_above_52_week_low_pct = (
+            ((float(current_price) / float(year_low)) - 1) * 100
+            if current_price is not None
+            and year_low is not None
+            and float(year_low) > 0
+            else None
+        )
         price_vs_basis_pct = (
             ((float(current_price) / estimated_basis) - 1) * 100
             if current_price is not None
@@ -1752,6 +1794,12 @@ class DataService:
                 if price_vs_basis_pct is not None
                 else None
             ),
+            "price_above_52_week_low_pct": (
+                round(price_above_52_week_low_pct, 2)
+                if price_above_52_week_low_pct is not None
+                else None
+            ),
+            "market_price_as_of": market_price_as_of,
             "basis_methodology": (
                 "Estimated weighted-average basis for current tracked shares. "
                 "Quarterly net additions are priced at the average daily close "
@@ -2630,13 +2678,6 @@ class DataService:
 
     def get_near_52_week_low(self, fund_cache=None):
         cache = fund_cache if fund_cache is not None else self.cache
-        report_periods = [
-            fund_data.get("metadata", {}).get("report_period")
-            for fund_data in cache.values()
-            if fund_data.get("status") == "loaded"
-            and fund_data.get("metadata", {}).get("report_period")
-        ]
-        selected_report_period = max(report_periods) if report_periods else None
         ticker_view = {
             item["ticker"]: item
             for item in self.get_ticker_view(fund_cache=cache)
@@ -2655,23 +2696,24 @@ class DataService:
             if max_weight < 5.0:
                 continue
 
-            period_metrics = market_data.get("quarter_market_metrics", {}).get(
-                selected_report_period
-            )
-            if period_metrics is None:
-                if selected_report_period == market_data.get("quarter_end_period"):
-                    period_metrics = {
-                        "current_price": market_data.get("quarter_end_price"),
-                        "low_52_week": market_data.get("low_52_week"),
-                        "pct_above_low": market_data.get("pct_above_low")
-                    }
-                else:
-                    continue
+            period_metrics = {
+                "current_price": market_data.get("current_price"),
+                "low_52_week": market_data.get("low_52_week"),
+                "pct_above_low": market_data.get("pct_above_low")
+            }
+            if (
+                any(period_metrics.get(field) is None for field in (
+                    "current_price",
+                    "low_52_week",
+                    "pct_above_low"
+                ))
+            ):
+                continue
 
             result.append({
                 "ticker": ticker,
                 **period_metrics,
-                "price_as_of": selected_report_period,
+                "price_as_of": market_data.get("price_as_of"),
                 "issuer": ticker_data["issuer"],
                 "ownership_count": ticker_data["num_holders"],
                 "max_portfolio_weight": round(max_weight, 2)
@@ -2944,6 +2986,73 @@ class DataService:
         result_list.sort(key=lambda x: (x["num_holders"], x["total_value_across_funds"]), reverse=True)
         return result_list
 
+    def _get_holding_market_context(self, ticker, reported_price):
+        market_data = self.market_insights.get(ticker, {})
+        ticker_market = (
+            self.ticker_market_cache.get(ticker)
+            or self._load_ticker_market_data_from_disk(ticker)
+            or {}
+        )
+        quote = ticker_market.get("quote", {})
+        current_price = (
+            market_data.get("current_price")
+            if market_data.get("current_price") is not None
+            else quote.get("last_price")
+        )
+        low_52_week = (
+            market_data.get("low_52_week")
+            if market_data.get("low_52_week") is not None
+            else quote.get("year_low")
+        )
+        pct_above_low = market_data.get("pct_above_low")
+        if (
+            pct_above_low is None
+            and current_price is not None
+            and low_52_week is not None
+            and float(low_52_week) > 0
+        ):
+            pct_above_low = (
+                (float(current_price) / float(low_52_week)) - 1
+            ) * 100
+        current_vs_reported_pct = (
+            ((float(current_price) / float(reported_price)) - 1) * 100
+            if current_price is not None
+            and reported_price is not None
+            and float(reported_price) > 0
+            else None
+        )
+        return {
+            "reported_price": (
+                round(float(reported_price), 2)
+                if reported_price is not None
+                else None
+            ),
+            "current_price": (
+                round(float(current_price), 2)
+                if current_price is not None
+                else None
+            ),
+            "current_vs_reported_pct": (
+                round(current_vs_reported_pct, 2)
+                if current_vs_reported_pct is not None
+                else None
+            ),
+            "low_52_week": (
+                round(float(low_52_week), 2)
+                if low_52_week is not None
+                else None
+            ),
+            "pct_above_low": (
+                round(float(pct_above_low), 2)
+                if pct_above_low is not None
+                else None
+            ),
+            "market_price_as_of": (
+                market_data.get("price_as_of")
+                or ticker_market.get("price_as_of")
+            )
+        }
+
     def get_investor_view(self, cik=None):
         if cik:
             c = self.cache.get(cik)
@@ -2987,20 +3096,31 @@ class DataService:
                     if status_val not in ['NEW', 'CLOSED', 'INCREASED', 'DECREASED', 'UNCHANGED']:
                         status_val = 'UNCHANGED'
 
+                    value_raw = float(row.get('Value', 0.0))
+                    shares = int(row.get('SharesPrnAmount', 0)) if pd.notna(row.get('SharesPrnAmount')) else 0
+                    reported_price = (
+                        value_raw / shares
+                        if shares > 0
+                        else None
+                    )
                     holdings.append({
                         "ticker": t,
                         "issuer": str(row.get('Issuer', '')).title(),
                         "cusip": str(row.get('Cusip', '')),
                         "portfolio_weight": round(float(row.get('PortfolioWeight', 0.0)), 2) if pd.notna(row.get('PortfolioWeight')) else 0.0,
-                        "value": round(float(row.get('Value', 0.0)) / 1_000_000.0, 2), # $M
-                        "shares": int(row.get('SharesPrnAmount', 0)) if pd.notna(row.get('SharesPrnAmount')) else 0,
+                        "value": round(value_raw / 1_000_000.0, 2), # $M
+                        "shares": shares,
                         "status": status_val,
                         "value_change": round(float(row.get('ValueChange', 0.0)) / 1_000_000.0, 2) if pd.notna(row.get('ValueChange')) else 0.0,
                         "value_change_pct": round(float(row.get('ValueChangePct', 0.0)), 2) if pd.notna(row.get('ValueChangePct')) else 0.0,
                         "shares_change": float(row.get('ShareChange', 0.0)) if pd.notna(row.get('ShareChange')) else 0.0,
                         "shares_change_pct": round(float(row.get('ShareChangePct', 0.0)), 2) if pd.notna(row.get('ShareChangePct')) else 0.0,
                         "prev_value": round(float(row.get('PrevValue', 0.0)) / 1_000_000.0, 2) if pd.notna(row.get('PrevValue')) else 0.0,
-                        "prev_shares": int(row.get('PrevShares', 0)) if pd.notna(row.get('PrevShares')) else 0
+                        "prev_shares": int(row.get('PrevShares', 0)) if pd.notna(row.get('PrevShares')) else 0,
+                        **self._get_holding_market_context(
+                            t,
+                            reported_price
+                        )
                     })
 
             # Check for CLOSED positions in comp_df
@@ -3010,6 +3130,13 @@ class DataService:
                     t = str(row.get('Ticker', '')).strip().upper()
                     if not t or t == 'NAN' or t == 'NONE':
                         continue
+                    prev_value_raw = float(row.get('PrevValue', 0.0)) if pd.notna(row.get('PrevValue')) else 0.0
+                    prev_shares = int(row.get('PrevShares', 0)) if pd.notna(row.get('PrevShares')) else 0
+                    reported_price = (
+                        prev_value_raw / prev_shares
+                        if prev_shares > 0
+                        else None
+                    )
                     closed.append({
                         "ticker": t,
                         "issuer": str(row.get('Issuer', '')).title(),
@@ -3021,8 +3148,12 @@ class DataService:
                         "value_change": round(float(row.get('ValueChange', 0.0)) / 1_000_000.0, 2) if pd.notna(row.get('ValueChange')) else 0.0,
                         "value_change_pct": -100.0,
                         "shares_change_pct": -100.0,
-                        "prev_value": round(float(row.get('PrevValue', 0.0)) / 1_000_000.0, 2) if pd.notna(row.get('PrevValue')) else 0.0,
-                        "prev_shares": int(row.get('PrevShares', 0)) if pd.notna(row.get('PrevShares')) else 0
+                        "prev_value": round(prev_value_raw / 1_000_000.0, 2),
+                        "prev_shares": prev_shares,
+                        **self._get_holding_market_context(
+                            t,
+                            reported_price
+                        )
                     })
 
             # Sort active holdings by portfolio weight descending
@@ -3042,6 +3173,11 @@ class DataService:
 
             total_val_m = round(c["metadata"].get("total_value", 0.0) / 1_000_000.0, 2)
             total_val_b = round(c["metadata"].get("total_value", 0.0) / 1_000_000_000.0, 2)
+            market_price_dates = [
+                holding["market_price_as_of"]
+                for holding in [*holdings, *closed]
+                if holding.get("market_price_as_of")
+            ]
 
             return {
                 "fund_info": c["fund_info"],
@@ -3056,7 +3192,12 @@ class DataService:
                     "top10_weight": top10_w,
                     "status_counts": status_counts,
                     "active_holdings_count": len(holdings),
-                    "closed_holdings_count": len(closed)
+                    "closed_holdings_count": len(closed),
+                    "market_price_as_of": (
+                        max(market_price_dates)
+                        if market_price_dates
+                        else None
+                    )
                 },
                 "holdings_list": holdings,
                 "closed_list": closed,
@@ -3065,6 +3206,116 @@ class DataService:
 
         else:
             return self.get_fund_status()
+
+    async def get_investor_history(self, cik):
+        current_fund = self.cache.get(cik)
+        if not current_fund:
+            return None
+
+        activity = []
+        portfolio_history = []
+        for period in self.get_available_periods(count=20):
+            period_cache = await self.get_period_cache(period)
+            fund_data = period_cache.get(cik)
+            if not fund_data or fund_data.get("status") != "loaded":
+                continue
+
+            holdings_frame = fund_data.get("holdings")
+            top_holdings = []
+            if (
+                holdings_frame is not None
+                and not holdings_frame.empty
+                and {"Ticker", "Issuer", "PortfolioWeight", "Value"}.issubset(
+                    holdings_frame.columns
+                )
+            ):
+                ranked = holdings_frame.copy()
+                ranked["Ticker"] = (
+                    ranked["Ticker"].astype(str).str.strip().str.upper()
+                )
+                ranked["PortfolioWeight"] = pd.to_numeric(
+                    ranked["PortfolioWeight"],
+                    errors="coerce"
+                ).fillna(0.0)
+                ranked["Value"] = pd.to_numeric(
+                    ranked["Value"],
+                    errors="coerce"
+                ).fillna(0.0)
+                ranked = ranked[
+                    ~ranked["Ticker"].isin(["", "NAN", "NONE"])
+                ].sort_values(
+                    ["PortfolioWeight", "Value"],
+                    ascending=False
+                )
+                top_holdings = [
+                    {
+                        "ticker": row["Ticker"],
+                        "issuer": str(row["Issuer"]).title(),
+                        "portfolio_weight": round(
+                            float(row["PortfolioWeight"]),
+                            2
+                        ),
+                        "value": round(float(row["Value"]) / 1_000_000.0, 2)
+                    }
+                    for _, row in ranked.head(20).iterrows()
+                ]
+
+            total_value = float(
+                fund_data.get("metadata", {}).get("total_value", 0.0)
+            )
+            portfolio_history.append({
+                "period": period,
+                "filing_date": fund_data.get("metadata", {}).get(
+                    "filing_date",
+                    ""
+                ),
+                "portfolio_value_m": round(total_value / 1_000_000.0, 2),
+                "portfolio_value_b": round(total_value / 1_000_000_000.0, 2),
+                "position_count": (
+                    len(holdings_frame)
+                    if holdings_frame is not None
+                    else 0
+                ),
+                "top_holdings": top_holdings
+            })
+
+            period_changes = self.get_qoq_changes(
+                fund_cache={cik: fund_data}
+            )
+            period_changes.sort(
+                key=lambda change: (
+                    abs(change.get("portfolio_weight_change", 0.0)),
+                    abs(change.get("shares_change", 0.0))
+                ),
+                reverse=True
+            )
+            activity.append({
+                "period": period,
+                "filing_date": fund_data.get("metadata", {}).get(
+                    "filing_date",
+                    ""
+                ),
+                "changes": [
+                    {
+                        "ticker": change["ticker"],
+                        "issuer": change["issuer"],
+                        "status": change["status"],
+                        "shares_change": change["shares_change"],
+                        "shares_change_pct": change["shares_change_pct"],
+                        "portfolio_weight_change": change[
+                            "portfolio_weight_change"
+                        ],
+                        "value_change": change["value_change"]
+                    }
+                    for change in period_changes
+                ]
+            })
+
+        return {
+            "fund_info": current_fund["fund_info"],
+            "activity": activity,
+            "portfolio_history": portfolio_history
+        }
 
     def get_fund_status(self, fund_cache=None):
         cache = fund_cache if fund_cache is not None else self.cache

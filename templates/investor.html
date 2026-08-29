@@ -87,6 +87,13 @@
         </div>
     </div>
 
+    <div class="investor-view-tabs mt-4" role="tablist" aria-label="Investor portfolio views">
+        <button class="tab-btn active" id="investor-view-current-tab" role="tab" aria-selected="true" onclick="switchInvestorView('CURRENT', this)">Current Holdings</button>
+        <button class="tab-btn" id="investor-view-activity-tab" role="tab" aria-selected="false" onclick="switchInvestorView('ACTIVITY', this)">Activity History</button>
+        <button class="tab-btn" id="investor-view-history-tab" role="tab" aria-selected="false" onclick="switchInvestorView('HISTORY', this)">Portfolio History</button>
+    </div>
+
+    <section id="investor-current-panel" class="investor-view-panel" role="tabpanel" aria-labelledby="investor-view-current-tab">
     <!-- Charts -->
     <div class="grid chart-grid mt-4">
         <div class="card chart-card">
@@ -113,6 +120,7 @@
                 <p class="section-sub">Detailed breakdown of all equities, position weights, share counts, and QoQ changes.</p>
             </div>
             <div class="section-actions">
+                <span class="card-badge" id="inv-market-as-of">Market data unavailable</span>
                 <button class="btn btn-sm btn-outline" onclick="exportInvestorToCSV()">📥 Export Portfolio CSV</button>
             </div>
         </div>
@@ -133,14 +141,24 @@
         </div>
 
         <div class="table-container">
-            <table id="investor-holdings-table" class="data-table">
+            <table id="investor-holdings-table" class="data-table investor-market-table">
                 <thead>
-                    <tr onclick="sortInvestorTable(event)">
+                    <tr class="investor-table-group-row">
+                        <th colspan="5">Position Snapshot</th>
+                        <th colspan="5" class="market-group">Market Context</th>
+                        <th colspan="4">Quarterly Activity</th>
+                    </tr>
+                    <tr class="investor-table-column-row" onclick="sortInvestorTable(event)">
                         <th data-sort="ticker">Ticker ↕</th>
                         <th data-sort="issuer">Company ↕</th>
                         <th data-sort="portfolio_weight">Portfolio % ↕</th>
                         <th data-sort="value">Current Value ($M) ↕</th>
                         <th data-sort="shares">Shares Held ↕</th>
+                        <th data-sort="reported_price">Reported Price ↕</th>
+                        <th data-sort="current_price">Latest Price ↕</th>
+                        <th data-sort="current_vs_reported_pct">Since Report ↕</th>
+                        <th data-sort="low_52_week">52W Low ↕</th>
+                        <th data-sort="pct_above_low">Above Low ↕</th>
                         <th data-sort="status">Action ↕</th>
                         <th data-sort="value_change">Dollar Δ ($M) ↕</th>
                         <th data-sort="value_change_pct">Value Δ % ↕</th>
@@ -148,11 +166,78 @@
                     </tr>
                 </thead>
                 <tbody id="investor-holdings-body">
-                    <tr><td colspan="9" class="text-center py-4">Loading portfolio holdings...</td></tr>
+                    <tr><td colspan="14" class="text-center py-4">Loading portfolio holdings...</td></tr>
                 </tbody>
             </table>
         </div>
+        <p class="investor-market-note">
+            Reported Price is the filing-period value divided by reported shares.
+            Latest Price and 52-week data come from the cached OpenBB market snapshot.
+            Since Report is market-price movement, not manager return or cost basis.
+        </p>
     </div>
+    </section>
+
+    <section id="investor-activity-panel" class="investor-view-panel" role="tabpanel" aria-labelledby="investor-view-activity-tab" hidden>
+        <div class="card table-card mt-4">
+            <div class="card-header investor-history-header">
+                <div>
+                    <span class="stats-eyebrow">QUARTER-BY-QUARTER TRANSACTIONS</span>
+                    <h3>Activity History</h3>
+                    <p class="section-sub">Reported share changes and portfolio-weight movement across the latest 20 filing periods.</p>
+                </div>
+                <div class="tab-group" id="investor-activity-filter">
+                    <button class="tab-btn active" onclick="filterInvestorActivity('ALL', this)">All Activity</button>
+                    <button class="tab-btn" onclick="filterInvestorActivity('BUYS', this)">Buys</button>
+                    <button class="tab-btn" onclick="filterInvestorActivity('SELLS', this)">Sells</button>
+                </div>
+            </div>
+            <div class="table-container investor-history-table-wrap">
+                <table class="data-table investor-activity-history-table">
+                    <thead>
+                        <tr>
+                            <th>Security</th>
+                            <th>Action</th>
+                            <th>Shares Δ</th>
+                            <th>Shares Δ %</th>
+                            <th>Portfolio Δ</th>
+                            <th>Reported Value Δ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="investor-activity-history-body">
+                        <tr><td colspan="6" class="text-center py-4">Select Activity History to load filing history.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section id="investor-history-panel" class="investor-view-panel" role="tabpanel" aria-labelledby="investor-view-history-tab" hidden>
+        <div class="card table-card mt-4">
+            <div class="card-header">
+                <div>
+                    <span class="stats-eyebrow">20-QUARTER PORTFOLIO EVOLUTION</span>
+                    <h3>Historical Stock Holdings</h3>
+                    <p class="section-sub">Reported portfolio value, position count, and the largest holdings in each filing period.</p>
+                </div>
+            </div>
+            <div class="table-container investor-history-table-wrap">
+                <table class="data-table investor-portfolio-history-table">
+                    <thead>
+                        <tr>
+                            <th>Period</th>
+                            <th>Reported Portfolio Value</th>
+                            <th>Positions</th>
+                            <th>Top Holdings by Portfolio Weight</th>
+                        </tr>
+                    </thead>
+                    <tbody id="investor-portfolio-history-body">
+                        <tr><td colspan="4" class="text-center py-4">Select Portfolio History to load filing history.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
 </div>
 {% endif %}
 {% endblock %}

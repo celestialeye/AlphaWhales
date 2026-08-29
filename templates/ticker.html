@@ -76,6 +76,12 @@
             <span class="ticker-hero-label">CURRENT MARKET PRICE</span>
             <strong class="font-mono" id="td-current-price">—</strong>
             <span class="ticker-price-change font-mono" id="td-day-change">Loading OpenBB quote...</span>
+            <span class="ticker-price-low font-mono" id="td-52w-low-distance">
+                <span class="ticker-price-low-label">52-week low</span>
+                <strong class="ticker-price-low-value" id="td-52w-low-value">—</strong>
+                <span class="ticker-price-low-separator">·</span>
+                <strong class="ticker-price-low-percent" id="td-52w-low-percent">Loading...</strong>
+            </span>
         </div>
         <div class="ticker-basis-block">
             <div class="ticker-basis-header">
@@ -128,6 +134,75 @@
         </div>
         <span class="card-badge">Educational Model</span>
     </div>
+
+    <article class="card whale-sentiment-card mt-2">
+        <div class="card-header">
+            <div>
+                <span class="stats-eyebrow">SHARE ACTIVITY + MANAGER-RELATIVE CONVICTION</span>
+                <h3>Alpha Whale Sentiment</h3>
+            </div>
+            <div class="decision-header-actions">
+                <span class="stats-info" id="td-whale-sentiment-info" tabindex="0" role="img" aria-label="Current sentiment regime explanation" data-tooltip="Loading the current score calculation and regime threshold...">i</span>
+                <span class="whale-sentiment-regime" id="td-whale-sentiment-regime">NO SIGNAL</span>
+            </div>
+        </div>
+        <div class="whale-sentiment-summary">
+            <div class="whale-score-block">
+                <div class="whale-metric-label">
+                    <span>Current Score</span>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Current score formula and interpretation" data-tooltip="Current Score = 50% Meaningful Breadth + 50% Relative Conviction, bounded from -100 to +100. NEW positions enter as bullish trades and CLOSED positions enter as bearish trades in both components when their position-size conviction is meaningful. The score is published only when at least 3 managers have meaningful trades. Interpret +60 to +100 as strongly bullish, +25 to below +60 as bullish, above -25 to below +25 as neutral, above -60 to -25 as bearish, and -100 to -60 as strongly bearish. Larger absolute values mean stronger manager agreement.">i</span>
+                </div>
+                <strong class="font-mono" id="td-whale-sentiment-score">—</strong>
+                <small class="font-mono" id="td-whale-sentiment-delta">No prior comparison</small>
+            </div>
+            <div>
+                <div class="whale-metric-label">
+                    <span>Raw Share Activity</span>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Raw share activity formula and interpretation" data-tooltip="Raw Share Activity = 100 × (buy actions - sell actions) ÷ (buy actions + sell actions). Buy actions are NEW + INCREASED; sell actions are DECREASED + CLOSED. Every directional reported share action counts, while UNCHANGED is excluded. +100 means every action was a buy, -100 means every action was a sell, and 0 means buy and sell counts were equal. This measures direction count only, not trade conviction or position size.">i</span>
+                </div>
+                <strong class="font-mono" id="td-whale-activity">—</strong>
+                <small id="td-whale-activity-counts">—</small>
+            </div>
+            <div>
+                <div class="whale-metric-label">
+                    <span>Meaningful Breadth</span>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Meaningful breadth formula and interpretation" data-tooltip="Meaningful Breadth = 100 × (meaningful bullish trades - meaningful bearish trades) ÷ total meaningful trades. NEW positions count as bullish and CLOSED positions count as bearish when their reported position size is at least 0.25× that manager's median prior position weight. Continuing adjustments below 0.25× normal activity, adjustments to positions below 0.25× normal size, unavailable comparisons, and unchanged holdings are excluded. +100 means all meaningful managers were bullish, -100 means all were bearish, and 0 means an even split.">i</span>
+                </div>
+                <strong class="font-mono" id="td-whale-breadth">—</strong>
+                <small id="td-whale-breadth-counts">—</small>
+            </div>
+            <div>
+                <div class="whale-metric-label">
+                    <span>Relative Conviction</span>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Relative conviction formula and interpretation" data-tooltip="Relative Conviction = 100 × (positive capped conviction - negative capped conviction) ÷ total absolute capped conviction. For INCREASED and DECREASED holdings, conviction is signed share-change percentage ÷ that manager's median absolute share adjustment. For NEW and CLOSED holdings, conviction is signed reported position weight ÷ that manager's median prior position weight. Each contribution is capped at 2×; values below 0.25× are routine and contribute zero. +100 means all scored conviction was bullish, -100 means all was bearish, and 0 means balanced conviction.">i</span>
+                </div>
+                <strong class="font-mono" id="td-whale-conviction">—</strong>
+                <small id="td-whale-conviction-pp">—</small>
+            </div>
+            <div>
+                <div class="whale-metric-label">
+                    <span>Regime Streak</span>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Regime streak calculation and interpretation" data-tooltip="Regime Streak counts consecutive quarters in the same directional regime bucket. BULLISH and STRONGLY BULLISH share one bucket; BEARISH and STRONGLY BEARISH share one bucket; NEUTRAL is separate. NO SIGNAL or LOW PARTICIPATION resets the streak. 1Q means the current directional regime has just started; a larger number means it has persisted for more consecutive quarters. Moving between bullish and strongly bullish, or bearish and strongly bearish, does not reset the streak.">i</span>
+                </div>
+                <strong class="font-mono" id="td-whale-streak">—</strong>
+                <small>Consecutive quarters</small>
+            </div>
+            <div>
+                <div class="whale-metric-label">
+                    <span>Dollar Flow Cross-Check</span>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Dollar flow cross-check calculation and interpretation" data-tooltip="Estimated net flow = estimated gross inflow - estimated gross outflow, valuing each quarter's net share change at that quarter-end close. Flow balance = 100 × net flow ÷ total gross flow. CONFIRMS means sentiment and estimated flow point in the same direction; DIVERGES means they point in opposite directions; NEUTRAL means |score| is below 25, |flow balance| is below 10, or data is unavailable. The dollar amount is an estimate, not reported trade proceeds, and flow never enters the sentiment score.">i</span>
+                </div>
+                <strong id="td-whale-flow-confirmation">—</strong>
+                <small class="font-mono" id="td-whale-flow-value">—</small>
+                <small class="whale-flow-components">
+                    <span class="text-green">In <b class="font-mono" id="td-gross-inflow">—</b></span>
+                    <span class="text-red">Out <b class="font-mono" id="td-gross-outflow">—</b></span>
+                </small>
+            </div>
+        </div>
+        <div id="ticker-sentiment-history-chart" class="chart-box ticker-sentiment-history-chart"></div>
+    </article>
+
     <div class="ticker-decision-grid mt-2">
         <article class="card ticker-decision-card">
             <div class="card-header">
@@ -242,38 +317,6 @@
         </div>
     </article>
 
-    <div class="ticker-qoq-grid mt-4">
-        <article class="card ticker-qoq-card">
-            <div class="card-header">
-                <div>
-                    <span class="stats-eyebrow">LATEST FILING ACTIVITY</span>
-                    <h3>Investor Actions</h3>
-                </div>
-                <span class="card-badge" id="td-qoq-period">Latest quarter</span>
-            </div>
-            <div class="ticker-action-kpis">
-                <div class="ticker-action-kpi new"><span>New</span><strong class="font-mono" id="td-qoq-new">0</strong></div>
-                <div class="ticker-action-kpi increased"><span>Increased</span><strong class="font-mono" id="td-qoq-increased">0</strong></div>
-                <div class="ticker-action-kpi decreased"><span>Decreased</span><strong class="font-mono" id="td-qoq-decreased">0</strong></div>
-                <div class="ticker-action-kpi closed"><span>Exited</span><strong class="font-mono" id="td-qoq-closed">0</strong></div>
-            </div>
-        </article>
-        <article class="card ticker-qoq-card ticker-flow-card">
-            <div class="card-header">
-                <div>
-                    <span class="stats-eyebrow">ESTIMATED CAPITAL MOVEMENT</span>
-                    <h3>Net Institutional Flow</h3>
-                </div>
-                <span class="stats-info" tabindex="0" role="img" aria-label="Estimated flow methodology" data-tooltip="Estimated flow values each quarter's net share changes at that quarter-end market price. It separates position-size changes from stock-price appreciation, but it is not actual trade proceeds because 13F filings do not disclose execution prices or dates.">i</span>
-            </div>
-            <strong class="ticker-net-flow font-mono" id="td-net-flow">—</strong>
-            <div class="ticker-flow-breakdown">
-                <div><span>Gross Inflow</span><strong class="font-mono text-green" id="td-gross-inflow">—</strong></div>
-                <div><span>Gross Outflow</span><strong class="font-mono text-red" id="td-gross-outflow">—</strong></div>
-            </div>
-        </article>
-    </div>
-
     <article class="card ticker-tradingview-card mt-4">
         <div class="card-header">
             <div>
@@ -304,32 +347,6 @@
             <div id="ticker-value-history-chart" class="chart-box ticker-history-chart"></div>
         </div>
     </div>
-    <article class="card whale-sentiment-card mt-2">
-        <div class="card-header">
-            <div>
-                <span class="stats-eyebrow">SHARE ACTIVITY + MANAGER-RELATIVE CONVICTION</span>
-                <h3>Alpha Whale Sentiment</h3>
-            </div>
-            <div class="decision-header-actions">
-                <span class="stats-info" tabindex="0" role="img" aria-label="Whale sentiment methodology" data-tooltip="Raw activity shows every new/increased versus decreased/exited share action. For continuing holdings, conviction compares reported share-change percentage with that manager's normal share adjustment. For new and closed holdings, it compares position size with that manager's normal position size. Trades below 0.25x normal, and adjustments to positions smaller than 0.25x normal size, are routine. The chart shows an indicative score whenever meaningful activity exists, but a score is validated only with at least three meaningful managers. No external price or estimated execution price enters sentiment.">i</span>
-                <span class="whale-sentiment-regime" id="td-whale-sentiment-regime">NO SIGNAL</span>
-            </div>
-        </div>
-        <div class="whale-sentiment-summary">
-            <div class="whale-score-block">
-                <span>Current Score</span>
-                <strong class="font-mono" id="td-whale-sentiment-score">—</strong>
-                <small class="font-mono" id="td-whale-sentiment-delta">No prior comparison</small>
-            </div>
-            <div><span>Raw Share Activity</span><strong class="font-mono" id="td-whale-activity">—</strong><small id="td-whale-activity-counts">—</small></div>
-            <div><span>Meaningful Breadth</span><strong class="font-mono" id="td-whale-breadth">—</strong><small id="td-whale-breadth-counts">—</small></div>
-            <div><span>Relative Conviction</span><strong class="font-mono" id="td-whale-conviction">—</strong><small id="td-whale-conviction-pp">—</small></div>
-            <div><span>Regime Streak</span><strong class="font-mono" id="td-whale-streak">—</strong><small>Consecutive quarters</small></div>
-            <div><span>Dollar Flow Cross-Check</span><strong id="td-whale-flow-confirmation">—</strong><small class="font-mono" id="td-whale-flow-value">—</small></div>
-        </div>
-        <div id="ticker-sentiment-history-chart" class="chart-box ticker-sentiment-history-chart"></div>
-    </article>
-
     <article class="card whale-heatmap-card mt-2">
         <div class="card-header">
             <div>

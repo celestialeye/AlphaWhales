@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Investor Screening - Alpha Whales Intelligence{% endblock %}
+
+{% block content %}
+<section class="screening-header">
+    <div>
+        <div class="screening-eyebrow">13F UNIVERSE LAB</div>
+        <h1>Investor Screening</h1>
+        <p class="text-muted">
+            Find established managers with scale, direct-stock focus,
+            persistent concentration, and followable portfolio turnover.
+        </p>
+    </div>
+    <div class="screening-asof">
+        <span>DATA SNAPSHOT</span>
+        <strong id="screening-report-period">Loading...</strong>
+        <small id="screening-generated-at">Point-in-time 13F analysis</small>
+    </div>
+</section>
+
+<div class="screening-preset-bar" role="group" aria-label="Screening presets">
+    <button class="screening-preset" data-preset="broad" onclick="applyScreeningPreset('broad')">
+        <span>Relaxed Scale</span>
+        <small>$1B+ established</small>
+    </button>
+    <button class="screening-preset active" data-preset="mega" onclick="applyScreeningPreset('mega')">
+        <span>Mega High-Conviction</span>
+        <small>$10B+ default</small>
+    </button>
+    <button class="screening-preset" data-preset="patient" onclick="applyScreeningPreset('patient')">
+        <span>Patient Tilt</span>
+        <small>Low-turnover filter</small>
+    </button>
+    <button class="screening-reset" onclick="resetScreeningDefaults()">Reset defaults</button>
+</div>
+
+<section class="screening-layout">
+    <aside class="card screening-controls" aria-label="Investor screening criteria">
+        <div class="screening-control-header">
+            <div>
+                <span class="screening-step">01</span>
+                <h2>Criteria</h2>
+            </div>
+            <span class="method-badge">Dynamic</span>
+        </div>
+
+        <label class="screening-field">
+            <span>Minimum reported size</span>
+            <select id="screen-min-size" onchange="scheduleScreeningLoad()">
+                <option value="0.5">$500M</option>
+                <option value="1">$1B</option>
+                <option value="3.5">$3.5B</option>
+                <option value="10" selected>$10B — Default</option>
+                <option value="50">$50B</option>
+            </select>
+            <small>Four-quarter median reported 13F value, not firm AUM.</small>
+        </label>
+
+        <label class="screening-field">
+            <span>Direct-company-stock sleeve</span>
+            <div class="range-line">
+                <input id="screen-direct-stock" type="range" min="50" max="100" step="5" value="80"
+                       oninput="updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%')"
+                       onchange="scheduleScreeningLoad()">
+                <output id="screen-direct-stock-value">80%</output>
+            </div>
+            <small>Reduces ETF and pooled-product allocators.</small>
+        </label>
+
+        <label class="screening-field">
+            <span>Minimum top-10 concentration</span>
+            <div class="range-line">
+                <input id="screen-top10" type="range" min="20" max="100" step="5" value="40"
+                       oninput="updateScreeningRange('screen-top10', 'screen-top10-value', '%')"
+                       onchange="scheduleScreeningLoad()">
+                <output id="screen-top10-value">40%</output>
+            </div>
+            <small>No upper concentration exclusion; extremes remain visible risk flags.</small>
+        </label>
+
+        <label class="screening-field">
+            <span>Concentration persistence</span>
+            <div class="range-line">
+                <input id="screen-persistence" type="range" min="1" max="8" step="1" value="6"
+                       oninput="updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8')"
+                       onchange="scheduleScreeningLoad()">
+                <output id="screen-persistence-value">6/8</output>
+            </div>
+            <small>Quarters meeting the selected top-10 threshold.</small>
+        </label>
+
+        <label class="screening-field">
+            <span>Maximum estimated turnover</span>
+            <div class="range-line">
+                <input id="screen-turnover" type="range" min="25" max="200" step="25" value="100"
+                       oninput="updateScreeningRange('screen-turnover', 'screen-turnover-value', '%')"
+                       onchange="scheduleScreeningLoad()">
+                <output id="screen-turnover-value">100%</output>
+            </div>
+            <small>Annualized material share-confirmed weight proxy; lower values are easier to follow.</small>
+        </label>
+
+        <label class="screening-check">
+            <input id="screen-durable" type="checkbox" onchange="scheduleScreeningLoad()">
+            <span>
+                Require a durable conviction position
+                <small>3%+, top 10, visible across five snapshots spanning 12 months.</small>
+            </span>
+        </label>
+
+        <label class="screening-check">
+            <input id="screen-roster-only" type="checkbox" onchange="scheduleScreeningLoad()">
+            <span>
+                Current Alpha Whales roster only
+                <small>Restrict results to the configured 26-manager catalog.</small>
+            </span>
+        </label>
+    </aside>
+
+    <div class="screening-results">
+        <div class="screening-kpi-grid">
+            <article class="screening-kpi primary">
+                <span>QUALIFIED MANAGERS</span>
+                <strong id="screening-count">--</strong>
+                <small id="screening-count-note">$10B default universe</small>
+            </article>
+            <article class="screening-kpi">
+                <span>CURRENT ROSTER</span>
+                <strong id="screening-roster-count">--</strong>
+                <small>Of 26 configured managers</small>
+            </article>
+            <article class="screening-kpi">
+                <span>MEDIAN REPORTED SIZE</span>
+                <strong id="screening-median-size">--</strong>
+                <small>Four-quarter median</small>
+            </article>
+            <article class="screening-kpi">
+                <span>MEDIAN TURNOVER</span>
+                <strong id="screening-median-turnover">--</strong>
+                <small>Estimated annualized proxy</small>
+            </article>
+        </div>
+
+        <div class="screening-method-strip">
+            <span class="screening-step">02</span>
+            <div>
+                <strong>Evidence before ranking</strong>
+                <p>
+                    Twelve filings are required. ETF classification and turnover remain
+                    provisional until security-reference and price-drift enrichment are complete.
+                </p>
+            </div>
+            <a href="#screening-methodology">Methodology</a>
+        </div>
+
+        <div class="card screening-table-card">
+            <div class="screening-table-toolbar">
+                <div>
+                    <span class="screening-step">03</span>
+                    <h2>Qualified Managers</h2>
+                </div>
+                <label class="screening-search">
+                    <span class="sr-only">Search managers</span>
+                    <input id="screening-search" type="search" placeholder="Search manager or CIK..."
+                           oninput="scheduleScreeningLoad()">
+                </label>
+            </div>
+            <div class="table-container screening-table-wrap">
+                <table class="data-table screening-table">
+                    <thead>
+                        <tr>
+                            <th><button type="button" onclick="sortScreening('manager_name')">Manager</button></th>
+                            <th><button type="button" onclick="sortScreening('median_reported_value_4q')">Reported Size</button></th>
+                            <th><button type="button" onclick="sortScreening('direct_stock_pct')">Direct Stock</button></th>
+                            <th><button type="button" onclick="sortScreening('top10_pct')">Top 10</button></th>
+                            <th><button type="button" onclick="sortScreening('maximum_position_pct')">Largest</button></th>
+                            <th><button type="button" onclick="sortScreening('annualized_turnover_pct')">Turnover</button></th>
+                            <th><button type="button" onclick="sortScreening('durable_position_count')">Durable Ideas</button></th>
+                        </tr>
+                    </thead>
+                    <tbody id="screening-table-body">
+                        <tr><td colspan="7" class="text-center py-4">Loading screening snapshot...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="screening-pagination">
+                <span id="screening-page-summary">--</span>
+                <div>
+                    <button class="btn btn-sm btn-outline" onclick="changeScreeningPage(-1)">Previous</button>
+                    <button class="btn btn-sm btn-outline" onclick="changeScreeningPage(1)">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="screening-methodology" class="card screening-methodology">
+    <div>
+        <span class="screening-step">04</span>
+        <h2>How to read this screen</h2>
+    </div>
+    <div class="screening-method-grid">
+        <div>
+            <strong>Reported size ≠ AUM</strong>
+            <p>13F value excludes cash, shorts, private assets, most bonds, and many derivatives.</p>
+        </div>
+        <div>
+            <strong>Turnover is estimated</strong>
+            <p>Routine operations are removed using share and weight deadbands; complete price-drift adjustment remains pending.</p>
+        </div>
+        <div>
+            <strong>Duration is observed</strong>
+            <p>Repeated quarter-end appearances do not prove uninterrupted ownership between filings.</p>
+        </div>
+        <div>
+            <strong>Performance comes later</strong>
+            <p>Any return view will be a disclosure-lagged hypothetical sleeve, never actual fund performance.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('nav-screening').classList.add('active');
+    initializeInvestorScreening();
+});
+</script>
+{% endblock %}
