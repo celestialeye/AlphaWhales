@@ -156,7 +156,9 @@ sentiment regime.
 
 ### Manager-relative conviction
 
-No share price or cost-basis estimate enters the sentiment score.
+No external price series, quarter-average trade-price estimate, or cost-basis
+estimate enters the sentiment score. Reported position weights for `NEW` and
+`CLOSED` holdings still reflect the filing's quarter-end market values.
 
 For continuing holdings, the application compares the reported share-change
 percentage with that manager's median absolute share adjustment across all
@@ -229,6 +231,20 @@ appears only when at least three managers qualify. The dashed line may bridge
 quarters with no meaningful trades for visual continuity, but those quarters
 have no marker or hover score and are never assigned a neutral zero.
 
+The sentiment chart keeps all diagnostic series visible by default:
+
+- `INDICATIVE TREND` connects calculable scores, including low-participation
+  quarters.
+- `VALIDATED SENTIMENT` emphasizes quarters meeting the three-manager floor.
+- `MEANINGFUL BREADTH` shows the directional balance of qualifying managers.
+- `RELATIVE CONVICTION` shows the balance of capped manager-relative trade
+  magnitudes.
+- `RAW ACTIVITY` shows unfiltered buy-versus-sell action counts.
+- `LOW PARTICIPATION` marks quarters that are calculable but not validated.
+
+The component traces use subdued opacity so they explain the score without
+competing visually with the validated regime.
+
 Estimated net dollar flow is a dollar-weighted cross-check, not a score input.
 It `CONFIRMS` when its direction agrees with a non-neutral sentiment regime,
 `DIVERGES` when it opposes the regime, and is otherwise `NEUTRAL`.
@@ -264,3 +280,11 @@ Two expressions are described:
 
 The stock-plus-put expression is not market-neutral and adds option premium,
 theta, implied-volatility, strike-selection, and expiry risk.
+
+## Investor Screening
+
+Universe-wide manager and holding screening uses a separate methodology so
+evidence quality, manager characteristics, and hypothetical outcomes are not
+collapsed into one score. Definitions, default thresholds, materiality rules,
+and interpretation boundaries are documented in
+`investor_screening/SCREENING_MODEL.md`.

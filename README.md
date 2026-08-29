@@ -91,13 +91,13 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 - **Illustrative Risk Budget**: A non-personalized position range combining valuation, long-term trend, whale flow, and volatility. It caps a stock at 5% of an assumed 30% All Weather-style equity sleeve.
 - **Pair Trading Research**: Same-industry economic peers are tested with five years of dividend-adjusted prices, bidirectional cointegration, multiple-testing correction, out-of-sample persistence, sub-window stability, and half-life gates. The view distinguishes READY, WAIT, and NO VALID PAIR and shows both stock/short-stock and stock/paired-put execution structures only when actionable.
 - **Institutional Flow Pulse**: Latest-quarter counts of new, increased, decreased, and exited investors plus estimated net flow with gross inflow and outflow detail.
-- **20-Quarter Trends**: Historical tracked-investor count, total reported holdings value, and investor action trends.
-- **Alpha Whale Sentiment**: Separates raw buy/sell activity from meaningful manager-relative conviction without using price or cost basis. Continuing positions compare share-change percentage with the manager's normal adjustment; new and closed positions compare position size with the manager's normal holding.
+- **20-Quarter Trends**: Historical tracked-investor count, total reported holdings value, validated and indicative sentiment, meaningful breadth, relative conviction, and raw activity.
+- **Alpha Whale Sentiment**: Separates raw buy/sell activity from meaningful manager-relative conviction without using an external price series or estimated execution/cost basis. Continuing positions compare share-change percentage with the manager's normal adjustment; new and closed positions compare reported position size with the manager's normal holding.
 - **Consensus Analytics**: Total value held across all funds, total shares, median portfolio weight, and elite-holder count.
 - **Visuals**:
   - Top 20 Most Popular Tickers across elite managers (Plotly).
   - Free embedded TradingView market-price chart.
-  - Three 20-quarter Plotly trend charts.
+  - Investor-count and reported-value trends, a multi-trace sentiment chart, and a manager conviction heatmap across 20 quarters.
   - Ownership Distribution Donut Chart (Plotly).
   - QoQ Value Shift by Fund Bar Chart (Plotly).
 - **Holders Table**: Complete breakdown of which funds hold the stock, individual weights, dollar values, share counts, and QoQ actions.
@@ -112,6 +112,20 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   - QoQ Position Shifts Bar Chart ($M).
   - Comprehensive Holdings Table with tabs for **All Positions**, **New Buys**, **Increased**, **Decreased**, **Unchanged**, and **Closed Positions**.
   - One-click Portfolio CSV export.
+
+### 4. Investor Screening (`/screening`)
+- **Mega High-Conviction Default**: Starts at a $10B four-quarter median
+  reported 13F value, 80% direct-company-stock sleeve, 40% top-10
+  concentration, six-of-eight-quarter persistence, and estimated turnover no
+  greater than 100%.
+- **Dynamic Presets and Controls**: Relaxed Scale, Mega High-Conviction, and
+  Patient Tilt presets with editable size, direct-stock, concentration, persistence,
+  turnover, durable-position, roster-only, and manager-search filters.
+- **Precomputed Read-Only Snapshot**: Queries a compact DuckDB snapshot rather
+  than rescanning the full historical 13F foundation on every request.
+- **Transparent Research Caveats**: Clearly distinguishes reported 13F value
+  from AUM, observed duration from continuous ownership, and estimated turnover
+  from actual manager trading.
 
 ---
 
@@ -162,6 +176,20 @@ Open your browser at `http://localhost:8000`
 | `/api/ticker/{ticker}/pair-signal` | GET | Local hypothesis-tier pair diagnostics and readiness |
 | `/api/investor-view` | GET | Summary status list for all 26 fund managers |
 | `/api/investor/{cik}` | GET | Detailed portfolio holdings, closed positions, and stats for a fund |
+| `/api/screening` | GET | Filtered universe-wide investor screening snapshot and summary |
 | `/api/fund-status` | GET | Real-time loading status and KPI summary |
 | `/api/refresh` | GET | Trigger background refresh across all 26 funds |
 | `/events` | GET | Server-Sent Events (SSE) live data stream |
+
+## Validation
+
+```powershell
+# Application smoke checks
+python -m compileall -q config.py data_service.py main.py pair_service.py prefetch.py run.py
+python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
+
+# Focused unit tests
+python -m pip install pytest
+python -m pytest tests/test_sentiment_conviction.py -q
+python -m pytest tests/test_investor_screening.py -q
+```

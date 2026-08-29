@@ -33,6 +33,12 @@
   amendment scaling errors.
 - Indicative low-participation sentiment history with a separate validated
   overlay, preserving true no-signal gaps.
+- Universe-wide Investor Screening page with configurable size, direct-stock,
+  concentration, persistence, turnover, durability, roster, and search
+  filters backed by a compact DuckDB snapshot.
+- Standalone SEC ownership research foundation with official flattened archive
+  ingestion, raw provenance storage, Parquet bronze data, DuckDB analytical
+  views, quality validation, and accession-level EdgarTools verification.
 
 ### Data corrections
 

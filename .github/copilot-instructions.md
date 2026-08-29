@@ -24,11 +24,22 @@ python prefetch.py --history-only
 python prefetch.py --ticker-intelligence-only
 
 # Fast, offline Python syntax/import smoke check
-python -m compileall -q config.py data_service.py main.py prefetch.py run.py
+python -m compileall -q config.py data_service.py main.py pair_service.py prefetch.py run.py
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
+
+# Focused unit tests
+python -m pip install pytest
+python -m pytest tests/test_sentiment_conviction.py -q
+python -m pytest tests/test_investor_screening.py -q
+
+# Rebuild the compact DuckDB snapshot used by /screening
+python -m investor_screening.cli refresh-screening
 ```
 
-`prefetch.py` and `/api/refresh` make live SEC EDGAR requests. The repository currently has no automated test suite, single-test command, linter, formatter, or frontend build step configured.
+`prefetch.py` and `/api/refresh` make live SEC EDGAR requests. The repository
+has focused pytest coverage for sentiment conviction and
+Investor Screening. It does not currently configure a linter, formatter, or
+frontend build step.
 
 The shared `.github/mcp.json` configures Playwright MCP. Start the application first, then use its browser tools for end-to-end checks against `http://127.0.0.1:8000`.
 
@@ -39,6 +50,8 @@ The shared `.github/mcp.json` configures Playwright MCP. Start the application f
 - OpenBB's yfinance provider supplies one year of daily prices for holdings that reach at least 5% in any tracked portfolio. The derived 52-week-low metrics are persisted separately in `cache/market_insights.json`.
 - Ticker detail pages fetch OpenBB quote, fundamental metrics, company profile, and six years of prices on demand. Persist these six-hour responses in `cache/ticker_market/<ticker>.json`; `/api/ticker/{ticker}/intelligence` combines them with all 20 filing-period snapshots.
 - Pair signals are implemented locally in `pair_service.py` using the copied `data/reference/full_universe.csv` semantic peer snapshot. Do not import from or runtime-couple to the sibling `invest` repository. Cache six-hour results under `cache/pair_signals/<ticker>.json`.
+- `investor_screening/` is an independent SEC ownership-research subsystem. It owns official flattened archive ingestion, accession-level detail ingestion, DuckDB/Parquet storage, quality checks, analytical views, and the compact snapshot consumed by `ScreeningService`.
+- Generated screening databases, archives, Parquet files, and snapshots live under `data/investor_screening/` and are excluded from Git. The `/api/screening` route must query the compact read-only snapshot rather than scanning the historical foundation per request.
 - Pair readiness is hypothesis-tier only. Require same-industry peers, five years of dividend-adjusted prices, bidirectional Engle-Granger with Bonferroni correction across both directions, OOS ADF persistence, at least one stable sub-window, positive OLS price hedge ratio, 10-120 day half-life, and absolute z-score >= 1.5. Do not render execution instructions unless status is `READY`.
 - The defined-risk pair expression is long the statistically cheap stock plus a put on the expensive stock. It is not equivalent to a market-neutral stock/short-stock pair and must retain the visible premium, theta, implied-volatility, strike, and expiry caveat.
 - Alpha Whale Sentiment keeps raw share activity separate from scored conviction and must not use external market price or estimated execution/cost basis. For continuing holdings, relative conviction is signed `shares_change_pct / manager_median_abs_share_change_pct` for that quarter. For `NEW`/`CLOSED`, use signed reported position weight divided by the manager's median prior position weight. Trades below `0.25x` normal and adjustments to positions below `0.25x` normal size are routine; contributions cap at `2x`, and at least three meaningful managers are required.
@@ -83,6 +96,7 @@ The primary data flow is:
 - Normalize tickers with trim plus uppercase and omit empty, `NAN`, or `NONE` values from dashboard aggregates. Closed positions come from the comparison DataFrame and are returned separately from active holdings.
 - Do not hand-edit cache snapshots as application data. Change fetch/transformation logic or `config.py`, then regenerate snapshots with `python prefetch.py` when live SEC access is intended.
 - Frontend behavior is implemented with plain global JavaScript and inline Jinja page initializers; there is no bundler or component framework. Keep API property names synchronized with `app.js`, and guard shared DOM operations because the same script loads on every page.
+- The Investor Screening page is implemented in `templates/screening.html` with rendering/filter state in the shared `app.js` and screening-specific CSS in `styles.css`. Preserve its compact-snapshot boundary and visible distinctions between reported 13F value, estimated turnover, and observed persistence.
 - The overview KPI bar is signal-oriented rather than a database summary: consensus buy/sell use combined new/increased and closed/decreased investor counts, new consensus ranks initiations, conviction uses five-holder median weight, and the value signal uses OpenBB distance from the 52-week low. Keep cards linked to ticker detail pages.
 - The QoQ strategy chart includes `UNCHANGED`, but the detailed changes table intentionally excludes unchanged positions. In that table, status describes share-count action; reported value can move in the opposite direction because quarter-end security prices changed. Display the share percentage under the action badge and label value columns as reported-value changes.
 - The manager activity matrix ranks `NEW`/`INCREASED` and `DECREASED`/`CLOSED` moves separately by `portfolio_weight_change`. Display that metric as percentage points (`pp`), calculated as current portfolio weight minus prior-quarter portfolio weight; do not label it as a share-change percentage.

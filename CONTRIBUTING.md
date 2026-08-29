@@ -4,6 +4,7 @@
 
 ```powershell
 python -m pip install -r requirements.txt
+python -m pip install pytest
 python run.py
 ```
 
@@ -23,6 +24,9 @@ The application runs at `http://127.0.0.1:8000`.
   `DataService`.
 - Keep routes in `main.py` thin.
 - Keep pair calculations in `pair_service.py`.
+- Keep universe-wide SEC ingestion, quality checks, and screening snapshot
+  generation in `investor_screening/`; the FastAPI route should call
+  `ScreeningService` rather than query the large foundation directly.
 - Keep Jinja templates structural; presentation behavior belongs in
   `static/js/app.js` and `static/css/styles.css`.
 - Preserve upstream SEC DataFrame field names until API response shaping.
@@ -45,6 +49,8 @@ Run the existing smoke checks:
 ```powershell
 python -m compileall -q config.py data_service.py main.py pair_service.py prefetch.py run.py
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
+python -m pytest tests/test_sentiment_conviction.py -q
+python -m pytest tests/test_investor_screening.py -q
 ```
 
 For frontend changes:

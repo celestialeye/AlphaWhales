@@ -83,6 +83,33 @@ Generated cache data is excluded from Git.
 Do not edit generated JSON values manually. Change transformation logic and
 regenerate the affected cache.
 
+## Investor screening data
+
+Investor Screening uses generated DuckDB, Parquet, raw SEC archives, and
+screening snapshots under `data/investor_screening/`. These files are excluded
+from Git.
+
+Common operations:
+
+```powershell
+# Initialize the screening database
+python -m investor_screening.cli init
+
+# Import official Form 13F history
+python -m investor_screening.cli backfill
+
+# Validate imported datasets and analytical models
+python -m investor_screening.cli validate
+python -m investor_screening.cli status
+
+# Rebuild the compact snapshot used by /screening
+python -m investor_screening.cli refresh-screening
+```
+
+See `investor_screening/README.md` and
+`investor_screening/SCREENING_MODEL.md` for the complete ingestion and
+screening methodology.
+
 ## Smoke checks
 
 ```powershell
@@ -90,8 +117,16 @@ python -m compileall -q config.py data_service.py main.py pair_service.py prefet
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
 ```
 
-The repository currently has no automated test suite, linter, formatter, or
-frontend build step. Use the workspace Playwright MCP server for browser tests.
+Focused automated tests are available:
+
+```powershell
+python -m pip install pytest
+python -m pytest tests/test_sentiment_conviction.py -q
+python -m pytest tests/test_investor_screening.py -q
+```
+
+There is no configured linter, formatter, or frontend build step. Use the
+workspace Playwright MCP server for browser tests.
 
 ## Troubleshooting
 
