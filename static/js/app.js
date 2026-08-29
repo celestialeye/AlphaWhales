@@ -21,6 +21,10 @@ let globalInvestorClosed = [];
 let currentHoldingsTab = 'ALL';
 let investorSortCol = 'portfolio_weight';
 let investorSortAsc = false;
+let currentInvestorCik = null;
+let investorHistoryData = null;
+let investorHistoryLoading = false;
+let investorActivityFilter = 'ALL';
 
 let screeningData = [];
 let screeningSortColumn = 'median_reported_value_4q';
@@ -2372,6 +2376,9 @@ function filterInvestorsList() {
 
 async function loadInvestorDetail(cik) {
     try {
+        currentInvestorCik = cik;
+        investorHistoryData = null;
+        investorActivityFilter = 'ALL';
         const r = await fetch(`/api/investor/${cik}`);
         if (r.status === 404) return;
         const {data} = await r.json();
@@ -2465,6 +2472,158 @@ async function loadInvestorDetail(cik) {
     } catch(err) {
         console.error('Error loading investor detail:', err);
     }
+}
+
+function escapeInvestorHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+async function switchInvestorView(view, button) {
+    const panels = {
+        CURRENT: 'investor-current-panel',
+        ACTIVITY: 'investor-activity-panel',
+        HISTORY: 'investor-history-panel'
+    };
+    document.querySelectorAll('.investor-view-tabs .tab-btn').forEach(tab => {
+        const isActive = tab === button;
+        tab.classList.toggle('active', isActive);
+        tab.setAttribute('aria-selected', String(isActive));
+    });
+    Object.entries(panels).forEach(([name, id]) => {
+        const panel = document.getElementById(id);
+        if (panel) panel.hidden = name !== view;
+    });
+    if (view !== 'CURRENT' && !investorHistoryData) {
+        await loadInvestorHistory();
+    }
+}
+
+async function loadInvestorHistory() {
+    if (!currentInvestorCik || investorHistoryLoading) return;
+    investorHistoryLoading = true;
+    const activityBody = document.getElementById('investor-activity-history-body');
+    const portfolioBody = document.getElementById('investor-portfolio-history-body');
+    if (activityBody) {
+        activityBody.innerHTML = '<tr><td colspan="6" class="text-center py-4">Loading 20-quarter activity history...</td></tr>';
+    }
+    if (portfolioBody) {
+        portfolioBody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Loading 20-quarter portfolio history...</td></tr>';
+    }
+
+    try {
+        const response = await fetch(`/api/investor/${currentInvestorCik}/history`);
+        if (!response.ok) {
+            throw new Error(`Investor history request failed with HTTP ${response.status}`);
+        }
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+        investorHistoryData = result.data || {};
+        renderInvestorActivityHistory();
+        renderInvestorPortfolioHistory();
+    } catch (error) {
+        console.error('Investor history failed:', error);
+        const message = escapeInvestorHtml(error.message);
+        if (activityBody) {
+            activityBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-red">Could not load activity history: ${message}</td></tr>`;
+        }
+        if (portfolioBody) {
+            portfolioBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-red">Could not load portfolio history: ${message}</td></tr>`;
+        }
+    } finally {
+        investorHistoryLoading = false;
+    }
+}
+
+function filterInvestorActivity(filter, button) {
+    investorActivityFilter = filter;
+    document.querySelectorAll('#investor-activity-filter .tab-btn').forEach(tab => {
+        tab.classList.toggle('active', tab === button);
+    });
+    renderInvestorActivityHistory();
+}
+
+function renderInvestorActivityHistory() {
+    const body = document.getElementById('investor-activity-history-body');
+    if (!body || !investorHistoryData) return;
+    const bullishStatuses = new Set(['NEW', 'INCREASED']);
+    const bearishStatuses = new Set(['DECREASED', 'CLOSED']);
+    let html = '';
+
+    (investorHistoryData.activity || []).forEach(period => {
+        const changes = (period.changes || []).filter(change => (
+            investorActivityFilter === 'ALL'
+            || (investorActivityFilter === 'BUYS' && bullishStatuses.has(change.status))
+            || (investorActivityFilter === 'SELLS' && bearishStatuses.has(change.status))
+        ));
+        if (!changes.length) return;
+
+        html += `
+            <tr class="investor-period-row">
+                <td colspan="6">
+                    <strong>${formatFilingPeriodLabel(period.period)}</strong>
+                    <span>${period.filing_date ? `Filed ${formatCalendarDate(period.filing_date)}` : 'Filing date unavailable'}</span>
+                </td>
+            </tr>`;
+
+        changes.forEach(change => {
+            const directionClass = bullishStatuses.has(change.status)
+                ? 'text-green'
+                : 'text-red';
+            const sharesSign = change.shares_change > 0 ? '+' : '';
+            const weightSign = change.portfolio_weight_change > 0 ? '+' : '';
+            html += `
+                <tr>
+                    <td>
+                        <a class="investor-history-security" href="/ticker/${encodeURIComponent(change.ticker)}">
+                            <strong class="font-mono">${escapeInvestorHtml(change.ticker)}</strong>
+                            <span>${escapeInvestorHtml(change.issuer)}</span>
+                        </a>
+                    </td>
+                    <td><span class="badge ${getStatusClass(change.status)}">${escapeInvestorHtml(change.status)}</span></td>
+                    <td class="font-mono ${directionClass}">${sharesSign}${formatInt(change.shares_change)}</td>
+                    <td class="font-mono ${directionClass}">${change.shares_change_pct > 0 ? '+' : ''}${formatPct(change.shares_change_pct)}</td>
+                    <td class="font-mono ${change.portfolio_weight_change > 0 ? 'text-green' : change.portfolio_weight_change < 0 ? 'text-red' : 'text-muted'}">${weightSign}${formatNum(change.portfolio_weight_change)} pp</td>
+                    <td class="font-mono ${change.value_change > 0 ? 'text-green' : change.value_change < 0 ? 'text-red' : 'text-muted'}">${formatFlowMillions(change.value_change, true)}</td>
+                </tr>`;
+        });
+    });
+
+    body.innerHTML = html || '<tr><td colspan="6" class="text-center py-4 text-muted">No activity matches this filter.</td></tr>';
+}
+
+function renderInvestorPortfolioHistory() {
+    const body = document.getElementById('investor-portfolio-history-body');
+    if (!body || !investorHistoryData) return;
+    const rows = investorHistoryData.portfolio_history || [];
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">No historical portfolio snapshots are available.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = rows.map(period => {
+        const holdings = (period.top_holdings || []).map(holding => `
+            <a class="investor-history-holding" href="/ticker/${encodeURIComponent(holding.ticker)}"
+               title="${escapeInvestorHtml(holding.issuer)} · ${formatPct(holding.portfolio_weight)} · $${formatNum(holding.value)}M">
+                <span class="font-mono">${escapeInvestorHtml(holding.ticker)}</span>
+                <b>${formatPct(holding.portfolio_weight)}</b>
+            </a>
+        `).join('');
+        return `
+            <tr>
+                <td>
+                    <strong>${formatFilingPeriodLabel(period.period)}</strong>
+                    <small>${period.filing_date ? `Filed ${formatCalendarDate(period.filing_date)}` : 'Filing date unavailable'}</small>
+                </td>
+                <td class="font-mono"><strong>${formatFlowMillions(period.portfolio_value_m)}</strong></td>
+                <td class="font-mono">${formatInt(period.position_count)}</td>
+                <td><div class="investor-history-holdings">${holdings || '<span class="text-muted">No reported holdings</span>'}</div></td>
+            </tr>`;
+    }).join('');
 }
 
 function filterHoldingsTab(tabName) {
