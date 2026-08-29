@@ -1260,6 +1260,88 @@ body.period-loading {
     font-size: 0.7rem;
     line-height: 1.45;
 }
+.investor-view-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    background: var(--bg-card-alt);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+.investor-view-tabs .tab-btn {
+    min-width: 140px;
+}
+.investor-view-panel[hidden] {
+    display: none;
+}
+.investor-history-header {
+    gap: 16px;
+}
+.investor-history-table-wrap {
+    max-height: 760px;
+}
+.investor-period-row td {
+    position: sticky;
+    top: 41px;
+    z-index: 8;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    color: #e2e8f0;
+    background: #172033;
+    border-top: 1px solid #334155;
+    border-bottom-color: #334155;
+}
+.investor-period-row strong {
+    margin-right: 10px;
+    color: #f8fafc;
+}
+.investor-period-row span {
+    color: var(--text-dim);
+    font-size: 0.7rem;
+}
+.investor-history-security {
+    display: grid;
+    gap: 2px;
+    min-width: 210px;
+}
+.investor-history-security span {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+.investor-portfolio-history-table td:first-child {
+    min-width: 190px;
+}
+.investor-portfolio-history-table td:first-child small {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-dim);
+}
+.investor-history-holdings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-width: 620px;
+}
+.investor-history-holding {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 7px;
+    color: #93c5fd;
+    background: rgba(30, 64, 175, 0.13);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 5px;
+    font-size: 0.7rem;
+}
+.investor-history-holding:hover {
+    color: #dbeafe;
+    background: rgba(30, 64, 175, 0.25);
+}
+.investor-history-holding b {
+    color: #cbd5e1;
+    font-size: 0.63rem;
+}
 .sort-icon {
     font-size: 0.75rem;
     color: var(--color-value);
