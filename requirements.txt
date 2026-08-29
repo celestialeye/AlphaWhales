@@ -7,3 +7,6 @@ pandas
 jinja2
 scipy
 statsmodels
+duckdb>=1.5,<2
+pyarrow>=18,<24
+lxml>=5,<7

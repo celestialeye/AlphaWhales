@@ -1,3 +1,6 @@
+import os
+
+
 FUND_MANAGERS = [
     # --- Value ---
     {
@@ -193,6 +196,9 @@ FUND_MANAGERS = [
 
 import os
 
-SEC_IDENTITY = "Sec13F Dashboard admin@sec13f.local"
+SEC_IDENTITY = os.environ.get(
+    "EDGAR_IDENTITY",
+    "Sec13F Dashboard admin@sec13f.local",
+)
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
 CACHE_TTL_HOURS = 6
