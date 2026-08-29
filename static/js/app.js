@@ -1518,33 +1518,29 @@ function renderWhaleSentiment(intelligence) {
         },
         {
             x: periods,
-            y: history.map(item => (
-                item.sentiment?.score !== null
-                && item.sentiment?.score !== undefined
-                    ? item.sentiment?.breadth_score
-                    : null
-            )),
+            y: history.map(
+                item => item.sentiment?.breadth_score ?? null
+            ),
             name: 'MEANINGFUL BREADTH',
             type: 'scatter',
             mode: 'lines',
+            connectgaps: true,
+            opacity: 0.55,
             line: {color: '#60a5fa', width: 1.5, dash: 'dot'},
-            hovertemplate: 'Meaningful breadth: %{y:.1f}<extra></extra>',
-            visible: 'legendonly'
+            hovertemplate: 'Meaningful breadth: %{y:.1f}<extra></extra>'
         },
         {
             x: periods,
-            y: history.map(item => (
-                item.sentiment?.score !== null
-                && item.sentiment?.score !== undefined
-                    ? item.sentiment?.conviction_score
-                    : null
-            )),
+            y: history.map(
+                item => item.sentiment?.conviction_score ?? null
+            ),
             name: 'RELATIVE CONVICTION',
             type: 'scatter',
             mode: 'lines',
+            connectgaps: true,
+            opacity: 0.55,
             line: {color: '#c084fc', width: 1.5, dash: 'dot'},
-            hovertemplate: 'Relative conviction: %{y:.1f}<extra></extra>',
-            visible: 'legendonly'
+            hovertemplate: 'Relative conviction: %{y:.1f}<extra></extra>'
         },
         {
             x: periods,
@@ -1552,9 +1548,10 @@ function renderWhaleSentiment(intelligence) {
             name: 'RAW ACTIVITY',
             type: 'scatter',
             mode: 'lines',
+            connectgaps: true,
+            opacity: 0.35,
             line: {color: '#64748b', width: 1.2, dash: 'dash'},
-            hovertemplate: 'Raw activity breadth: %{y:.1f}<extra></extra>',
-            visible: 'legendonly'
+            hovertemplate: 'Raw activity breadth: %{y:.1f}<extra></extra>'
         },
         {
             x: periods,
