@@ -103,8 +103,8 @@ The relevant peer reference and calculation patterns are maintained locally.
 ## Ticker sentiment flow
 
 `DataService.get_ticker_intelligence()` retains manager-level changes for each
-of the 20 historical quarters. It derives raw share activity, estimated trade
-weight, manager-relative conviction, meaningful breadth, composite sentiment
+of the 20 historical quarters. It derives raw share activity, manager-relative
+share-adjustment or position-size conviction, meaningful breadth, composite sentiment
 regimes, streaks, dollar-flow cross-checks, and contributors. The frontend
 receives completed calculations and only renders the trend and heatmap.
 

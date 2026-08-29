@@ -311,7 +311,7 @@
                 <h3>Alpha Whale Sentiment</h3>
             </div>
             <div class="decision-header-actions">
-                <span class="stats-info" tabindex="0" role="img" aria-label="Whale sentiment methodology" data-tooltip="Raw activity shows every new/increased versus decreased/exited share action. Sentiment uses only meaningful trades: estimated trade weight equals share change times quarter-average price divided by prior portfolio value; relative conviction divides that by the manager's typical prior position. Trades below 0.25x typical are routine. Meaningful breadth and relative conviction are equally weighted; conviction is capped at 2x typical. At least three meaningful managers are required. Estimated dollar flow is a separate cross-check.">i</span>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Whale sentiment methodology" data-tooltip="Raw activity shows every new/increased versus decreased/exited share action. For continuing holdings, conviction compares reported share-change percentage with that manager's normal share adjustment. For new and closed holdings, it compares position size with that manager's normal position size. Trades below 0.25x normal, and adjustments to positions smaller than 0.25x normal size, are routine. Meaningful breadth and relative conviction are equally weighted; contributions cap at 2x normal. No external price or estimated execution price enters sentiment. Estimated dollar flow is separate.">i</span>
                 <span class="whale-sentiment-regime" id="td-whale-sentiment-regime">NO SIGNAL</span>
             </div>
         </div>
@@ -334,9 +334,9 @@
         <div class="card-header">
             <div>
                 <h3>Manager Conviction Map</h3>
-                <span class="text-muted">Estimated trade size relative to each manager's typical position; hover cells to separate action, trade weight, and ordinary portfolio-weight drift.</span>
+                <span class="text-muted">Reported share adjustment versus each manager's normal operation; new and closed positions use position size versus the manager's typical holding.</span>
             </div>
-            <span class="card-badge" id="td-whale-winsor-cap">Material ≥0.25x · Cap 2x</span>
+            <span class="card-badge" id="td-whale-winsor-cap">Routine &lt;0.25x · Cap 2x</span>
         </div>
         <div class="whale-heatmap-scroll">
             <div id="ticker-conviction-heatmap" class="chart-box ticker-conviction-heatmap"></div>

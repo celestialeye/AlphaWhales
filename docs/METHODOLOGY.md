@@ -154,42 +154,46 @@ raw activity breadth =
 Raw activity is displayed as context but does not directly determine the
 sentiment regime.
 
-### Estimated trade weight
-
-For each directional action:
-
-```text
-estimated trade weight =
-  share change * quarter-average market price
-  / manager's prior reported portfolio value
-```
-
-This estimates how many percentage points of the manager's portfolio the trade
-represented while avoiding price appreciation being mistaken for trading.
-Quarter-end price is used only when the quarter-average price is unavailable.
-Execution dates and prices remain unknown, so it is still an estimate.
-
 ### Manager-relative conviction
 
-Managers have different normal position sizes. A 2-point trade is routine for
-a five-position fund but potentially exceptional for a fifty-position fund.
+No share price or cost-basis estimate enters the sentiment score.
+
+For continuing holdings, the application compares the reported share-change
+percentage with that manager's median absolute share adjustment across all
+continuing positions in the same quarter:
 
 ```text
 relative conviction =
-  estimated trade weight / manager's median prior position weight
+  signed share-change percentage
+  / manager's median absolute share-change percentage
 ```
+
+For `NEW` and `CLOSED` positions there is no prior-share denominator. These
+actions use position significance:
+
+```text
+relative conviction =
+  signed new-or-closed position weight
+  / manager's median prior position weight
+```
+
+This distinguishes a tiny exploratory entry or cleanup exit from a new or
+closed position that is large relative to the manager's normal holding.
 
 Classification:
 
 | Absolute relative conviction | Classification |
 |---|---|
-| Below 0.25x normal position | Routine |
+| Below 0.25x normal operation | Routine |
 | 0.25x to below 0.75x | Meaningful |
 | 0.75x to below 1.50x | High |
 | 1.50x or more | Exceptional |
 
 Only meaningful, high, and exceptional trades enter sentiment. Contributions
-are capped at 2x a manager's typical position.
+are capped at 2x a manager's normal operation. Continuing-position adjustments
+are also treated as routine when the position itself is below 0.25x the
+manager's normal holding size, preventing tiny starter positions from driving
+the regime.
 
 ```text
 meaningful breadth =
@@ -222,9 +226,10 @@ Estimated net dollar flow is a dollar-weighted cross-check, not a score input.
 It `CONFIRMS` when its direction agrees with a non-neutral sentiment regime,
 `DIVERGES` when it opposes the regime, and is otherwise `NEUTRAL`.
 
-The manager conviction heatmap displays estimated trade size as a multiple of
-each manager's normal position. Contributor lists display the capped multiple
-used by the score and the estimated trade weight as secondary context.
+The manager conviction heatmap displays reported share adjustment versus
+normal adjustment for continuing positions, and position size versus normal
+position size for new and closed positions. Contributor lists show the capped
+multiple used by the score plus the underlying reported percentage.
 
 ## Pair-trading research
 

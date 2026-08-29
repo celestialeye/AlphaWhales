@@ -25,6 +25,7 @@ class DataService:
         self.period_caches = {}
         self.period_cache_locks = {}
         self.period_cache_progress = {}
+        self.manager_adjustment_cache = {}
 
         # Ensure identity is set for SEC EDGAR access
         try:
@@ -980,6 +981,119 @@ class DataService:
             "total_funds": len(FUND_MANAGERS)
         }
 
+    @staticmethod
+    def _get_typical_share_adjustment_pct(
+        current_holdings,
+        previous_holdings
+    ):
+        if (
+            current_holdings is None
+            or previous_holdings is None
+            or current_holdings.empty
+            or previous_holdings.empty
+            or not {"Cusip", "SharesPrnAmount"}.issubset(
+                current_holdings.columns
+            )
+            or not {"Cusip", "SharesPrnAmount"}.issubset(
+                previous_holdings.columns
+            )
+        ):
+            return None
+
+        current = current_holdings[[
+            "Cusip",
+            "SharesPrnAmount"
+        ]].copy()
+        previous = previous_holdings[[
+            "Cusip",
+            "SharesPrnAmount"
+        ]].copy()
+        current["Cusip"] = (
+            current["Cusip"].astype(str).str.strip().str.upper()
+        )
+        previous["Cusip"] = (
+            previous["Cusip"].astype(str).str.strip().str.upper()
+        )
+        current["SharesPrnAmount"] = pd.to_numeric(
+            current["SharesPrnAmount"],
+            errors="coerce"
+        ).fillna(0.0)
+        previous["SharesPrnAmount"] = pd.to_numeric(
+            previous["SharesPrnAmount"],
+            errors="coerce"
+        ).fillna(0.0)
+        current = current.groupby("Cusip", as_index=False)[
+            "SharesPrnAmount"
+        ].sum().rename(columns={"SharesPrnAmount": "CurrentShares"})
+        previous = previous.groupby("Cusip", as_index=False)[
+            "SharesPrnAmount"
+        ].sum().rename(columns={"SharesPrnAmount": "PreviousShares"})
+        merged = pd.merge(current, previous, on="Cusip", how="inner")
+        continuing = merged[
+            (merged["CurrentShares"] > 0)
+            & (merged["PreviousShares"] > 0)
+            & (merged["CurrentShares"] != merged["PreviousShares"])
+        ].copy()
+        if continuing.empty:
+            return None
+        adjustments = (
+            (
+                continuing["CurrentShares"]
+                - continuing["PreviousShares"]
+            )
+            / continuing["PreviousShares"]
+            * 100.0
+        ).abs()
+        return float(statistics.median(adjustments.tolist()))
+
+    @staticmethod
+    def _calculate_relative_conviction(
+        status,
+        share_change_pct,
+        typical_share_change_pct,
+        previous_weight,
+        current_weight,
+        typical_position_weight
+    ):
+        position_significance = (
+            max(float(previous_weight), float(current_weight))
+            / float(typical_position_weight)
+            if typical_position_weight is not None
+            and typical_position_weight > 0
+            else None
+        )
+        if status in {"INCREASED", "DECREASED"}:
+            if (
+                share_change_pct is None
+                or typical_share_change_pct is None
+                or typical_share_change_pct <= 0
+                or position_significance is None
+            ):
+                return None, "SHARE_CHANGE", position_significance, False
+            direction = 1.0 if status == "INCREASED" else -1.0
+            relative_conviction = (
+                direction
+                * abs(float(share_change_pct))
+                / float(typical_share_change_pct)
+            )
+            return (
+                relative_conviction,
+                "SHARE_CHANGE",
+                position_significance,
+                position_significance < 0.25
+            )
+        if status in {"NEW", "CLOSED"}:
+            if position_significance is None:
+                return None, "POSITION_SIZE", None, False
+            direction = 1.0 if status == "NEW" else -1.0
+            return (
+                direction * position_significance,
+                "POSITION_SIZE",
+                position_significance,
+                False
+            )
+        return None, "UNCHANGED", position_significance, False
+
     def _get_ticker_snapshot_changes(
         self,
         current_ticker_data,
@@ -987,7 +1101,8 @@ class DataService:
         current_cache,
         previous_cache,
         current_available_funds,
-        previous_available_funds
+        previous_available_funds,
+        current_period
     ):
         current_holders = {
             holder["cik"]: holder
@@ -1036,12 +1151,14 @@ class DataService:
             else:
                 status = "UNCHANGED"
 
-            fund_data = current_cache.get(cik) or previous_cache.get(cik)
+            current_fund = current_cache.get(cik, {})
+            fund_data = current_fund or previous_cache.get(cik)
             previous_fund = previous_cache.get(cik, {})
             previous_total_value = float(
                 previous_fund.get("metadata", {}).get("total_value", 0.0)
             )
             previous_holdings = previous_fund.get("holdings")
+            current_holdings = current_fund.get("holdings")
             typical_position_weight = None
             if (
                 previous_holdings is not None
@@ -1057,6 +1174,19 @@ class DataService:
                     typical_position_weight = float(
                         statistics.median(weights.tolist())
                     )
+            typical_share_change_pct = None
+            if status in {"INCREASED", "DECREASED"}:
+                cache_key = (current_period, cik)
+                if cache_key not in self.manager_adjustment_cache:
+                    self.manager_adjustment_cache[cache_key] = (
+                        self._get_typical_share_adjustment_pct(
+                            current_holdings,
+                            previous_holdings
+                        )
+                    )
+                typical_share_change_pct = (
+                    self.manager_adjustment_cache[cache_key]
+                )
 
             current_weight = (
                 float(current_holder["portfolio_weight"])
@@ -1068,19 +1198,29 @@ class DataService:
                 if previous_holder
                 else 0.0
             )
+            shares_change = current_shares - previous_shares
+            shares_change_pct = (
+                shares_change / previous_shares * 100.0
+                if previous_shares > 0
+                else None
+            )
             changes.append({
                 "cik": cik,
                 "manager": fund_data["fund_info"]["manager"],
                 "fund_name": fund_data["fund_info"]["name"],
                 "status": status,
-                "shares_change": current_shares - previous_shares,
+                "shares_change": shares_change,
+                "shares_change_pct": shares_change_pct,
                 "previous_portfolio_weight": previous_weight,
                 "portfolio_weight": current_weight,
                 "portfolio_weight_change_raw": (
                     current_weight - previous_weight
                 ),
                 "previous_portfolio_value_raw": previous_total_value,
-                "manager_typical_position_weight": typical_position_weight
+                "manager_typical_position_weight": typical_position_weight,
+                "manager_typical_share_change_pct": (
+                    typical_share_change_pct
+                )
             })
 
         return changes
@@ -1116,7 +1256,8 @@ class DataService:
                     period_cache,
                     previous_period_cache,
                     available_funds_by_period[period],
-                    previous_available_funds
+                    previous_available_funds,
+                    period
                 )
                 if previous_period_cache is not None
                 else self.get_qoq_changes(
@@ -1135,10 +1276,6 @@ class DataService:
             gross_inflow = 0.0
             gross_outflow = 0.0
             quarter_price = quarter_end_prices.get(period)
-            quarter_trade_price = (
-                quarter_average_prices.get(period)
-                or quarter_price
-            )
             flow_available = quarter_price is not None
             investor_changes = []
 
@@ -1152,34 +1289,25 @@ class DataService:
                         move.get("portfolio_weight_change", 0.0)
                     )
                 )
-                signal_weight_change = (
-                    raw_weight_change
-                    if move["status"] in {"NEW", "INCREASED", "DECREASED", "CLOSED"}
-                    else 0.0
-                )
-                previous_portfolio_value = float(
-                    move.get("previous_portfolio_value_raw", 0.0)
-                )
                 typical_position_weight = move.get(
                     "manager_typical_position_weight"
                 )
-                estimated_trade_weight = (
-                    (
-                        float(move["shares_change"])
-                        * float(quarter_trade_price)
-                        / previous_portfolio_value
-                        * 100.0
-                    )
-                    if quarter_trade_price is not None
-                    and previous_portfolio_value > 0
-                    else None
+                typical_share_change_pct = move.get(
+                    "manager_typical_share_change_pct"
                 )
-                relative_conviction = (
-                    estimated_trade_weight / float(typical_position_weight)
-                    if estimated_trade_weight is not None
-                    and typical_position_weight is not None
-                    and typical_position_weight > 0
-                    else None
+                share_change_pct = move.get("shares_change_pct")
+                (
+                    relative_conviction,
+                    conviction_basis,
+                    position_significance,
+                    force_routine
+                ) = self._calculate_relative_conviction(
+                    move["status"],
+                    share_change_pct,
+                    typical_share_change_pct,
+                    move.get("previous_portfolio_weight", 0.0),
+                    move.get("portfolio_weight", 0.0),
+                    typical_position_weight
                 )
                 relative_conviction_valid = (
                     relative_conviction is not None
@@ -1194,7 +1322,7 @@ class DataService:
                     "UNAVAILABLE"
                     if not relative_conviction_valid
                     else "ROUTINE"
-                    if relative_magnitude < 0.25
+                    if force_routine or relative_magnitude < 0.25
                     else "MEANINGFUL"
                     if relative_magnitude < 0.75
                     else "HIGH"
@@ -1209,13 +1337,24 @@ class DataService:
                     "previous_weight": move.get("previous_portfolio_weight", 0.0),
                     "current_weight": move.get("portfolio_weight", 0.0),
                     "weight_change": round(raw_weight_change, 2),
-                    "signal_weight_change": signal_weight_change,
-                    "estimated_trade_weight": (
-                        round(estimated_trade_weight, 4)
-                        if estimated_trade_weight is not None
+                    "share_change_pct": (
+                        round(float(share_change_pct), 2)
+                        if share_change_pct is not None
+                        else None
+                    ),
+                    "typical_share_change_pct": (
+                        round(float(typical_share_change_pct), 2)
+                        if typical_share_change_pct is not None
                         else None
                     ),
                     "typical_position_weight": typical_position_weight,
+                    "position_significance": (
+                        round(position_significance, 4)
+                        if position_significance is not None
+                        else None
+                    ),
+                    "conviction_basis": conviction_basis,
+                    "position_size_gate_applied": force_routine,
                     "relative_conviction": (
                         round(relative_conviction, 4)
                         if relative_conviction_valid
@@ -1298,7 +1437,10 @@ class DataService:
                     unscored_count += 1
                     change["scored_relative_conviction"] = None
                     continue
-                if abs(relative_conviction) < materiality_threshold:
+                if (
+                    change.get("position_size_gate_applied")
+                    or abs(relative_conviction) < materiality_threshold
+                ):
                     routine_count += 1
                     change["scored_relative_conviction"] = 0.0
                     continue
@@ -2263,6 +2405,42 @@ class DataService:
                     if previous_total_value > 0 and not previous_position_values.empty
                     else None
                 )
+                manager_typical_share_change_pct = None
+                if {"Shares", "PrevShares"}.issubset(comp_df.columns):
+                    comparison_shares = pd.to_numeric(
+                        comp_df["Shares"],
+                        errors="coerce"
+                    )
+                    comparison_previous_shares = pd.to_numeric(
+                        comp_df["PrevShares"],
+                        errors="coerce"
+                    )
+                    continuing_adjustments = (
+                        (
+                            (
+                                comparison_shares
+                                - comparison_previous_shares
+                            )
+                            / comparison_previous_shares
+                            * 100.0
+                        )
+                        .where(
+                            (comparison_shares > 0)
+                            & (comparison_previous_shares > 0)
+                            & (
+                                comparison_shares
+                                != comparison_previous_shares
+                            )
+                        )
+                        .abs()
+                        .dropna()
+                    )
+                    if not continuing_adjustments.empty:
+                        manager_typical_share_change_pct = float(
+                            statistics.median(
+                                continuing_adjustments.tolist()
+                            )
+                        )
 
                 # Merge logic to get current portfolio weight if available
                 if hold_df is not None and not hold_df.empty and 'Cusip' in hold_df.columns:
@@ -2353,6 +2531,11 @@ class DataService:
                         "manager_typical_position_weight": (
                             round(manager_typical_position_weight, 4)
                             if manager_typical_position_weight is not None
+                            else None
+                        ),
+                        "manager_typical_share_change_pct": (
+                            round(manager_typical_share_change_pct, 4)
+                            if manager_typical_share_change_pct is not None
                             else None
                         ),
                         "value": round(val_raw / 1_000_000.0, 2), # In $M

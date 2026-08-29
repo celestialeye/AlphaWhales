@@ -24,8 +24,9 @@
 - Alpha Whale Sentiment index combining investor breadth and portfolio-weight
   conviction, with a manager heatmap and flow-divergence cross-check.
 - Manager-relative conviction that distinguishes routine trades from meaningful
-  changes using estimated trade weight divided by each manager's typical
-  position size.
+  changes without price or cost-basis estimates. Continuing positions use
+  share-change percentage versus normal adjustment; new and closed positions
+  use position size versus normal holding size.
 - Complete-filing selection across original and amended 13F submissions,
   including cross-CIK comparison continuity.
 - Legacy 13F dollar/thousand-dollar normalization and rejection of 1,000x

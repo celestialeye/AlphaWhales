@@ -1339,19 +1339,24 @@ function renderWhaleContributors(containerId, contributors) {
         return;
     }
 
-    container.innerHTML = contributors.map(item => `
+    container.innerHTML = contributors.map(item => {
+        const detail = item.conviction_basis === 'SHARE_CHANGE'
+            ? `${item.status.replace('_', ' ')} · shares ${item.share_change_pct > 0 ? '+' : ''}${formatPct(item.share_change_pct)} vs ${formatPct(item.typical_share_change_pct)} normal`
+            : `${item.status.replace('_', ' ')} · position ${formatPct(Math.max(item.previous_weight, item.current_weight))} vs ${formatPct(item.typical_position_weight)} normal`;
+        return `
         <li>
             <a href="/investor/${item.cik}">
                 <span>
                     <strong>${item.manager}</strong>
-                    <small>${item.status.replace('_', ' ')} · est. trade ${item.estimated_trade_weight > 0 ? '+' : ''}${formatPct(item.estimated_trade_weight).replace('%', 'pp')} of portfolio</small>
+                    <small>${detail}</small>
                 </span>
                 <strong class="font-mono ${item.scored_relative_conviction > 0 ? 'text-green' : 'text-red'}">
                     ${item.scored_relative_conviction > 0 ? '+' : ''}${Number(item.scored_relative_conviction).toFixed(2)}x
                 </strong>
             </a>
         </li>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function resetWhaleSentimentView(message = 'Loading sentiment history...') {
@@ -1377,7 +1382,7 @@ function resetWhaleSentimentView(message = 'Loading sentiment history...') {
         if (element) element.textContent = '—';
     });
     const cap = document.getElementById('td-whale-winsor-cap');
-    if (cap) cap.textContent = 'Material ≥0.25x · Cap 2x';
+    if (cap) cap.textContent = 'Routine <0.25x · Cap 2x';
     ['ticker-bullish-contributors', 'ticker-bearish-contributors'].forEach(id => {
         const container = document.getElementById(id);
         if (container) container.innerHTML = `<li class="stats-loading">${message}</li>`;
@@ -1428,7 +1433,7 @@ function renderWhaleSentiment(intelligence) {
     document.getElementById('td-whale-flow-value').textContent = history.length && history.at(-1).net_flow !== null
         ? `${formatFlowMillions(history.at(-1).net_flow, true)} estimated net flow`
         : 'Flow unavailable';
-    document.getElementById('td-whale-winsor-cap').textContent = `Material ≥${Number(sentimentData.materiality_threshold_x || 0.25).toFixed(2)}x · Cap ${Number(sentimentData.conviction_cap_x || 2).toFixed(0)}x`;
+    document.getElementById('td-whale-winsor-cap').textContent = `Routine <${Number(sentimentData.materiality_threshold_x || 0.25).toFixed(2)}x · Cap ${Number(sentimentData.conviction_cap_x || 2).toFixed(0)}x`;
 
     const periods = history.map(item => item.period);
     const customData = history.map(item => {
@@ -1548,18 +1553,28 @@ function renderWhaleSentiment(intelligence) {
     const heatmapCustom = managerNames.map(manager => changeMaps.map(map => {
         const change = map.get(manager);
         if (!change) return ['NO DATA', '—', '—', '—', 'No directional observation'];
+        const operation = change.conviction_basis === 'SHARE_CHANGE'
+            ? change.share_change_pct === null
+                ? 'Unavailable'
+                : `${change.share_change_pct > 0 ? '+' : ''}${Number(change.share_change_pct).toFixed(2)}% shares`
+            : `${Number(Math.max(change.previous_weight, change.current_weight)).toFixed(2)}% position`;
+        const normal = change.conviction_basis === 'SHARE_CHANGE'
+            ? change.typical_share_change_pct === null
+                ? 'Unavailable'
+                : `${Number(change.typical_share_change_pct).toFixed(2)}% share adjustment`
+            : change.typical_position_weight === null
+                ? 'Unavailable'
+                : `${Number(change.typical_position_weight).toFixed(2)}% position`;
         return [
             change.status,
-            change.estimated_trade_weight === null
-                ? 'Unavailable'
-                : `${change.estimated_trade_weight > 0 ? '+' : ''}${Number(change.estimated_trade_weight).toFixed(2)}pp`,
-            change.typical_position_weight === null
-                ? 'Unavailable'
-                : `${Number(change.typical_position_weight).toFixed(2)}%`,
+            operation,
+            normal,
             change.relative_conviction === null
                 ? 'Unavailable'
                 : `${change.relative_conviction > 0 ? '+' : ''}${Number(change.relative_conviction).toFixed(2)}x`,
-            change.conviction_class
+            change.position_size_gate_applied
+                ? 'ROUTINE (position <0.25x normal size)'
+                : change.conviction_class
         ];
     }));
     const cap = Number(sentimentData.conviction_cap_x || 2);
@@ -1582,12 +1597,12 @@ function renderWhaleSentiment(intelligence) {
             [0.65, '#166534'],
             [1, '#22c55e']
         ],
-        colorbar: {title: 'Trade / Typical', thickness: 13},
+        colorbar: {title: 'Operation / Normal', thickness: 13},
         hovertemplate:
             '<b>%{y}</b><br>%{x}<br>' +
             'Action: %{customdata[0]}<br>' +
-            'Estimated trade weight: %{customdata[1]}<br>' +
-            'Typical manager position: %{customdata[2]}<br>' +
+            'Reported operation: %{customdata[1]}<br>' +
+            'Manager normal: %{customdata[2]}<br>' +
             'Relative conviction: %{customdata[3]}<br>' +
             'Classification: %{customdata[4]}' +
             '<extra></extra>'

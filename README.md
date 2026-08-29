@@ -92,7 +92,7 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 - **Pair Trading Research**: Same-industry economic peers are tested with five years of dividend-adjusted prices, bidirectional cointegration, multiple-testing correction, out-of-sample persistence, sub-window stability, and half-life gates. The view distinguishes READY, WAIT, and NO VALID PAIR and shows both stock/short-stock and stock/paired-put execution structures only when actionable.
 - **Institutional Flow Pulse**: Latest-quarter counts of new, increased, decreased, and exited investors plus estimated net flow with gross inflow and outflow detail.
 - **20-Quarter Trends**: Historical tracked-investor count, total reported holdings value, and investor action trends.
-- **Alpha Whale Sentiment**: Separates raw buy/sell activity from meaningful manager-relative conviction. Estimated trade size is normalized by each manager's typical position before producing the bounded 20-quarter bullish/bearish index, heatmap, contributor attribution, and dollar-flow divergence.
+- **Alpha Whale Sentiment**: Separates raw buy/sell activity from meaningful manager-relative conviction without using price or cost basis. Continuing positions compare share-change percentage with the manager's normal adjustment; new and closed positions compare position size with the manager's normal holding.
 - **Consensus Analytics**: Total value held across all funds, total shares, median portfolio weight, and elite-holder count.
 - **Visuals**:
   - Top 20 Most Popular Tickers across elite managers (Plotly).
