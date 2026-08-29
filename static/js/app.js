@@ -1454,6 +1454,26 @@ function renderWhaleSentiment(intelligence) {
         ];
     });
     const scoreValues = history.map(item => item.sentiment?.score ?? null);
+    const lowParticipationValues = history.map(item => {
+        const sentiment = item.sentiment || {};
+        if (
+            sentiment.score !== null
+            && sentiment.score !== undefined
+        ) {
+            return null;
+        }
+        if (
+            sentiment.breadth_score === null
+            || sentiment.breadth_score === undefined
+            || sentiment.conviction_score === null
+            || sentiment.conviction_score === undefined
+        ) {
+            return null;
+        }
+        return (
+            sentiment.breadth_score + sentiment.conviction_score
+        ) / 2;
+    });
 
     Plotly.react('ticker-sentiment-history-chart', [
         {
@@ -1480,21 +1500,33 @@ function renderWhaleSentiment(intelligence) {
         },
         {
             x: periods,
-            y: history.map(item => item.sentiment?.breadth_score ?? null),
+            y: history.map(item => (
+                item.sentiment?.score !== null
+                && item.sentiment?.score !== undefined
+                    ? item.sentiment?.breadth_score
+                    : null
+            )),
             name: 'MEANINGFUL BREADTH',
             type: 'scatter',
             mode: 'lines',
             line: {color: '#60a5fa', width: 1.5, dash: 'dot'},
-            hovertemplate: 'Breadth: %{y:.1f}<extra></extra>'
+            hovertemplate: 'Meaningful breadth: %{y:.1f}<extra></extra>',
+            visible: 'legendonly'
         },
         {
             x: periods,
-            y: history.map(item => item.sentiment?.conviction_score ?? null),
+            y: history.map(item => (
+                item.sentiment?.score !== null
+                && item.sentiment?.score !== undefined
+                    ? item.sentiment?.conviction_score
+                    : null
+            )),
             name: 'RELATIVE CONVICTION',
             type: 'scatter',
             mode: 'lines',
             line: {color: '#c084fc', width: 1.5, dash: 'dot'},
-            hovertemplate: 'Conviction: %{y:.1f}<extra></extra>'
+            hovertemplate: 'Relative conviction: %{y:.1f}<extra></extra>',
+            visible: 'legendonly'
         },
         {
             x: periods,
@@ -1503,7 +1535,32 @@ function renderWhaleSentiment(intelligence) {
             type: 'scatter',
             mode: 'lines',
             line: {color: '#64748b', width: 1.2, dash: 'dash'},
-            hovertemplate: 'Raw activity breadth: %{y:.1f}<extra></extra>'
+            hovertemplate: 'Raw activity breadth: %{y:.1f}<extra></extra>',
+            visible: 'legendonly'
+        },
+        {
+            x: periods,
+            y: lowParticipationValues,
+            name: 'LOW PARTICIPATION',
+            type: 'scatter',
+            mode: 'markers',
+            marker: {
+                symbol: 'diamond-open',
+                size: 9,
+                color: '#94a3b8',
+                line: {color: '#94a3b8', width: 1.5}
+            },
+            customdata: history.map(item => [
+                item.sentiment?.bullish_count || 0,
+                item.sentiment?.bearish_count || 0,
+                item.sentiment?.routine_count || 0
+            ]),
+            hovertemplate:
+                '<b>%{x}</b><br>' +
+                'Unscored indication: %{y:.1f}<br>' +
+                '%{customdata[0]} meaningful bull / %{customdata[1]} meaningful bear / %{customdata[2]} routine<br>' +
+                'Fewer than 3 meaningful managers' +
+                '<extra></extra>'
         }
     ], {
         paper_bgcolor: 'rgba(0,0,0,0)',
@@ -1515,7 +1572,7 @@ function renderWhaleSentiment(intelligence) {
         xaxis: {gridcolor: '#1e293b', tickangle: -35},
         yaxis: {
             title: 'Sentiment (-100 to +100)',
-            range: [-105, 105],
+            range: [-110, 110],
             gridcolor: '#1e293b',
             zeroline: true,
             zerolinecolor: '#64748b'
