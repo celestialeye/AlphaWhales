@@ -196,5 +196,12 @@ reported price from value divided by shares and calculates current-price drift
 from that reference. The synchronous investor route never launches one
 OpenBB request per holding; uncached rows remain unavailable.
 
+`DataService.get_investor_history()` is the asynchronous history path behind
+`/api/investor/{cik}/history`. It loads the same latest 20 period caches used by
+ticker intelligence, preserves canonical manager CIK keys, groups non-unchanged
+QoQ activity by period, and returns period-level portfolio totals plus the top
+20 holdings by portfolio weight. The browser loads this endpoint lazily when
+the Activity History or Portfolio History tab is first selected.
+
 Ticker history derives actions directly from consecutive cached snapshots,
 which preserves continuity across reporting-entity CIK changes.

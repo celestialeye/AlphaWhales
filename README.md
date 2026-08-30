@@ -13,6 +13,7 @@ An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB*
 - [Operations and cache management](docs/OPERATIONS.md)
 - [Universe-wide investor screening data project](investor_screening/README.md)
 - [Investor screening data quality report](docs/INVESTOR_SCREENING_DATA_QUALITY.md)
+- [Investor performance methodology comparison](docs/INVESTOR_PERFORMANCE_METHODOLOGY.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
@@ -103,7 +104,6 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   - Ownership Distribution Donut Chart (Plotly).
   - QoQ Value Shift by Fund Bar Chart (Plotly).
 - **Holders Table**: Complete breakdown of which funds hold the stock, individual weights, dollar values, share counts, and QoQ actions.
-- **Investor Portfolio Market Context**: Investor holdings tables group position, market, and activity columns. Market context includes implied reported price, latest cached price, price movement since the report, 52-week low, and percentage above the low, with CSV export support.
 - **Search & Quick-Picks**: Auto-suggestions and instant filter chips (`AAPL`, `GOOGL`, `MSFT`, `AMZN`, `META`, `NVDA`, `FICO`, `SPGI`, `MCO`, etc.).
 
 ### 3. Investor Portfolio View (`/investor` & `/investor/{cik}`)
@@ -113,7 +113,10 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   - Concentration Stats: Top 5 Weight %, Top 10 Weight %, Active vs Closed counts.
   - Interactive Donut Chart of Top 10 Positions + Other.
   - QoQ Position Shifts Bar Chart ($M).
-  - Comprehensive Holdings Table with tabs for **All Positions**, **New Buys**, **Increased**, **Decreased**, **Unchanged**, and **Closed Positions**.
+  - A sticky Portfolio View switcher for Current Holdings, Activity History, and Portfolio History.
+  - Current Holdings table with grouped position, market-context, and quarterly-activity columns. Market context includes implied reported price, latest cached price, price movement since the report, 52-week low, and percentage above the low. Derived and time-sensitive columns include formula-and-interpretation tooltips.
+  - Activity History grouped by filing period, with actual filing date, exact share and portfolio-weight changes, and All Activity, Buys, and Sells filters.
+  - Portfolio History across the latest 20 report periods, including reported portfolio value, position count, and the top 20 holdings by portfolio weight.
   - One-click Portfolio CSV export.
 
 ### 4. Investor Screening (`/screening`)
@@ -126,9 +129,14 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   turnover, durable-position, roster-only, and manager-search filters.
 - **Precomputed Read-Only Snapshot**: Queries a compact DuckDB snapshot rather
   than rescanning the full historical 13F foundation on every request.
+- **Disclosure-Lagged Performance Comparison**: Shows hypothetical 3Y/5Y
+  annualized sleeve returns, excess CAGR versus SPY and QQQ, drawdown, and
+  price coverage. Benchmark filters can require a manager to beat SPY, QQQ, or
+  both.
 - **Transparent Research Caveats**: Clearly distinguishes reported 13F value
   from AUM, observed duration from continuous ownership, and estimated turnover
-  from actual manager trading.
+  from actual manager trading. Performance is a current-cohort reported-sleeve
+  estimate before fees, taxes, and transaction costs—not a fund return.
 
 ---
 
@@ -179,6 +187,7 @@ Open your browser at `http://localhost:8000`
 | `/api/ticker/{ticker}/pair-signal` | GET | Local hypothesis-tier pair diagnostics and readiness |
 | `/api/investor-view` | GET | Summary status list for all 26 fund managers |
 | `/api/investor/{cik}` | GET | Detailed portfolio holdings, closed positions, and stats for a fund |
+| `/api/investor/{cik}/history` | GET | Lazy-loaded 20-quarter investor activity and portfolio history |
 | `/api/screening` | GET | Filtered universe-wide investor screening snapshot and summary |
 | `/api/fund-status` | GET | Real-time loading status and KPI summary |
 | `/api/refresh` | GET | Trigger background refresh across all 26 funds |
@@ -194,7 +203,7 @@ python -c "import main; print(type(main.app).__name__, len(main.data_service.cac
 # Focused unit tests
 python -m pip install pytest
 python -m pytest tests/test_market_insights.py -q
+python -m pytest tests/test_investor_history.py -q
 python -m pytest tests/test_sentiment_conviction.py -q
 python -m pytest tests/test_investor_screening.py -q
-python -m pytest tests/test_market_insights.py tests/test_investor_history.py -q
 ```

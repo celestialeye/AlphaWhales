@@ -103,6 +103,17 @@ price. Since-report movement is security-price context, not manager return or
 gain/loss. Rows without cached market coverage display unavailable values
 rather than triggering a live fan-out.
 
+Investor Activity History uses each selected filing-period snapshot's QoQ
+comparison and excludes `UNCHANGED` rows. It reports signed share change,
+share-change percentage, portfolio-weight change in percentage points, and
+reported-value change. The period header shows the actual selected filing date
+for that manager.
+
+Investor Portfolio History lists the latest 20 report periods in descending
+order. Reported portfolio value remains the normalized 13F total for that
+period. Top holdings are ranked by reported portfolio weight, then reported
+value, and capped at 20 securities per period.
+
 ## Estimated Alpha Whale price
 
 The Alpha Whale price is an estimated weighted-average basis for shares still

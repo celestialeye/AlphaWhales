@@ -22,6 +22,13 @@
   activity columns, including implied reported price, latest cached price,
   since-report movement, 52-week-low proximity, market-data date, and expanded
   CSV export fields.
+- Investor detail pages now include lazy-loaded Activity History and Portfolio
+  History tabs across the latest 20 report periods, with buy/sell filtering,
+  actual manager filing dates, signed activity metrics, historical portfolio
+  values, position counts, and ranked top-holding chips.
+- The investor Portfolio View switcher now remains visible while scrolling, and
+  holdings-table metric columns include calculation and interpretation
+  tooltips.
 
 ## 2026-08-28 - Initial repository release
 

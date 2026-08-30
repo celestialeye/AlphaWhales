@@ -170,6 +170,14 @@ python -m investor_screening.cli refresh-integrity-metadata
 # Build a new immutable screening generation and atomically publish its pointer
 python -m investor_screening.cli refresh-screening
 
+# Build offline prices and hypothetical disclosure-lagged 13F estimates
+# for managers passing the screening rules at the $10B default.
+python -m investor_screening.cli refresh-performance
+python -m investor_screening.cli refresh-performance --minimum-size-billions 10 --as-of 2026-08-29 --window-years 5
+python -m investor_screening.cli refresh-performance --force-prices
+python -m investor_screening.cli refresh-performance --retry-no-data
+python -m investor_screening.cli performance-status
+
 # Compare one imported accession against EdgarTools' parsed filing
 python -m investor_screening.cli verify-accession 0001067983-25-000008
 
@@ -186,6 +194,24 @@ $env:EDGAR_IDENTITY = "Your Name your.email@example.com"
 Generated archives and the DuckDB file live under
 `data\investor_screening\` and are excluded from Git.
 
+The performance refresh is the only performance network path. It obtains the
+current CUSIP-to-ticker reference from
+`edgar.reference.tickers.cusip_ticker_mapping()` and requests adjusted daily
+prices from OpenBB's yfinance provider. Per-symbol ZSTD Parquet files are
+stored under `data/investor_screening/performance/prices`, with status,
+requested and observed ranges, row count, SHA-256, and errors in
+`performance.duckdb`. Requests contain at most 30 symbols and retry omitted or
+failed symbols individually. Normal screening reads only the immutable
+snapshot and makes no market-data request.
+
+`refresh-performance` reuses complete price files and confirmed no-data
+results. Use `--retry-no-data` for a controlled retry of previously unavailable
+symbols, or `--force-prices` to replace every requested history. A normal
+$10B/five-year production run republishes the screening snapshot with
+compatible summaries and monthly returns; diagnostic size/date/window runs do
+not replace the published performance result. Generated market data is not
+committed.
+
 The screening page is available at `http://127.0.0.1:8000/screening`. Its
 default minimum reported 13F value is $10 billion, while the UI can lower or
 raise the threshold without rebuilding the snapshot. Each refresh creates an
@@ -198,6 +224,35 @@ All original and amended submissions remain stored. Analytical views select
 the latest original or restatement for each manager and report period, then
 include later amendments marked `NEW HOLDINGS`. This avoids treating an
 additive confidential-treatment release as a replacement portfolio.
+
+## Hypothetical performance backend
+
+Every generated result is labeled **Hypothetical disclosure-lagged reported
+13F long-sleeve estimate** and **Not a fund or account return.**
+
+The calculation reconstructs filing-time chronology after consolidating
+configured historical CIKs. An original or restatement replaces its
+same-period base and clears earlier additions; `NEW HOLDINGS` adds to the
+latest same-period base. A late amendment to an older period cannot replace a
+newer active period. Events execute on the first SPY session strictly after
+filing, and the final state wins when events share an execution date.
+
+The sleeve excludes options and securities classified as fund-like by the
+same provisional `FUND_LIKE_PATTERN` used by screening, then aggregates by
+CUSIP. Each interval requires at least 95% current CUSIP mapping coverage and
+95% fully priced eligible value. A fully priced security needs positive
+adjusted entry/end closes and a path aligned to SPY sessions. Up to five
+sessions may be forward-filled for isolated non-trading gaps; prices are not
+backfilled before listing or extended beyond their final observation.
+Coverage is reported against eligible value before priced positions are
+renormalized.
+
+Eligible intervals use value-weighted buy-and-hold daily paths and chain at
+filing executions. SPY and QQQ use the same dates. The store contains monthly
+returns and 3Y, 5Y, and full-fetched-window summaries: estimated and benchmark CAGRs, excess
+CAGRs, drawdown, monthly Sharpe (0% risk-free), information ratios, quarterly
+beat rates, mapping/priced coverage, interval count, and explicit unavailable
+reasons. Cost basis points are part of keys and schemas; the default is 0.
 
 ## Completeness
 

@@ -2,7 +2,7 @@
 
 **Status:** Implemented baseline, version 1
 
-**Last updated:** August 28, 2026
+**Last updated:** August 29, 2026
 
 **Primary use:** Dynamic institutional-investor and high-conviction holding
 screening from point-in-time SEC data
@@ -307,14 +307,60 @@ The UI must show:
 
 Performance is not a default hard eligibility filter.
 
+The screening UI defaults to the 3Y window because it is the minimum supported
+comparison horizon and currently provides substantially broader manager
+coverage. Five-year results remain the higher-confidence view and are required
+for any future long-record badge.
+
 ### Default mode: disclosure-lagged clone
 
-- Use point-in-time filing versions.
-- Enter at the next regular-session close after SEC acceptance.
-- Value-weight positions.
-- Use total returns with dividends.
-- Rebalance at each eligible filing date.
-- Apply 0, 10, 25, and 50-basis-point turnover-cost scenarios.
+- Reconstruct point-in-time filing versions in filing-date/accession order.
+- Treat originals and restatements as same-period replacement bases and
+  `NEW HOLDINGS` amendments as additive to the latest same-period base.
+- Do not let a late amendment to an older period roll back a newer active
+  report period.
+- Enter at the first SPY trading-session close strictly after filing.
+- Consolidate events sharing an execution date so the final state wins.
+- Value-weight eligible direct-stock, non-option positions aggregated by
+  CUSIP.
+- Use OpenBB/yfinance daily closes adjusted for splits and dividends.
+- Rebalance at each eligible filing event. Cost basis points are present in
+  storage keys and default to 0.
+
+Current CUSIP mapping comes only from
+`edgar.reference.tickers.cusip_ticker_mapping()`. Symbol formatting may be
+normalized for yfinance share-class syntax, but missing CUSIPs are not guessed.
+Mapping coverage is mapped eligible reported value divided by total eligible
+reported value.
+
+Every interval requires both mapping coverage and fully priced value coverage
+of at least 95%. Fully priced means positive adjusted closes at entry and end
+plus a usable path on the SPY session calendar. Up to five sessions of forward
+fill may bridge isolated security non-trading gaps. There is no backfill before
+listing and no extension after the final observed security price. Coverage is
+reported before fully priced positions are renormalized.
+
+The calculation end is the latest common SPY/QQQ date on or before the
+requested as-of date. Eligible interval NAVs are buy-and-hold paths chained at
+event dates. Monthly manager, SPY, and QQQ returns feed 3Y, 5Y, and
+full-fetched-window summaries. Monthly Sharpe explicitly assumes a 0% risk-free
+rate. Information
+ratios and quarterly beat rates are reported separately for SPY and QQQ.
+Unavailable intervals and windows retain a reason rather than a zero return.
+
+Generated prices and calculations are refreshed only through:
+
+```powershell
+python -m investor_screening.cli refresh-performance --window-years 5
+python -m investor_screening.cli refresh-performance --minimum-size-billions 10 --as-of 2026-08-29
+python -m investor_screening.cli refresh-performance --force-prices
+python -m investor_screening.cli performance-status
+```
+
+The omitted size option means all managers in the current immutable screening
+snapshot; it does not mean a hard-coded manager count. API and screening reads
+never invoke EdgarTools or OpenBB. This methodology description does not claim
+that generated live prices currently exist.
 
 ### Research mode: reported long sleeve
 
@@ -346,8 +392,9 @@ Never select the benchmark that produces the highest historical alpha.
 
 Performance output must be labeled:
 
-> Estimated performance of the manager's reported 13F long sleeve. This is not
-> the return of any fund or account.
+> Hypothetical disclosure-lagged reported 13F long-sleeve estimate.
+>
+> Not a fund or account return.
 
 ## Liquidity and crowding
 

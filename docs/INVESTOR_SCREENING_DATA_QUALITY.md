@@ -142,6 +142,31 @@ The runtime screen uses an immutable generation referenced by
 The snapshot includes a source-manifest fingerprint. The integrity audit fails
 if imported 13F datasets change without a new screening generation.
 
+## Hypothetical performance coverage
+
+The production performance run evaluates the 70 managers passing the default
+$10 billion screening preset. It uses actual filing dates, next-session
+execution, a value-weighted direct-stock sleeve, split-and-dividend-adjusted
+OpenBB/yfinance prices, and 95% mapping and priced-value gates.
+
+| Metric | Result |
+|---|---:|
+| Cached adjusted-price symbols | 4,043 |
+| Confirmed no-data/delisted symbols | 2,149 |
+| Managers with available 3Y estimates | 46 of 70 |
+| Managers beating SPY over 3Y | 16 of 46 |
+| Managers beating QQQ over 3Y | 8 of 46 |
+| Managers with available 5Y estimates | 22 of 70 |
+| Managers beating SPY over 5Y | 6 of 22 |
+| Managers beating QQQ over 5Y | 3 of 22 |
+
+The difference between 3Y and 5Y coverage is primarily continuous-history
+availability, not a relaxed price-coverage threshold. Three years is the UI
+default; five years remains the higher-confidence comparison.
+
+These values are hypothetical disclosure-lagged reported 13F long-sleeve
+estimates. They are not actual fund or account returns.
+
 ## Known analytical limitations
 
 - Reported 13F value is not total firm or fund AUM.

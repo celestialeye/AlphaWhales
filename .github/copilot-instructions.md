@@ -33,15 +33,24 @@ python -m pytest tests/test_market_insights.py -q
 python -m pytest tests/test_investor_history.py -q
 python -m pytest tests/test_sentiment_conviction.py -q
 python -m pytest tests/test_investor_screening.py -q
+python -m pytest tests/test_investor_performance.py -q
 
 # Rebuild the compact DuckDB snapshot used by /screening
 python -m investor_screening.cli refresh-screening
+
+# Compute performance estimates and publish them into the screening snapshot
+python -m investor_screening.cli refresh-performance
+
+# Inspect performance runs and the adjusted-price cache
+python -m investor_screening.cli performance-status
 ```
 
 `prefetch.py` and `/api/refresh` make live SEC EDGAR requests. The repository
-has focused pytest coverage for market insights, sentiment conviction, and
-Investor Screening. It does not currently configure a linter, formatter, or
-frontend build step.
+has focused pytest coverage for market insights, investor history, sentiment
+conviction, Investor Screening, and investor performance. The default
+`refresh-performance` command also rebuilds the compact screening snapshot with
+compatible performance results. It does not currently configure a linter,
+formatter, or frontend build step.
 
 The shared `.github/mcp.json` configures Playwright MCP. Start the application first, then use its browser tools for end-to-end checks against `http://127.0.0.1:8000`.
 
@@ -65,6 +74,8 @@ The shared `.github/mcp.json` configures Playwright MCP. Start the application f
 - The sentiment chart overlays OpenBB daily closes only from the oldest displayed report period through the latest market date. Keep price on a separate right-hand axis and outside every sentiment calculation.
 - Plot the standardized expected 13F deadline at exactly 45 calendar days after each report-period end using a cyan bottom marker and vertical guide. Do not substitute actual manager filing-date ranges in this chart or describe the marker as the actual publication date.
 - Investor portfolio market context must reuse `market_insights` or an already-cached ticker-market response; do not issue one live OpenBB request per holding. Derive implied reported price as reported value divided by reported shares, and label current-versus-reported movement as market context rather than manager return or cost basis.
+- Investor Activity History and Portfolio History use `/api/investor/{cik}/history` and the latest 20 period caches. Activity excludes `UNCHANGED`, groups rows by report period, and labels portfolio-weight changes in percentage points; portfolio history ranks up to 20 holdings by reported weight then value. Load this endpoint lazily when a history tab is selected.
+- Keep the investor Portfolio View switcher visible while scrolling. Holdings-table columns that derive, mix reporting dates, or use market context must retain concise formula-and-interpretation tooltips; tooltip interaction must not trigger column sorting.
 - edgartools filing lists may place partial amendments before complete originals, and legacy values may be dollars, thousands, or 1,000x malformed. Normalize values from median implied per-share price, rebuild total value/weights from holdings, select the latest candidate among those with the largest holdings count, then compare normalized snapshots. Do not trust the first accession or filing summary total.
 - `main.py` is a thin FastAPI layer. It creates the process-wide `DataService`, starts its refresh loop through the application lifespan, renders Jinja pages, exposes JSON endpoints, and streams refresh notifications over `/events`.
 - `templates/` provides page structure only. The list and detail forms of ticker and investor pages share templates and receive an optional `ticker` or `cik` from FastAPI.
