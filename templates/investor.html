@@ -88,6 +88,7 @@
     </div>
 
     <div class="investor-view-tabs mt-4" role="tablist" aria-label="Investor portfolio views">
+        <span class="investor-view-tabs-label">Portfolio View</span>
         <button class="tab-btn active" id="investor-view-current-tab" role="tab" aria-selected="true" onclick="switchInvestorView('CURRENT', this)">Current Holdings</button>
         <button class="tab-btn" id="investor-view-activity-tab" role="tab" aria-selected="false" onclick="switchInvestorView('ACTIVITY', this)">Activity History</button>
         <button class="tab-btn" id="investor-view-history-tab" role="tab" aria-selected="false" onclick="switchInvestorView('HISTORY', this)">Portfolio History</button>
@@ -151,18 +152,18 @@
                     <tr class="investor-table-column-row" onclick="sortInvestorTable(event)">
                         <th data-sort="ticker">Ticker ↕</th>
                         <th data-sort="issuer">Company ↕</th>
-                        <th data-sort="portfolio_weight">Portfolio % ↕</th>
-                        <th data-sort="value">Current Value ($M) ↕</th>
-                        <th data-sort="shares">Shares Held ↕</th>
-                        <th data-sort="reported_price">Reported Price ↕</th>
-                        <th data-sort="current_price">Latest Price ↕</th>
-                        <th data-sort="current_vs_reported_pct">Since Report ↕</th>
-                        <th data-sort="low_52_week">52W Low ↕</th>
-                        <th data-sort="pct_above_low">Above Low ↕</th>
-                        <th data-sort="status">Action ↕</th>
-                        <th data-sort="value_change">Dollar Δ ($M) ↕</th>
-                        <th data-sort="value_change_pct">Value Δ % ↕</th>
-                        <th data-sort="shares_change_pct">Shares Δ % ↕</th>
+                        <th data-sort="portfolio_weight">Portfolio % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Portfolio percentage definition" data-tooltip="Reported position value divided by the manager's total reported 13F value, multiplied by 100. This is the filing-period portfolio weight, not a live market weight." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="value">Reported Value ($M) <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported value definition" data-tooltip="The security value reported for the selected 13F report period, converted from dollars to millions. It is not the position's current live market value." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="shares">Shares Held <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Shares held definition" data-tooltip="The share or principal amount reported in the selected 13F filing. Quarter-over-quarter action and share-change fields are determined from this amount." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="reported_price">Reported Price <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported price calculation" data-tooltip="Implied Reported Price = filing-period reported value divided by reported shares. It approximates the quarter-end security price and is not an execution price or manager cost basis." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="current_price">Latest Price <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Latest price definition" data-tooltip="The latest cached OpenBB closing price. The market-data badge and each cell's hover title show the applicable as-of date." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="current_vs_reported_pct">Since Report <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Since report calculation" data-tooltip="Since Report = 100 × (Latest Price ÷ Implied Reported Price - 1). It measures the stock's market-price movement since quarter end, not the manager's return or gain/loss." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="low_52_week">52W Low <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="52-week low definition" data-tooltip="The lowest daily market low in the latest trailing 52-week OpenBB price window. It uses current market data, independent of the selected filing period." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="pct_above_low">Above Low <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Percentage above 52-week low calculation" data-tooltip="Above Low = 100 × (Latest Price ÷ 52W Low - 1). Green is 10% or less above the low, yellow is above 10% through 25%, and orange is above 25%." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="status">Action <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Quarterly action definition" data-tooltip="Action is based on reported share counts versus the previous comparable filing: NEW, INCREASED, DECREASED, CLOSED, or UNCHANGED." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="value_change">Dollar Δ ($M) <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported dollar change calculation" data-tooltip="Current reported value minus previous reported value, in millions. It includes quarter-end price movement and therefore can move opposite to the share-count action." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="value_change_pct">Value Δ % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported value percentage change calculation" data-tooltip="Reported Dollar Change divided by previous reported value, multiplied by 100. This is a reported-value comparison, not transaction return." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="shares_change_pct">Shares Δ % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Share percentage change calculation" data-tooltip="Reported share change divided by previous reported shares, multiplied by 100. This is the primary measure behind INCREASED and DECREASED actions." onclick="event.stopPropagation()">i</span> ↕</th>
                     </tr>
                 </thead>
                 <tbody id="investor-holdings-body">
@@ -197,11 +198,11 @@
                     <thead>
                         <tr>
                             <th>Security</th>
-                            <th>Action</th>
-                            <th>Shares Δ</th>
-                            <th>Shares Δ %</th>
-                            <th>Portfolio Δ</th>
-                            <th>Reported Value Δ</th>
+                            <th>Action <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Historical action definition" data-tooltip="Action compares reported shares with the previous comparable filing: NEW starts from zero shares, INCREASED adds shares, DECREASED removes shares while retaining a position, and CLOSED exits the position.">i</span></th>
+                            <th>Shares Δ <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Historical share change calculation" data-tooltip="Shares Change = current reported shares minus previous reported shares. Positive values are additions; negative values are reductions.">i</span></th>
+                            <th>Shares Δ % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Historical share percentage change calculation" data-tooltip="Shares Change % = reported share change divided by previous reported shares, multiplied by 100. NEW and CLOSED positions are boundary events rather than normal percentage adjustments.">i</span></th>
+                            <th>Portfolio Δ <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Historical portfolio weight change calculation" data-tooltip="Portfolio Change = current reported portfolio weight minus previous reported portfolio weight. It is shown in percentage points (pp), not as a percentage change.">i</span></th>
+                            <th>Reported Value Δ <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Historical reported value change calculation" data-tooltip="Reported Value Change = current filing-period value minus previous filing-period value. It includes both share-count changes and quarter-end market-price movement, so it can differ in direction from the share action.">i</span></th>
                         </tr>
                     </thead>
                     <tbody id="investor-activity-history-body">

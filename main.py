@@ -209,6 +209,10 @@ async def api_screening(
     maximum_turnover_pct: float = 100.0,
     require_durable_position: bool = False,
     roster_only: bool = False,
+    performance_window: str = "3Y",
+    minimum_spy_excess_cagr_pct: float = None,
+    minimum_qqq_excess_cagr_pct: float = None,
+    require_performance: bool = False,
     search: str = None
 ):
     loop = asyncio.get_running_loop()
@@ -225,6 +229,18 @@ async def api_screening(
             maximum_turnover_pct=max(0.0, maximum_turnover_pct),
             require_durable_position=require_durable_position,
             roster_only=roster_only,
+            performance_window=performance_window,
+            minimum_spy_excess_cagr=(
+                minimum_spy_excess_cagr_pct / 100
+                if minimum_spy_excess_cagr_pct is not None
+                else None
+            ),
+            minimum_qqq_excess_cagr=(
+                minimum_qqq_excess_cagr_pct / 100
+                if minimum_qqq_excess_cagr_pct is not None
+                else None
+            ),
+            require_performance=require_performance,
             search=search
         )
     )

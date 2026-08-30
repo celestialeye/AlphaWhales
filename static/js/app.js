@@ -2807,7 +2807,8 @@ const screeningPresets = {
         top10: 30,
         persistence: 4,
         turnover: 150,
-        durable: false
+        durable: false,
+        performanceWindow: '3Y'
     },
     mega: {
         size: 10,
@@ -2815,7 +2816,8 @@ const screeningPresets = {
         top10: 40,
         persistence: 6,
         turnover: 100,
-        durable: false
+        durable: false,
+        performanceWindow: '3Y'
     },
     patient: {
         size: 1,
@@ -2823,7 +2825,8 @@ const screeningPresets = {
         top10: 50,
         persistence: 8,
         turnover: 50,
-        durable: true
+        durable: true,
+        performanceWindow: '3Y'
     }
 };
 
@@ -2858,6 +2861,9 @@ function applyScreeningPreset(name) {
     setScreeningControl('screen-persistence', preset.persistence);
     setScreeningControl('screen-turnover', preset.turnover);
     setScreeningControl('screen-durable', preset.durable);
+    setScreeningControl('screen-performance-window', preset.performanceWindow);
+    setScreeningControl('screen-benchmark-filter', 'none');
+    setScreeningControl('screen-performance-required', false);
     updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
@@ -2894,7 +2900,7 @@ async function initializeInvestorScreening() {
 async function loadInvestorScreening() {
     const tbody = document.getElementById('screening-table-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4">Applying screening criteria...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4">Applying screening criteria...</td></tr>';
 
     const params = new URLSearchParams({
         minimum_size_billions: document.getElementById('screen-min-size')?.value || '10',
@@ -2903,8 +2909,21 @@ async function loadInvestorScreening() {
         minimum_concentration_quarters: document.getElementById('screen-persistence')?.value || '6',
         maximum_turnover_pct: document.getElementById('screen-turnover')?.value || '100',
         require_durable_position: document.getElementById('screen-durable')?.checked || false,
-        roster_only: document.getElementById('screen-roster-only')?.checked || false
+        roster_only: document.getElementById('screen-roster-only')?.checked || false,
+        performance_window: document.getElementById('screen-performance-window')?.value || '3Y'
     });
+    const benchmarkFilter = document.getElementById('screen-benchmark-filter')?.value || 'none';
+    const requirePerformance = document.getElementById('screen-performance-required')?.checked || false;
+    if (benchmarkFilter === 'spy' || benchmarkFilter === 'both') {
+        params.set('minimum_spy_excess_cagr_pct', '0');
+    }
+    if (benchmarkFilter === 'qqq' || benchmarkFilter === 'both') {
+        params.set('minimum_qqq_excess_cagr_pct', '0');
+    }
+    params.set(
+        'require_performance',
+        String(requirePerformance || benchmarkFilter !== 'none')
+    );
     const search = document.getElementById('screening-search')?.value.trim();
     if (search) params.set('search', search);
 
@@ -2929,7 +2948,7 @@ async function loadInvestorScreening() {
         console.error('Investor screening failed:', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center py-4 text-red">
+                <td colspan="12" class="text-center py-4 text-red">
                     Could not load the screening snapshot: ${escapeScreeningHtml(error.message)}
                 </td>
             </tr>`;
@@ -2945,6 +2964,14 @@ function updateScreeningSummary(summary, metadata) {
     setText('screening-roster-count', formatInt(summary.roster_count || 0));
     setText('screening-median-size', `$${formatNum(summary.median_size_billions || 0)}B`);
     setText('screening-median-turnover', formatPct(summary.median_turnover_pct || 0));
+    setText('screening-performance-count', formatInt(summary.performance_available_count || 0));
+    setText('screening-beat-spy', formatInt(summary.beat_spy_count || 0));
+    setText('screening-beat-qqq', formatInt(summary.beat_qqq_count || 0));
+    const performanceWindow = document.getElementById('screen-performance-window')?.value || '3Y';
+    setText(
+        'screening-performance-window-label',
+        `${performanceWindow === 'FULL' ? 'Full-history' : performanceWindow} estimates`
+    );
     setText(
         'screening-count-note',
         `$${document.getElementById('screen-min-size')?.value || 10}B minimum reported value`
@@ -2991,6 +3018,15 @@ function formatScreeningSize(value) {
         : `$${billions.toFixed(2)}B`;
 }
 
+function formatPerformancePercent(value, includeSign = false) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '—';
+    }
+    const percent = Number(value) * 100;
+    const sign = includeSign && percent > 0 ? '+' : '';
+    return `${sign}${percent.toFixed(2)}%`;
+}
+
 function renderScreeningTable() {
     const tbody = document.getElementById('screening-table-body');
     const summary = document.getElementById('screening-page-summary');
@@ -3004,7 +3040,7 @@ function renderScreeningTable() {
     if (!rows.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="screening-empty">
+                <td colspan="12" class="screening-empty">
                     <strong>No managers match this combination.</strong>
                     <span>Lower the size, concentration, or direct-stock threshold.</span>
                 </td>
@@ -3023,6 +3059,15 @@ function renderScreeningTable() {
             const rosterBadge = manager.is_current_roster
                 ? `<span class="screening-roster-badge">${escapeScreeningHtml(manager.roster_name || 'Roster')}</span>`
                 : '';
+            const performanceAvailable = manager.performance_status === 'AVAILABLE';
+            const coverage = performanceAvailable
+                ? Math.min(
+                    Number(manager.performance_mapping_coverage) || 0,
+                    Number(manager.performance_priced_coverage) || 0
+                )
+                : null;
+            const spyClass = Number(manager.spy_excess_cagr) > 0 ? 'text-green' : 'text-red';
+            const qqqClass = Number(manager.qqq_excess_cagr) > 0 ? 'text-green' : 'text-red';
             return `
                 <tr>
                     <td>
@@ -3042,6 +3087,23 @@ function renderScreeningTable() {
                     <td class="font-mono">${formatPct(manager.annualized_turnover_pct)}</td>
                     <td>
                         <span class="screening-durable-count">${formatInt(manager.durable_position_count)}</span>
+                    </td>
+                    <td class="font-mono screening-performance-cell">
+                        ${performanceAvailable
+                            ? `<strong>${formatPerformancePercent(manager.estimated_cagr)}</strong>`
+                            : `<span class="screening-performance-unavailable" title="${escapeScreeningHtml(manager.performance_unavailable_reason || 'Unavailable')}">Unavailable</span>`}
+                    </td>
+                    <td class="font-mono ${performanceAvailable ? spyClass : ''}">
+                        ${performanceAvailable ? formatPerformancePercent(manager.spy_excess_cagr, true) : '—'}
+                    </td>
+                    <td class="font-mono ${performanceAvailable ? qqqClass : ''}">
+                        ${performanceAvailable ? formatPerformancePercent(manager.qqq_excess_cagr, true) : '—'}
+                    </td>
+                    <td class="font-mono ${performanceAvailable ? 'text-red' : ''}">
+                        ${performanceAvailable ? formatPerformancePercent(manager.max_drawdown) : '—'}
+                    </td>
+                    <td class="font-mono">
+                        ${coverage === null ? '—' : formatPerformancePercent(coverage)}
                     </td>
                 </tr>`;
         }).join('');

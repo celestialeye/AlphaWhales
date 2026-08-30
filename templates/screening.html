@@ -116,6 +116,39 @@
                 <small>Restrict results to the configured 26-manager catalog.</small>
             </span>
         </label>
+
+        <div class="screening-control-divider">
+            <span>Hypothetical performance</span>
+        </div>
+
+        <label class="screening-field">
+            <span>Performance window</span>
+            <select id="screen-performance-window" onchange="scheduleScreeningLoad()">
+                <option value="3Y" selected>3 years — Default</option>
+                <option value="5Y">5 years</option>
+                <option value="FULL">Full fetched history (up to 5 years)</option>
+            </select>
+            <small>Disclosure-lagged sleeve entered after filings become public.</small>
+        </label>
+
+        <label class="screening-field">
+            <span>Benchmark requirement</span>
+            <select id="screen-benchmark-filter" onchange="scheduleScreeningLoad()">
+                <option value="none" selected>Show all managers</option>
+                <option value="spy">Must beat SPY</option>
+                <option value="qqq">Must beat QQQ</option>
+                <option value="both">Must beat both</option>
+            </select>
+            <small>Compares annualized total return over the selected window.</small>
+        </label>
+
+        <label class="screening-check">
+            <input id="screen-performance-required" type="checkbox" onchange="scheduleScreeningLoad()">
+            <span>
+                Require an available estimate
+                <small>Excludes managers below the 95% mapping or price-coverage gate.</small>
+            </span>
+        </label>
     </aside>
 
     <div class="screening-results">
@@ -139,6 +172,21 @@
                 <span>MEDIAN TURNOVER</span>
                 <strong id="screening-median-turnover">--</strong>
                 <small>Estimated annualized proxy</small>
+            </article>
+            <article class="screening-kpi performance">
+                <span>PERFORMANCE AVAILABLE</span>
+                <strong id="screening-performance-count">--</strong>
+                <small id="screening-performance-window-label">3Y estimates</small>
+            </article>
+            <article class="screening-kpi performance">
+                <span>BEAT SPY</span>
+                <strong id="screening-beat-spy">--</strong>
+                <small>Positive annualized excess return</small>
+            </article>
+            <article class="screening-kpi performance">
+                <span>BEAT QQQ</span>
+                <strong id="screening-beat-qqq">--</strong>
+                <small>Positive annualized excess return</small>
             </article>
         </div>
 
@@ -177,10 +225,15 @@
                             <th><button type="button" onclick="sortScreening('maximum_position_pct')">Largest</button></th>
                             <th><button type="button" onclick="sortScreening('annualized_turnover_pct')">Turnover</button></th>
                             <th><button type="button" onclick="sortScreening('durable_position_count')">Durable Ideas</button></th>
+                            <th><button type="button" onclick="sortScreening('estimated_cagr')">Est. CAGR</button></th>
+                            <th><button type="button" onclick="sortScreening('spy_excess_cagr')">vs SPY</button></th>
+                            <th><button type="button" onclick="sortScreening('qqq_excess_cagr')">vs QQQ</button></th>
+                            <th><button type="button" onclick="sortScreening('max_drawdown')">Max Drawdown</button></th>
+                            <th><button type="button" onclick="sortScreening('performance_priced_coverage')">Price Coverage</button></th>
                         </tr>
                     </thead>
                     <tbody id="screening-table-body">
-                        <tr><td colspan="7" class="text-center py-4">Loading screening snapshot...</td></tr>
+                        <tr><td colspan="12" class="text-center py-4">Loading screening snapshot...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -214,8 +267,8 @@
             <p>Repeated quarter-end appearances do not prove uninterrupted ownership between filings.</p>
         </div>
         <div>
-            <strong>Performance comes later</strong>
-            <p>Any return view will be a disclosure-lagged hypothetical sleeve, never actual fund performance.</p>
+            <strong>Performance is hypothetical</strong>
+            <p>The current-cohort sleeve trades after public disclosure and is shown before fees, taxes, and transaction costs—not as actual fund performance.</p>
         </div>
     </div>
 </section>

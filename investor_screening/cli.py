@@ -23,6 +23,7 @@ from .forms import FORM_FAMILIES
 from .quality import coverage_summary, validate_database
 from .integrity import run_integrity_audit, write_integrity_report
 from .npx_votes import build_npx_vote_lake
+from .performance import performance_status, refresh_performance
 from .screener import build_screening_snapshot
 from .sec_bulk import discover_datasets, download_dataset, import_archive
 
@@ -143,6 +144,44 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "refresh-screening",
         help="Build the read-only Investor Screening snapshot",
+    )
+    performance_parser = subparsers.add_parser(
+        "refresh-performance",
+        help=(
+            "Refresh offline price caches, calculate hypothetical disclosure-lagged "
+            "13F sleeve estimates, and republish the screening snapshot"
+        ),
+    )
+    performance_parser.add_argument(
+        "--force-prices",
+        action="store_true",
+        help="Refetch every required OpenBB/yfinance price cache",
+    )
+    performance_parser.add_argument(
+        "--retry-no-data",
+        action="store_true",
+        help="Retry symbols previously recorded as NO_DATA without refetching READY prices",
+    )
+    performance_parser.add_argument(
+        "--minimum-size-billions",
+        type=float,
+        default=10.0,
+        help="Minimum reported size for screened managers (default: 10)",
+    )
+    performance_parser.add_argument(
+        "--as-of",
+        type=date.fromisoformat,
+        help="Requested calculation end date (default: today)",
+    )
+    performance_parser.add_argument(
+        "--window-years",
+        type=int,
+        default=5,
+        help="Filing and price history to calculate (default: 5)",
+    )
+    subparsers.add_parser(
+        "performance-status",
+        help="Inspect generated performance runs and price-cache status",
     )
     integrity_parser = subparsers.add_parser(
         "audit-integrity",
@@ -363,6 +402,31 @@ def main() -> int:
             connection.close()
             connection = None
             _print(build_screening_snapshot(args.database))
+        elif args.command == "refresh-performance":
+            connection.close()
+            connection = None
+            result = refresh_performance(
+                source_path=args.database,
+                minimum_size_billions=args.minimum_size_billions,
+                as_of=args.as_of,
+                window_years=args.window_years,
+                force_prices=args.force_prices,
+                retry_no_data=args.retry_no_data,
+            )
+            if (
+                args.minimum_size_billions == 10.0
+                and args.window_years >= 5
+                and args.as_of is None
+            ):
+                result["screening_snapshot"] = build_screening_snapshot(
+                    args.database,
+                    performance_run_id=result["run_id"],
+                )
+            _print(result)
+        elif args.command == "performance-status":
+            connection.close()
+            connection = None
+            _print(performance_status())
         elif args.command == "audit-integrity":
             connection.close()
             connection = None

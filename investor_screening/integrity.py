@@ -10,6 +10,7 @@ from pathlib import Path
 import duckdb
 
 from .database import DEFAULT_DATABASE_PATH
+from .performance import DEFAULT_PERFORMANCE_PATH, METHODOLOGY_VERSION
 from .screener import (
     DEFAULT_SNAPSHOT_PATH,
     compute_source_fingerprint,
@@ -72,6 +73,7 @@ def run_integrity_audit(
     database_path: str | Path = DEFAULT_DATABASE_PATH,
     *,
     snapshot_path: str | Path = DEFAULT_SNAPSHOT_PATH,
+    performance_path: str | Path = DEFAULT_PERFORMANCE_PATH,
     verify_hashes: bool = True,
     workers: int = 8,
 ) -> dict:
@@ -565,6 +567,137 @@ def run_integrity_audit(
                     }
                 )
 
+        performance_file = Path(performance_path).resolve()
+        checks["performance_path"] = str(performance_file)
+        current_fingerprint = compute_source_fingerprint(connection)
+        latest_performance_run = None
+        if performance_file.is_file():
+            performance = duckdb.connect(str(performance_file), read_only=True)
+            try:
+                latest_performance_run = performance.execute(
+                    """
+                    SELECT
+                        run_id, screening_source_fingerprint, latest_end_date,
+                        manager_count
+                    FROM performance_runs
+                    WHERE status = 'COMPLETE'
+                      AND methodology_version = ?
+                      AND window_years >= 5
+                      AND minimum_size_billions = 10
+                      AND cost_bps = 0
+                    ORDER BY latest_end_date DESC, completed_at DESC
+                    LIMIT 1
+                    """,
+                    [METHODOLOGY_VERSION],
+                ).fetchone()
+                checks["performance_price_status"] = dict(
+                    performance.execute(
+                        """
+                        SELECT status, count(*)
+                        FROM price_manifest
+                        GROUP BY status
+                        """
+                    ).fetchall()
+                )
+                checks["performance_available"] = dict(
+                    performance.execute(
+                        """
+                        SELECT "window", count(*)
+                        FROM manager_performance
+                        WHERE run_id = ? AND status = 'AVAILABLE'
+                        GROUP BY "window"
+                        """,
+                        [latest_performance_run[0]]
+                        if latest_performance_run
+                        else [""],
+                    ).fetchall()
+                )
+                if latest_performance_run is None:
+                    issues.append(
+                        {
+                            "severity": "ERROR",
+                            "code": "PERFORMANCE_RUN_MISSING",
+                            "item": str(performance_file),
+                            "message": "No complete production-compatible run",
+                        }
+                    )
+                elif latest_performance_run[1] != current_fingerprint:
+                    issues.append(
+                        {
+                            "severity": "ERROR",
+                            "code": "PERFORMANCE_RUN_STALE",
+                            "item": latest_performance_run[0],
+                            "message": "Source fingerprint does not match",
+                        }
+                    )
+                if verify_hashes:
+                    price_rows = performance.execute(
+                        """
+                        SELECT symbol, parquet_path, parquet_sha256, row_count
+                        FROM price_manifest
+                        WHERE status = 'READY'
+                        """
+                    ).fetchall()
+                    price_hash_failures = 0
+                    for symbol, parquet_path, expected_hash, expected_rows in price_rows:
+                        path = Path(parquet_path)
+                        try:
+                            actual_hash, _ = _sha256(path)
+                            actual_rows = duckdb.execute(
+                                f"""
+                                SELECT count(*)
+                                FROM read_parquet(
+                                    '{str(path).replace("'", "''")}'
+                                )
+                                """
+                            ).fetchone()[0]
+                        except (OSError, duckdb.Error) as exc:
+                            price_hash_failures += 1
+                            issues.append(
+                                {
+                                    "severity": "ERROR",
+                                    "code": "PRICE_CACHE_UNREADABLE",
+                                    "item": symbol,
+                                    "message": str(exc),
+                                }
+                            )
+                            continue
+                        if actual_hash != expected_hash or actual_rows != expected_rows:
+                            price_hash_failures += 1
+                            issues.append(
+                                {
+                                    "severity": "ERROR",
+                                    "code": "PRICE_CACHE_MISMATCH",
+                                    "item": symbol,
+                                    "message": (
+                                        f"hash={actual_hash == expected_hash}; "
+                                        f"rows={expected_rows}/{actual_rows}"
+                                    ),
+                                }
+                            )
+                    checks["performance_price_files_verified"] = len(price_rows)
+                    checks["performance_price_hash_failures"] = price_hash_failures
+            except (duckdb.Error, OSError) as exc:
+                issues.append(
+                    {
+                        "severity": "ERROR",
+                        "code": "PERFORMANCE_STORE_UNREADABLE",
+                        "item": str(performance_file),
+                        "message": str(exc),
+                    }
+                )
+            finally:
+                performance.close()
+        else:
+            issues.append(
+                {
+                    "severity": "ERROR",
+                    "code": "PERFORMANCE_STORE_MISSING",
+                    "item": str(performance_file),
+                    "message": "Performance estimates have not been generated",
+                }
+            )
+
         pointer = Path(snapshot_path).resolve()
         snapshot = None
         try:
@@ -612,7 +745,6 @@ def run_integrity_audit(
                     LIMIT 1
                     """
                 ).fetchone()
-                current_fingerprint = compute_source_fingerprint(connection)
                 if not metadata or metadata[0] != current_fingerprint:
                     issues.append(
                         {
@@ -622,6 +754,26 @@ def run_integrity_audit(
                             "message": "Source manifest fingerprint does not match",
                         }
                     )
+                if latest_performance_run:
+                    published_run = screening.execute(
+                        """
+                        SELECT run_id
+                        FROM performance_run_metadata
+                        LIMIT 1
+                        """
+                    ).fetchone()
+                    if (
+                        published_run is None
+                        or published_run[0] != latest_performance_run[0]
+                    ):
+                        issues.append(
+                            {
+                                "severity": "ERROR",
+                                "code": "PERFORMANCE_SNAPSHOT_STALE",
+                                "item": str(snapshot),
+                                "message": "Published performance run is not latest",
+                            }
+                        )
             except (duckdb.Error, OSError) as exc:
                 issues.append(
                     {

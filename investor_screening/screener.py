@@ -20,6 +20,12 @@ DEFAULT_SNAPSHOT_POINTER = (
     / "screening_snapshot.json"
 )
 DEFAULT_SNAPSHOT_PATH = DEFAULT_SNAPSHOT_POINTER
+DEFAULT_PERFORMANCE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "investor_screening"
+    / "performance.duckdb"
+)
 
 DEFAULT_FILTERS = {
     "minimum_size_billions": 10.0,
@@ -28,6 +34,10 @@ DEFAULT_FILTERS = {
     "minimum_concentration_quarters": 6,
     "maximum_turnover_pct": 100.0,
     "require_durable_position": False,
+    "performance_window": "3Y",
+    "minimum_spy_excess_cagr": None,
+    "minimum_qqq_excess_cagr": None,
+    "require_performance": False,
 }
 
 FUND_LIKE_PATTERN = (
@@ -88,6 +98,59 @@ CREATE TABLE IF NOT EXISTS manager_quarter_concentration (
     top10_pct DOUBLE NOT NULL,
     PRIMARY KEY (cik, quarter_index)
 );
+
+CREATE TABLE IF NOT EXISTS performance_run_metadata (
+    run_id VARCHAR PRIMARY KEY,
+    methodology_version VARCHAR NOT NULL,
+    label VARCHAR NOT NULL,
+    disclaimer VARCHAR NOT NULL,
+    screening_source_fingerprint VARCHAR NOT NULL,
+    requested_as_of DATE NOT NULL,
+    latest_end_date DATE,
+    window_years INTEGER NOT NULL,
+    cost_bps DOUBLE NOT NULL,
+    completed_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS manager_performance (
+    cik VARCHAR NOT NULL,
+    "window" VARCHAR NOT NULL,
+    cost_bps DOUBLE NOT NULL,
+    status VARCHAR NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    years DOUBLE,
+    estimated_cagr DOUBLE,
+    spy_cagr DOUBLE,
+    qqq_cagr DOUBLE,
+    spy_excess_cagr DOUBLE,
+    qqq_excess_cagr DOUBLE,
+    max_drawdown DOUBLE,
+    monthly_sharpe_rf0 DOUBLE,
+    spy_information_ratio DOUBLE,
+    qqq_information_ratio DOUBLE,
+    spy_quarterly_beat_rate DOUBLE,
+    qqq_quarterly_beat_rate DOUBLE,
+    mapping_coverage DOUBLE,
+    priced_coverage DOUBLE,
+    interval_count INTEGER NOT NULL,
+    unavailable_reason VARCHAR,
+    label VARCHAR NOT NULL,
+    disclaimer VARCHAR NOT NULL,
+    run_id VARCHAR NOT NULL,
+    PRIMARY KEY (cik, "window", cost_bps)
+);
+
+CREATE TABLE IF NOT EXISTS manager_performance_monthly (
+    cik VARCHAR NOT NULL,
+    month_end DATE NOT NULL,
+    cost_bps DOUBLE NOT NULL,
+    estimated_return DOUBLE NOT NULL,
+    spy_return DOUBLE NOT NULL,
+    qqq_return DOUBLE NOT NULL,
+    run_id VARCHAR NOT NULL,
+    PRIMARY KEY (cik, month_end, cost_bps)
+);
 """
 
 
@@ -146,9 +209,166 @@ def resolve_snapshot_path(
     return generation.resolve()
 
 
+def _compatible_performance_rows(
+    performance_path: str | Path,
+    source_fingerprint: str,
+    run_id: str | None = None,
+) -> tuple[list[tuple], list[tuple], list[tuple]]:
+    """Read one completed, source-compatible result without invoking a provider."""
+    path = Path(performance_path).resolve()
+    if not path.is_file():
+        return [], [], []
+    performance = duckdb.connect(str(path), read_only=True)
+    try:
+        tables = {
+            row[0]
+            for row in performance.execute(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'main'
+                """
+            ).fetchall()
+        }
+        required = {
+            "performance_runs",
+            "manager_performance",
+            "monthly_returns",
+        }
+        if not required.issubset(tables):
+            return [], [], []
+        columns_by_table: dict[str, set[str]] = {}
+        for table_name in required:
+            columns_by_table[table_name] = {
+                row[0]
+                for row in performance.execute(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'main' AND table_name = ?
+                    """,
+                    [table_name],
+                ).fetchall()
+            }
+        if not {
+            "run_id",
+            "status",
+            "methodology_version",
+            "label",
+            "disclaimer",
+            "screening_source_fingerprint",
+            "requested_as_of",
+            "latest_end_date",
+            "window_years",
+            "cost_bps",
+            "completed_at",
+        }.issubset(columns_by_table["performance_runs"]):
+            return [], [], []
+        if not {
+            "run_id",
+            "cik",
+            "window",
+            "cost_bps",
+            "status",
+            "start_date",
+            "end_date",
+            "years",
+            "estimated_cagr",
+            "spy_cagr",
+            "qqq_cagr",
+            "spy_excess_cagr",
+            "qqq_excess_cagr",
+            "max_drawdown",
+            "monthly_sharpe_rf0",
+            "spy_information_ratio",
+            "qqq_information_ratio",
+            "spy_quarterly_beat_rate",
+            "qqq_quarterly_beat_rate",
+            "mapping_coverage",
+            "priced_coverage",
+            "interval_count",
+            "unavailable_reason",
+            "label",
+            "disclaimer",
+        }.issubset(columns_by_table["manager_performance"]):
+            return [], [], []
+        if not {
+            "run_id",
+            "cik",
+            "month_end",
+            "cost_bps",
+            "estimated_return",
+            "spy_return",
+            "qqq_return",
+        }.issubset(columns_by_table["monthly_returns"]):
+            return [], [], []
+        run_filter = ""
+        params: list[object] = [source_fingerprint]
+        if run_id:
+            run_filter = "AND run_id = ?"
+            params.append(run_id)
+        else:
+            run_filter = """
+              AND methodology_version = '13f-disclosure-lag-v1'
+              AND window_years >= 5
+              AND minimum_size_billions = 10
+            """
+        run = performance.execute(
+            f"""
+            SELECT
+                run_id, methodology_version, label, disclaimer,
+                screening_source_fingerprint, requested_as_of, latest_end_date,
+                window_years, cost_bps, completed_at
+            FROM performance_runs
+            WHERE status = 'COMPLETE'
+              AND screening_source_fingerprint = ?
+              AND cost_bps = 0
+              {run_filter}
+            ORDER BY latest_end_date DESC, requested_as_of DESC, completed_at DESC
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+        if run is None:
+            return [], [], []
+        run_id = run[0]
+        summaries = performance.execute(
+            """
+            SELECT
+                cik, "window", cost_bps, status, start_date, end_date, years,
+                estimated_cagr, spy_cagr, qqq_cagr, spy_excess_cagr,
+                qqq_excess_cagr, max_drawdown, monthly_sharpe_rf0,
+                spy_information_ratio, qqq_information_ratio,
+                spy_quarterly_beat_rate, qqq_quarterly_beat_rate,
+                mapping_coverage, priced_coverage, interval_count,
+                unavailable_reason, label, disclaimer, run_id
+            FROM manager_performance
+            WHERE run_id = ?
+            ORDER BY cik, "window"
+            """,
+            [run_id],
+        ).fetchall()
+        monthly = performance.execute(
+            """
+            SELECT
+                cik, month_end, cost_bps, estimated_return, spy_return,
+                qqq_return, run_id
+            FROM monthly_returns
+            WHERE run_id = ?
+            ORDER BY cik, month_end
+            """,
+            [run_id],
+        ).fetchall()
+        return [run], summaries, monthly
+    finally:
+        performance.close()
+
+
 def build_screening_snapshot(
     source_path: str | Path = DEFAULT_DATABASE_PATH,
     snapshot_path: str | Path = DEFAULT_SNAPSHOT_POINTER,
+    performance_path: str | Path = DEFAULT_PERFORMANCE_PATH,
+    performance_run_id: str | None = None,
 ) -> dict:
     source = duckdb.connect(str(Path(source_path).resolve()), read_only=True)
     pointer_file = Path(snapshot_path).resolve()
@@ -504,6 +724,15 @@ def build_screening_snapshot(
             WHERE quarter_index <= 8
             """
         ).fetchall()
+        (
+            performance_metadata_rows,
+            performance_summary_rows,
+            performance_monthly_rows,
+        ) = _compatible_performance_rows(
+            performance_path,
+            source_fingerprint,
+            performance_run_id,
+        )
 
         snapshot.execute(SNAPSHOT_SCHEMA)
         snapshot.execute("BEGIN TRANSACTION")
@@ -511,6 +740,9 @@ def build_screening_snapshot(
         snapshot.execute("DELETE FROM manager_metrics")
         snapshot.execute("DELETE FROM durable_positions")
         snapshot.execute("DELETE FROM manager_quarter_concentration")
+        snapshot.execute("DELETE FROM performance_run_metadata")
+        snapshot.execute("DELETE FROM manager_performance")
+        snapshot.execute("DELETE FROM manager_performance_monthly")
         snapshot.execute(
             """
             INSERT INTO snapshot_metadata
@@ -539,6 +771,23 @@ def build_screening_snapshot(
             snapshot.executemany(
                 "INSERT INTO manager_quarter_concentration VALUES (?,?,?)",
                 concentration_rows[start:start + 500],
+            )
+        if performance_metadata_rows:
+            snapshot.executemany(
+                "INSERT INTO performance_run_metadata VALUES (?,?,?,?,?,?,?,?,?,?)",
+                performance_metadata_rows,
+            )
+        for start in range(0, len(performance_summary_rows), 500):
+            snapshot.executemany(
+                "INSERT INTO manager_performance VALUES ("
+                + ",".join("?" for _ in range(25))
+                + ")",
+                performance_summary_rows[start:start + 500],
+            )
+        for start in range(0, len(performance_monthly_rows), 1000):
+            snapshot.executemany(
+                "INSERT INTO manager_performance_monthly VALUES (?,?,?,?,?,?,?)",
+                performance_monthly_rows[start:start + 1000],
             )
         snapshot.execute("COMMIT")
 
@@ -571,6 +820,8 @@ def build_screening_snapshot(
             "durable_position_count": len(position_rows),
             "default_count": default_count,
             "default_roster_count": roster_count,
+            "performance_summary_count": len(performance_summary_rows),
+            "performance_monthly_count": len(performance_monthly_rows),
             "snapshot_path": str(snapshot_file),
             "pointer_path": str(pointer_file),
         }
@@ -620,6 +871,10 @@ class ScreeningService:
         require_durable_position: bool = False,
         roster_only: bool = False,
         search: str | None = None,
+        performance_window: str = "3Y",
+        minimum_spy_excess_cagr: float | None = None,
+        minimum_qqq_excess_cagr: float | None = None,
+        require_performance: bool = False,
     ) -> dict:
         if not self.snapshot_path.exists():
             return {
@@ -632,6 +887,19 @@ class ScreeningService:
         resolved_snapshot = resolve_snapshot_path(self.snapshot_path)
         connection = duckdb.connect(str(resolved_snapshot), read_only=True)
         try:
+            normalized_window = performance_window.strip().upper()
+            if normalized_window not in {"3Y", "5Y", "FULL"}:
+                raise ValueError("performance_window must be 3Y, 5Y, or FULL")
+            has_performance = bool(
+                connection.execute(
+                    """
+                    SELECT count(*)
+                    FROM information_schema.tables
+                    WHERE table_schema = 'main'
+                      AND table_name = 'manager_performance'
+                    """
+                ).fetchone()[0]
+            )
             conditions = [
                 "m.median_reported_value_4q >= ?",
                 "m.direct_stock_pct >= ?",
@@ -656,13 +924,101 @@ class ScreeningService:
                 )
                 value = f"%{search.strip()}%"
                 params.extend([value, value, value])
+            if has_performance:
+                if require_performance:
+                    conditions.append("perf.status = 'AVAILABLE'")
+                if minimum_spy_excess_cagr is not None:
+                    conditions.extend(
+                        [
+                            "perf.status = 'AVAILABLE'",
+                            "perf.spy_excess_cagr >= ?",
+                        ]
+                    )
+                    params.append(minimum_spy_excess_cagr)
+                if minimum_qqq_excess_cagr is not None:
+                    conditions.extend(
+                        [
+                            "perf.status = 'AVAILABLE'",
+                            "perf.qqq_excess_cagr >= ?",
+                        ]
+                    )
+                    params.append(minimum_qqq_excess_cagr)
+                performance_join = """
+                LEFT JOIN manager_performance perf
+                  ON perf.cik = m.cik
+                 AND perf."window" = ?
+                 AND perf.cost_bps = 0
+                """
+                performance_projection = """
+                    perf.status AS performance_status,
+                    perf."window" AS performance_window,
+                    perf.start_date AS performance_start_date,
+                    perf.end_date AS performance_end_date,
+                    perf.years AS performance_years,
+                    perf.estimated_cagr,
+                    perf.spy_cagr,
+                    perf.qqq_cagr,
+                    perf.spy_excess_cagr,
+                    perf.qqq_excess_cagr,
+                    perf.max_drawdown,
+                    perf.monthly_sharpe_rf0,
+                    perf.spy_information_ratio,
+                    perf.qqq_information_ratio,
+                    perf.spy_quarterly_beat_rate,
+                    perf.qqq_quarterly_beat_rate,
+                    perf.mapping_coverage AS performance_mapping_coverage,
+                    perf.priced_coverage AS performance_priced_coverage,
+                    perf.interval_count AS performance_interval_count,
+                    perf.unavailable_reason AS performance_unavailable_reason,
+                    perf.label AS performance_label,
+                    perf.disclaimer AS performance_disclaimer
+                """
+                query_prefix_params: list[object] = [
+                    minimum_top10_pct,
+                    normalized_window,
+                ]
+            else:
+                if (
+                    require_performance
+                    or minimum_spy_excess_cagr is not None
+                    or minimum_qqq_excess_cagr is not None
+                ):
+                    conditions.append("false")
+                performance_join = ""
+                performance_projection = """
+                    NULL::VARCHAR AS performance_status,
+                    NULL::VARCHAR AS performance_window,
+                    NULL::DATE AS performance_start_date,
+                    NULL::DATE AS performance_end_date,
+                    NULL::DOUBLE AS performance_years,
+                    NULL::DOUBLE AS estimated_cagr,
+                    NULL::DOUBLE AS spy_cagr,
+                    NULL::DOUBLE AS qqq_cagr,
+                    NULL::DOUBLE AS spy_excess_cagr,
+                    NULL::DOUBLE AS qqq_excess_cagr,
+                    NULL::DOUBLE AS max_drawdown,
+                    NULL::DOUBLE AS monthly_sharpe_rf0,
+                    NULL::DOUBLE AS spy_information_ratio,
+                    NULL::DOUBLE AS qqq_information_ratio,
+                    NULL::DOUBLE AS spy_quarterly_beat_rate,
+                    NULL::DOUBLE AS qqq_quarterly_beat_rate,
+                    NULL::DOUBLE AS performance_mapping_coverage,
+                    NULL::DOUBLE AS performance_priced_coverage,
+                    NULL::INTEGER AS performance_interval_count,
+                    'No compatible performance result'::VARCHAR
+                        AS performance_unavailable_reason,
+                    NULL::VARCHAR AS performance_label,
+                    NULL::VARCHAR AS performance_disclaimer
+                """
+                query_prefix_params = [minimum_top10_pct]
 
             where_clause = " AND ".join(conditions)
             rows = connection.execute(
                 f"""
                 SELECT
                     m.* EXCLUDE (concentration_pass_quarters),
-                    p.concentration_pass_quarters
+                    p.concentration_pass_quarters,
+                    {performance_projection}
                 FROM manager_metrics m
                 JOIN (
                     SELECT
@@ -672,10 +1028,11 @@ class ScreeningService:
                     FROM manager_quarter_concentration
                     GROUP BY cik
                 ) p USING (cik)
+                {performance_join}
                 WHERE {where_clause}
                 ORDER BY m.median_reported_value_4q DESC, m.manager_name
                 """,
-                [minimum_top10_pct, *params],
+                [*query_prefix_params, *params],
             )
             columns = [item[0] for item in rows.description]
             data = [dict(zip(columns, row)) for row in rows.fetchall()]
@@ -720,6 +1077,31 @@ class ScreeningService:
                 "median_turnover_pct": statistics.median(
                     item["annualized_turnover_pct"] for item in data
                 ) if data else 0,
+                "performance_available_count": sum(
+                    1 for item in data
+                    if item["performance_status"] == "AVAILABLE"
+                ),
+                "beat_spy_count": sum(
+                    1 for item in data
+                    if item["performance_status"] == "AVAILABLE"
+                    and item["spy_excess_cagr"] is not None
+                    and item["spy_excess_cagr"] > 0
+                ),
+                "beat_qqq_count": sum(
+                    1 for item in data
+                    if item["performance_status"] == "AVAILABLE"
+                    and item["qqq_excess_cagr"] is not None
+                    and item["qqq_excess_cagr"] > 0
+                ),
+                "median_estimated_cagr": statistics.median(
+                    item["estimated_cagr"] for item in data
+                    if item["performance_status"] == "AVAILABLE"
+                    and item["estimated_cagr"] is not None
+                ) if any(
+                    item["performance_status"] == "AVAILABLE"
+                    and item["estimated_cagr"] is not None
+                    for item in data
+                ) else None,
             }
             return {
                 "data": data,
