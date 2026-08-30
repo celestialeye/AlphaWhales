@@ -386,3 +386,6 @@ Do not use it alone to declare manager skill. Add point-in-time manager cohorts,
 execution-date reweighting, turnover-proportional costs, terminal
 corporate-action returns, ex-ante style benchmarks, and factor/DGTW attribution
 as separate, versioned methods.
+
+The research-backed user-facing filter roadmap is maintained separately in
+[`PERFORMANCE_BENCHMARKING_FILTER_PLAN.md`](PERFORMANCE_BENCHMARKING_FILTER_PLAN.md).

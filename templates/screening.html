@@ -133,7 +133,7 @@
         </fieldset>
 
         <fieldset class="screening-filter-group screening-filter-group-draft" disabled>
-            <legend>Long-term best bets — Draft</legend>
+            <legend>Long-term investor — Draft</legend>
             <p class="screening-draft-note">
                 UI preview only. These controls do not affect results yet.
             </p>
@@ -186,45 +186,45 @@
             ) }}
         </label>
 
-        <div class="screening-control-divider">
-            <span>Hypothetical performance</span>
-        </div>
+        <fieldset class="screening-filter-group screening-filter-group-performance">
+            <legend>Performance &amp; Benchmarking</legend>
 
-        <label class="screening-field">
-            {{ screening_filter_label(
-                "Performance window",
-                "Selects the period used for the hypothetical annualized return estimate. The 3-year and 5-year choices require continuous eligible history; Full uses the longest complete fetched history, capped at 5 years.",
-                "Performance window explanation"
-            ) }}
-            <select id="screen-performance-window" onchange="scheduleScreeningLoad()">
-                <option value="3Y" selected>3 years — Default</option>
-                <option value="5Y">5 years</option>
-                <option value="FULL">Full fetched history (up to 5 years)</option>
-            </select>
-        </label>
+            <label class="screening-field">
+                {{ screening_filter_label(
+                    "Performance window",
+                    "Selects the period used for the hypothetical annualized return estimate. The 3-year and 5-year choices require continuous eligible history; Full uses the longest complete fetched history, capped at 5 years.",
+                    "Performance window explanation"
+                ) }}
+                <select id="screen-performance-window" onchange="scheduleScreeningLoad()">
+                    <option value="3Y" selected>3 years — Default</option>
+                    <option value="5Y">5 years</option>
+                    <option value="FULL">Full fetched history (up to 5 years)</option>
+                </select>
+            </label>
 
-        <label class="screening-field">
-            {{ screening_filter_label(
-                "Benchmark requirement",
-                "Optionally keeps only managers whose hypothetical annualized return exceeded SPY, QQQ, or both over the same dates. These are reported-holdings estimates, not actual fund returns.",
-                "Benchmark requirement explanation"
-            ) }}
-            <select id="screen-benchmark-filter" onchange="scheduleScreeningLoad()">
-                <option value="none" selected>Show all managers</option>
-                <option value="spy">Must beat SPY</option>
-                <option value="qqq">Must beat QQQ</option>
-                <option value="both">Must beat both</option>
-            </select>
-        </label>
+            <label class="screening-field">
+                {{ screening_filter_label(
+                    "Benchmark requirement",
+                    "Optionally keeps only managers whose hypothetical annualized return exceeded SPY, QQQ, or both over the same dates. These are reported-holdings estimates, not actual fund returns.",
+                    "Benchmark requirement explanation"
+                ) }}
+                <select id="screen-benchmark-filter" onchange="scheduleScreeningLoad()">
+                    <option value="none" selected>Show all managers</option>
+                    <option value="spy">Must beat SPY</option>
+                    <option value="qqq">Must beat QQQ</option>
+                    <option value="both">Must beat both</option>
+                </select>
+            </label>
 
-        <label class="screening-check">
-            <input id="screen-performance-required" type="checkbox" onchange="scheduleScreeningLoad()">
-            {{ screening_filter_label(
-                "Only show managers with a performance estimate",
-                "Hides managers without enough continuous filing history or where less than 95% of reported portfolio value could be matched to a ticker and valid market prices.",
-                "Available performance estimate explanation"
-            ) }}
-        </label>
+            <label class="screening-check">
+                <input id="screen-performance-required" type="checkbox" onchange="scheduleScreeningLoad()">
+                {{ screening_filter_label(
+                    "Only show managers with a performance estimate",
+                    "Hides managers without enough continuous filing history or where less than 95% of reported portfolio value could be matched to a ticker and valid market prices.",
+                    "Available performance estimate explanation"
+                ) }}
+            </label>
+        </fieldset>
     </aside>
 
     <div class="screening-results">

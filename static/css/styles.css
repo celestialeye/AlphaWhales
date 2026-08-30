@@ -2411,6 +2411,16 @@ body.period-loading {
     color: #fdba74;
 }
 
+.screening-filter-group-performance {
+    border-color: rgba(129, 140, 248, 0.26);
+    border-left-color: rgba(129, 140, 248, 0.72);
+    background: rgba(99, 102, 241, 0.035);
+}
+
+.screening-filter-group-performance legend {
+    color: #a5b4fc;
+}
+
 .screening-filter-group-draft[disabled] {
     opacity: 1;
 }

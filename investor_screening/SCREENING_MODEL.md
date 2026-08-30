@@ -12,6 +12,10 @@ screening from point-in-time SEC data
 > [`docs/LONG_TERM_BEST_BET_SCREENING_PLAN.md`](../docs/LONG_TERM_BEST_BET_SCREENING_PLAN.md).
 > It remains a design draft and is not implemented in the production data
 > layer.
+>
+> Research and proposed additions for the Performance & Benchmarking filters
+> are documented in
+> [`docs/PERFORMANCE_BENCHMARKING_FILTER_PLAN.md`](../docs/PERFORMANCE_BENCHMARKING_FILTER_PLAN.md).
 
 ## Purpose
 
@@ -310,7 +314,7 @@ The UI must show:
 - Rolling style drift.
 - Manager-level versus fund/series-level classification.
 
-## Hypothetical performance
+## Performance & benchmarking
 
 Performance is not a default hard eligibility filter.
 
