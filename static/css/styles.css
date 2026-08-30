@@ -2587,6 +2587,12 @@ body.period-loading {
     white-space: nowrap;
 }
 
+.screening-header-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 .screening-table th button {
     color: inherit;
     background: none;

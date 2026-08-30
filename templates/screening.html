@@ -219,13 +219,48 @@
                     <thead>
                         <tr>
                             <th><button type="button" onclick="sortScreening('manager_name')">Manager</button></th>
-                            <th><button type="button" onclick="sortScreening('median_reported_value_4q')">Reported Size</button></th>
-                            <th><button type="button" onclick="sortScreening('direct_stock_pct')">Direct Stock</button></th>
-                            <th><button type="button" onclick="sortScreening('top10_pct')">Top 10</button></th>
-                            <th><button type="button" onclick="sortScreening('maximum_position_pct')">Largest</button></th>
-                            <th><button type="button" onclick="sortScreening('annualized_turnover_pct')">Turnover</button></th>
-                            <th><button type="button" onclick="sortScreening('durable_position_count')">Durable Ideas</button></th>
-                            <th><button type="button" onclick="sortScreening('estimated_cagr')">Est. CAGR</button></th>
+                            <th>
+                                <span class="screening-header-label">
+                                    <button type="button" onclick="sortScreening('median_reported_value_4q')">Reported Size</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported size definition" data-tooltip="Median total value reported across the manager's latest four quarterly 13F filings. It is reported 13F value, not total firm assets under management.">i</span>
+                                </span>
+                            </th>
+                            <th>
+                                <span class="screening-header-label">
+                                    <button type="button" onclick="sortScreening('direct_stock_pct')">Direct Stock</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Direct stock percentage definition" data-tooltip="Latest direct-company-stock value divided by the non-option 13F sleeve. ETFs, pooled funds, warrants, rights, units, preferreds, and debt-like rows are excluded.">i</span>
+                                </span>
+                            </th>
+                            <th>
+                                <span class="screening-header-label">
+                                    <button type="button" onclick="sortScreening('top10_pct')">Top 10</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Top ten concentration definition" data-tooltip="Combined weight of the manager's ten largest direct-stock positions in the latest filing, measured as a percentage of the direct-stock sleeve.">i</span>
+                                </span>
+                            </th>
+                            <th>
+                                <span class="screening-header-label">
+                                    <button type="button" onclick="sortScreening('maximum_position_pct')">Largest</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Largest position definition" data-tooltip="Weight of the manager's single largest direct-stock position in the latest filing, measured as a percentage of the direct-stock sleeve.">i</span>
+                                </span>
+                            </th>
+                            <th>
+                                <span class="screening-header-label">
+                                    <button type="button" onclick="sortScreening('annualized_turnover_pct')">Turnover</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Estimated turnover definition" data-tooltip="Estimated annualized portfolio turnover from material quarter-to-quarter weight changes. Routine moves below both 0.25 percentage points and 10% of shares are removed; this is not manager-reported turnover.">i</span>
+                                </span>
+                            </th>
+                            <th>
+                                <span class="screening-header-label">
+                                    <button type="button" onclick="sortScreening('durable_position_count')">Durable Ideas</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Durable ideas definition" data-tooltip="Current direct-stock positions that remained top-10 conviction holdings at 3% or more of the sleeve in at least three of the latest four filings, including the latest filing.">i</span>
+                                </span>
+                            </th>
+                            <th>
+                                <span class="screening-header-label">
+                                    <button type="button" onclick="sortScreening('estimated_cagr')">Est. CAGR</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Estimated CAGR definition" data-tooltip="Hypothetical annualized compound return for the selected performance window. The reported 13F sleeve is traded after public disclosure and shown before fees, taxes, and transaction costs; it is not the manager's actual return.">i</span>
+                                </span>
+                            </th>
                             <th><button type="button" onclick="sortScreening('spy_excess_cagr')">vs SPY</button></th>
                             <th><button type="button" onclick="sortScreening('qqq_excess_cagr')">vs QQQ</button></th>
                             <th><button type="button" onclick="sortScreening('max_drawdown')">Max Drawdown</button></th>
