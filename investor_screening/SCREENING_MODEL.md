@@ -463,6 +463,17 @@ Uses the defaults specified in this document.
 - At least two stocks held above 3% for 24 months.
 - Manager concentration persistent in all 8 measured quarters.
 
+### Strict Best-Bet
+
+- Four-quarter median reported value >=$10B.
+- At least 5 current direct stocks.
+- Direct-company-stock percentage >=80%.
+- Top-10 concentration >=40% in all 8 measured quarters.
+- At least 3 stocks held above 5% of total reported non-option 13F value for
+  12 months.
+- Full fetched performance history available.
+- Estimated CAGR above both SPY and QQQ.
+
 Presets populate controls; they do not lock them.
 
 ## Initial calibration

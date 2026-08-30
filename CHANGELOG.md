@@ -9,6 +9,8 @@
   screening data.
 - Performance & Benchmarking filters now support minimum excess CAGR,
   quarterly benchmark beat consistency, and maximum drawdown.
+- A Strict Best-Bet preset applies the reviewed $10B, five-stock, persistent
+  5%-weight, and beat-SPY/QQQ settings.
 
 ### Changed
 

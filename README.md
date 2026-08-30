@@ -124,8 +124,8 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   reported 13F value, 80% direct-company-stock sleeve, 40% top-10
   concentration, six-of-eight-quarter persistence, and at least one stock held
   continuously above 3% of reported non-option 13F value for 12 months.
-- **Dynamic Presets and Controls**: Relaxed Scale, Mega High-Conviction, and
-  Patient Tilt presets with editable size, stock-count, direct-stock,
+- **Dynamic Presets and Controls**: Relaxed Scale, Mega High-Conviction,
+  Patient Tilt, and Strict Best-Bet presets with editable size, stock-count, direct-stock,
   concentration, long-term-best-bet, performance, roster-only, and
   manager-search filters.
 - **Precomputed Read-Only Snapshot**: Queries a compact DuckDB snapshot rather

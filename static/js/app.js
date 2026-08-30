@@ -2833,6 +2833,22 @@ const screeningPresets = {
         bestBetDuration: 24,
         bestBetCount: 2,
         performanceWindow: '3Y'
+    },
+    strict: {
+        size: 10,
+        minimumStocks: 5,
+        directStock: 80,
+        top10: 40,
+        persistence: 8,
+        bestBetWeight: 5,
+        bestBetDuration: 12,
+        bestBetCount: 3,
+        performanceWindow: 'FULL',
+        benchmarkFilter: 'both',
+        requirePerformance: false,
+        minimumExcessCagr: '0',
+        beatConsistency: '',
+        maximumDrawdown: ''
     }
 };
 
@@ -2901,11 +2917,26 @@ function applyScreeningPreset(name) {
     setScreeningControl('screen-best-bet-duration', preset.bestBetDuration);
     setScreeningControl('screen-best-bet-count', preset.bestBetCount);
     setScreeningControl('screen-performance-window', preset.performanceWindow);
-    setScreeningControl('screen-benchmark-filter', 'none');
-    setScreeningControl('screen-performance-required', false);
-    setScreeningControl('screen-min-excess-cagr', '0');
-    setScreeningControl('screen-beat-consistency', '');
-    setScreeningControl('screen-max-drawdown', '');
+    setScreeningControl(
+        'screen-benchmark-filter',
+        preset.benchmarkFilter ?? 'none'
+    );
+    setScreeningControl(
+        'screen-performance-required',
+        preset.requirePerformance ?? false
+    );
+    setScreeningControl(
+        'screen-min-excess-cagr',
+        preset.minimumExcessCagr ?? '0'
+    );
+    setScreeningControl(
+        'screen-beat-consistency',
+        preset.beatConsistency ?? ''
+    );
+    setScreeningControl(
+        'screen-max-drawdown',
+        preset.maximumDrawdown ?? ''
+    );
     updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
