@@ -1166,6 +1166,8 @@ class ScreeningService:
                 )
                 value = f"%{search.strip()}%"
                 params.extend([value, value, value])
+            structural_conditions = list(conditions)
+            structural_params = list(params)
             if has_performance:
                 if require_performance:
                     conditions.append("perf.status = 'AVAILABLE'")
@@ -1296,6 +1298,58 @@ class ScreeningService:
                 """
 
             where_clause = " AND ".join(conditions)
+            structural_where_clause = " AND ".join(structural_conditions)
+            if has_performance:
+                structural_counts = connection.execute(
+                    f"""
+                    SELECT
+                        count(*)::INTEGER AS structural_candidate_count,
+                        count(*) FILTER (
+                            WHERE perf.status = 'AVAILABLE'
+                        )::INTEGER AS structural_performance_available_count
+                    FROM manager_metrics m
+                    JOIN (
+                        SELECT
+                            cik,
+                            count(*) FILTER (WHERE top10_pct >= ?)
+                                AS concentration_pass_quarters
+                        FROM manager_quarter_concentration
+                        GROUP BY cik
+                    ) p USING (cik)
+                    {best_bet_join}
+                    {performance_join}
+                    WHERE {structural_where_clause}
+                    """,
+                    [*query_prefix_params, *structural_params],
+                ).fetchone()
+                performance_fact_manager_count = connection.execute(
+                    """
+                    SELECT count(DISTINCT cik)
+                    FROM manager_performance
+                    WHERE "window" = ? AND cost_bps = 0
+                    """,
+                    [normalized_window],
+                ).fetchone()[0]
+            else:
+                structural_counts = connection.execute(
+                    f"""
+                    SELECT count(*)::INTEGER
+                    FROM manager_metrics m
+                    JOIN (
+                        SELECT
+                            cik,
+                            count(*) FILTER (WHERE top10_pct >= ?)
+                                AS concentration_pass_quarters
+                        FROM manager_quarter_concentration
+                        GROUP BY cik
+                    ) p USING (cik)
+                    {best_bet_join}
+                    WHERE {structural_where_clause}
+                    """,
+                    [*query_prefix_params, *structural_params],
+                ).fetchone()
+                structural_counts = (structural_counts[0], 0)
+                performance_fact_manager_count = 0
             rows = connection.execute(
                 f"""
                 SELECT
@@ -1383,6 +1437,9 @@ class ScreeningService:
             meta["position_cube_available"] = has_position_cube
             summary = {
                 "candidate_count": len(data),
+                "structural_candidate_count": structural_counts[0],
+                "structural_performance_available_count": structural_counts[1],
+                "performance_fact_manager_count": performance_fact_manager_count,
                 "roster_count": sum(1 for item in data if item["is_current_roster"]),
                 "median_size_billions": statistics.median(
                     item["median_reported_value_4q"] / 1_000_000_000

@@ -23,6 +23,7 @@ from .database import DEFAULT_DATABASE_PATH, DEFAULT_DATA_DIR
 from .screener import (
     DEFAULT_SNAPSHOT_POINTER,
     FUND_LIKE_PATTERN,
+    compute_source_fingerprint,
     resolve_snapshot_path,
 )
 
@@ -1307,7 +1308,14 @@ def refresh_performance(
     source = duckdb.connect(str(Path(source_path).resolve()), read_only=True)
     run_id = uuid.uuid4().hex
     started_at = datetime.now(timezone.utc)
+    run_created = False
     try:
+        source_fingerprint = compute_source_fingerprint(source)
+        if source_fingerprint != fingerprint:
+            raise ValueError(
+                "Performance source database does not match the screening "
+                "snapshot fingerprint"
+            )
         store.execute(
             """
             UPDATE performance_runs
@@ -1337,6 +1345,7 @@ def refresh_performance(
                 started_at,
             ],
         )
+        run_created = True
         mapping = refresh_cusip_ticker_mapping(
             store, mapping_loader=mapping_loader
         )
@@ -1346,12 +1355,13 @@ def refresh_performance(
             ).fetchall()
         )
         all_events = reconstruct_filing_chronology(source, managers)
+        events_by_manager: dict[str, list[PortfolioEvent]] = defaultdict(list)
+        for event in all_events:
+            events_by_manager[event.cik].append(event)
         calculation_start = _subtract_years(requested_as_of, window_years)
         selected_events: list[PortfolioEvent] = []
         for manager in managers:
-            manager_events = [
-                event for event in all_events if event.cik == manager.cik
-            ]
+            manager_events = events_by_manager.get(manager.cik, [])
             before = [
                 event
                 for event in manager_events
@@ -1590,6 +1600,17 @@ def refresh_performance(
             "label": PERFORMANCE_LABEL,
             "disclaimer": PERFORMANCE_DISCLAIMER,
         }
+    except Exception:
+        if run_created:
+            store.execute(
+                """
+                UPDATE performance_runs
+                SET status = 'FAILED', completed_at = ?
+                WHERE run_id = ? AND status = 'BUILDING'
+                """,
+                [datetime.now(timezone.utc), run_id],
+            )
+        raise
     finally:
         source.close()
         store.close()

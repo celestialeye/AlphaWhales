@@ -252,15 +252,15 @@
 
                 <label class="screening-field">
                     {{ screening_filter_label(
-                        "Quarterly win rate vs benchmark",
-                        "Checks each calendar quarter separately, not the overall 3Y or 5Y return. With Both selected, the manager must meet the win rate against SPY and QQQ separately. Over 3 years, 70% requires at least 9 of 12 quarters against each benchmark.",
-                        "Quarterly benchmark win rate explanation"
+                        "Quarterly observation win rate",
+                        "Checks successive quarter-end observations, not the overall 3Y or 5Y return. The first or last observation can be a partial calendar quarter at a window boundary. With Both selected, the manager must meet the rate against SPY and QQQ separately. In the current 3Y estimates, 70% requires at least 9 of 12 observations against each.",
+                        "Quarterly benchmark observation win rate explanation"
                     ) }}
                     <select id="screen-beat-consistency" onchange="scheduleScreeningLoad()">
                         <option value="" selected>Off — Total-window return only</option>
-                        <option value="50">At least half of quarters</option>
-                        <option value="60">At least 60% of quarters</option>
-                        <option value="70">At least 70% of quarters — Very strict</option>
+                        <option value="50">At least half of observations</option>
+                        <option value="60">At least 60% of observations</option>
+                        <option value="70">At least 70% of observations — Very strict</option>
                     </select>
                 </label>
 

@@ -389,3 +389,36 @@ as separate, versioned methods.
 
 The research-backed user-facing filter roadmap is maintained separately in
 [`PERFORMANCE_BENCHMARKING_FILTER_PLAN.md`](PERFORMANCE_BENCHMARKING_FILTER_PLAN.md).
+
+## All-filer expansion readiness
+
+The current embedded performance facts cover 70 managers from the original
+production cohort. A relaxed structural screen can return substantially more
+managers, but missing performance rows must not be interpreted as failures to
+beat a benchmark.
+
+The current CAGR and drawdown are defensible descriptive estimates of the
+fully priced, disclosure-lagged reported long-equity sleeve. They are not
+manager-skill estimates. Before expanding computation to all filers or ranking
+managers by performance, address:
+
+1. Historical security identifiers that retain delisted and acquired issuers
+   and prevent ticker-reuse errors.
+2. Terminal returns for bankruptcies, cash mergers, stock mergers, and
+   spin-offs rather than dropping unavailable terminal paths.
+3. An execution-revalued variant using reported shares multiplied by
+   execution-date prices instead of quarter-end reported-value weights.
+4. Complete-calendar-period and rolling-period statistics rather than partial
+   boundary months or quarters.
+5. Point-in-time manager cohorts that include managers which later closed,
+   shrank, or stopped filing.
+6. Turnover- and liquidity-sensitive transaction costs.
+7. Style-appropriate benchmarks and factor/characteristic attribution.
+8. Multiple-testing controls before identifying top managers across thousands
+   of filers.
+
+Engineering safeguards now verify that the selected source database matches
+the screening snapshot fingerprint, mark ordinary refresh failures as FAILED,
+and group filing events by manager rather than repeatedly scanning the complete
+event list. Full-universe execution should still be incremental and resumable
+per manager rather than one monolithic run.

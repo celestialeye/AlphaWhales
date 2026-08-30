@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from unittest import mock
 
 import duckdb
 import pandas as pd
@@ -25,6 +26,7 @@ from investor_screening.performance import (
     load_manager_universe,
     normalize_yfinance_symbol,
     reconstruct_filing_chronology,
+    refresh_performance,
     refresh_cusip_ticker_mapping,
     refresh_price_cache,
 )
@@ -531,6 +533,9 @@ def test_screening_snapshot_returns_and_filters_current_performance(tmp_path):
         require_performance=True,
     )
     assert result["summary"]["candidate_count"] == 1
+    assert result["summary"]["structural_candidate_count"] == 1
+    assert result["summary"]["structural_performance_available_count"] == 1
+    assert result["summary"]["performance_fact_manager_count"] == 1
     row = result["data"][0]
     assert row["performance_status"] == "AVAILABLE"
     assert row["estimated_cagr"] == pytest.approx(0.15)
@@ -679,3 +684,60 @@ def test_snapshot_reuses_latest_per_manager_performance_runs(tmp_path):
         ("1", "old"),
         ("2", "new"),
     }
+
+
+def test_refresh_rejects_mismatched_source_and_marks_failures(tmp_path):
+    source_path = tmp_path / "source.duckdb"
+    duckdb.connect(str(source_path)).close()
+    performance_path = tmp_path / "performance.duckdb"
+    universe = (
+        [ManagerUniverseItem("1", "Manager", 20_000_000_000)],
+        "snapshot-fingerprint",
+        tmp_path / "snapshot.duckdb",
+    )
+
+    with (
+        mock.patch(
+            "investor_screening.performance.load_manager_universe",
+            return_value=universe,
+        ),
+        mock.patch(
+            "investor_screening.performance.compute_source_fingerprint",
+            return_value="different-source-fingerprint",
+        ),
+    ):
+        with pytest.raises(ValueError, match="does not match"):
+            refresh_performance(
+                source_path=source_path,
+                performance_path=performance_path,
+                price_dir=tmp_path / "prices",
+            )
+
+    with (
+        mock.patch(
+            "investor_screening.performance.load_manager_universe",
+            return_value=universe,
+        ),
+        mock.patch(
+            "investor_screening.performance.compute_source_fingerprint",
+            return_value="snapshot-fingerprint",
+        ),
+        mock.patch(
+            "investor_screening.performance.refresh_cusip_ticker_mapping",
+            side_effect=RuntimeError("fixture failure"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="fixture failure"):
+            refresh_performance(
+                source_path=source_path,
+                performance_path=performance_path,
+                price_dir=tmp_path / "prices",
+            )
+
+    store = connect_performance_store(performance_path)
+    try:
+        assert store.execute(
+            "SELECT status FROM performance_runs"
+        ).fetchall() == [("FAILED",)]
+    finally:
+        store.close()

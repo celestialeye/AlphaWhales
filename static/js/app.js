@@ -3055,21 +3055,38 @@ function updateScreeningSummary(summary, metadata) {
         const element = document.getElementById(id);
         if (element) element.textContent = value;
     };
-    setText('screening-count', formatInt(summary.candidate_count || 0));
+    const candidateCount = summary.candidate_count || 0;
+    const structuralCount = summary.structural_candidate_count ?? candidateCount;
+    const structuralPerformanceCount = (
+        summary.structural_performance_available_count
+        ?? summary.performance_available_count
+        ?? 0
+    );
+    const performanceFactManagerCount = summary.performance_fact_manager_count || 0;
+    setText('screening-count', formatInt(candidateCount));
     setText('screening-roster-count', formatInt(summary.roster_count || 0));
     setText('screening-median-size', `$${formatNum(summary.median_size_billions || 0)}B`);
     setText('screening-median-turnover', formatPct(summary.median_turnover_pct || 0));
-    setText('screening-performance-count', formatInt(summary.performance_available_count || 0));
+    setText(
+        'screening-performance-count',
+        formatInt(structuralPerformanceCount)
+    );
     setText('screening-beat-spy', formatInt(summary.beat_spy_count || 0));
     setText('screening-beat-qqq', formatInt(summary.beat_qqq_count || 0));
     const performanceWindow = document.getElementById('screen-performance-window')?.value || '3Y';
     setText(
         'screening-performance-window-label',
-        `${performanceWindow === 'FULL' ? 'Full-history' : performanceWindow} estimates`
+        `${performanceWindow === 'FULL' ? 'Full-history' : performanceWindow}: `
+        + `${formatInt(structuralPerformanceCount)} of ${formatInt(structuralCount)}`
+        + ` structural matches · ${formatInt(performanceFactManagerCount)} computed`
     );
     setText(
         'screening-count-note',
-        `$${document.getElementById('screen-min-size')?.value || 10}B minimum reported value`
+        candidateCount === structuralCount
+            ? `$${document.getElementById('screen-min-size')?.value || 10}B minimum reported value`
+            : `${formatInt(candidateCount)} pass performance filters; `
+                + `${formatInt(structuralPerformanceCount)} of `
+                + `${formatInt(structuralCount)} have estimates`
     );
     if (metadata.report_period) {
         setText('screening-report-period', formatFilingPeriodLabel(String(metadata.report_period)));

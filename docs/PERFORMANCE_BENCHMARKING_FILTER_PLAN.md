@@ -98,15 +98,17 @@ filters. Consistency and downside remain independent dimensions.
 | Performance window | Select the evaluation period | 3 years, 5 years, full fetched history |
 | Benchmark hurdle | Select which benchmark must be beaten | No hurdle; beat SPY; beat QQQ; beat both |
 | Minimum excess CAGR | Select the required annualized winning margin over that benchmark | Any positive margin; +1, +2, or +5 percentage points; custom |
-| Quarterly win rate versus benchmark | Require outperformance across calendar quarters rather than only across the total window | Off; half, 60%, or 70% of quarters |
+| Quarterly observation win rate | Require outperformance across successive quarter-end observations rather than only across the total window | Off; half, 60%, or 70% of observations |
 | Maximum drawdown | Reject strategies whose return came with unacceptable peak-to-trough loss | 15%, 20%, 30%, 40%, or no limit |
 | Available estimate | Hide managers without enough history or the required mapping and pricing coverage | Show all; available only |
 
-The quarterly win-rate filter uses the already-computed quarterly beat rate.
-With Both selected, the threshold applies separately to SPY and QQQ. A 70%
-threshold over the 3Y window requires at least 9 of 12 quarterly wins against
-each benchmark. A later version should also show rolling 12- and 36-month
-results because isolated calendar quarters are noisy.
+The observation win-rate filter uses the already-computed quarterly beat rate.
+Its first or last observation can represent a partial calendar quarter at the
+selected window boundary. With Both selected, the threshold applies separately
+to SPY and QQQ. A 70% threshold over the current 3Y estimates requires at least
+9 of 12 observation wins against each benchmark. Complete-calendar-quarter and
+rolling 12- and 36-month statistics remain required before an all-filer skill
+comparison.
 
 ## Evidence to display rather than filter
 
@@ -171,7 +173,7 @@ Keep the **Performance & Benchmarking** group concise:
 2. Benchmark hurdle.
 3. Require an available estimate.
 4. Minimum excess CAGR.
-5. Quarterly win rate versus benchmark.
+5. Quarterly observation win rate.
 6. Maximum drawdown.
 
 Move roster-only selection beside the results search because it changes the
