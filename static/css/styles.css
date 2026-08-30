@@ -2401,6 +2401,33 @@ body.period-loading {
     text-transform: uppercase;
 }
 
+.screening-filter-group-draft {
+    border-color: rgba(249, 115, 22, 0.28);
+    border-left-color: rgba(249, 115, 22, 0.75);
+    background: rgba(249, 115, 22, 0.035);
+}
+
+.screening-filter-group-draft legend {
+    color: #fdba74;
+}
+
+.screening-filter-group-draft[disabled] {
+    opacity: 1;
+}
+
+.screening-filter-group-draft[disabled] input,
+.screening-filter-group-draft[disabled] select {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.screening-draft-note {
+    margin: -3px 0 0;
+    color: #fdba74;
+    font-size: 0.69rem;
+    line-height: 1.45;
+}
+
 .screening-field > span {
     font-size: 0.75rem;
     font-weight: 700;

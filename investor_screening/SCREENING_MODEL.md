@@ -7,6 +7,12 @@
 **Primary use:** Dynamic institutional-investor and high-conviction holding
 screening from point-in-time SEC data
 
+> The proposed replacement for the current turnover and durable-position
+> filters is documented in
+> [`docs/LONG_TERM_BEST_BET_SCREENING_PLAN.md`](../docs/LONG_TERM_BEST_BET_SCREENING_PLAN.md).
+> It remains a design draft and is not implemented in the production data
+> layer.
+
 ## Purpose
 
 The screening model identifies institutional managers whose public filings
