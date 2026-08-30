@@ -4,7 +4,7 @@
 
 ### Added
 
-- An 829,856-row position-quarter fact cube supports dynamic best-bet weight,
+- A 1,809,508-row, 20-quarter position fact cube supports dynamic best-bet weight,
   6/12/18/24-month duration, and required-count filters without rebuilding
   screening data.
 - Performance & Benchmarking filters now support minimum excess CAGR,

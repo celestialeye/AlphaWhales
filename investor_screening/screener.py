@@ -28,7 +28,8 @@ DEFAULT_PERFORMANCE_PATH = (
 )
 
 BEST_BET_CUBE_WEIGHT_FLOOR_PCT = 1.0
-MAX_BEST_BET_SNAPSHOTS = 9
+MAX_BEST_BET_SNAPSHOTS = 20
+REQUIRED_MANAGER_SNAPSHOTS = 12
 BEST_BET_DURATION_SNAPSHOTS = {
     6: 3,
     12: 5,
@@ -497,7 +498,7 @@ def build_screening_snapshot(
         source_fingerprint = compute_source_fingerprint(source)
         quarter_values = []
         current_period = report_period
-        for _ in range(12):
+        for _ in range(MAX_BEST_BET_SNAPSHOTS):
             quarter_values.append(current_period)
             month = current_period.month - 3
             year = current_period.year
@@ -549,17 +550,20 @@ def build_screening_snapshot(
             """
         )
         source.execute(
-            """
+            f"""
             CREATE OR REPLACE TEMP TABLE screening_history AS
             SELECT
                 cik,
                 max(manager_name) FILTER (WHERE quarter_index = 1) AS manager_name,
-                count(DISTINCT quarter_index)::INTEGER AS filing_quarters,
+                count(DISTINCT quarter_index)
+                    FILTER (
+                        WHERE quarter_index <= {REQUIRED_MANAGER_SNAPSHOTS}
+                    )::INTEGER AS filing_quarters,
                 median(total_reported_value)
                     FILTER (WHERE quarter_index <= 4) AS median_reported_value_4q
             FROM screening_manager_quarters
             GROUP BY cik
-            HAVING filing_quarters = 12
+            HAVING filing_quarters = {REQUIRED_MANAGER_SNAPSHOTS}
             """
         )
         source.execute(

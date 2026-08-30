@@ -140,7 +140,7 @@ The screening page never scans the full historical foundation per request.
 
 `manager_position_quarters` retains direct-stock positions at or above the 1%
 minimum selectable overall non-option 13F weight, plus each quarter's top ten
-positions regardless of weight, for the latest nine snapshots. Best-bet
+positions regardless of weight, for the latest 20 snapshots. Best-bet
 weight, 6/12/18/24-month duration, and required-count changes are dynamic SQL
 filters over this cube. Performance thresholds query embedded per-manager/window
 facts and do not trigger performance recalculation.

@@ -130,8 +130,8 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   manager-search filters.
 - **Precomputed Read-Only Snapshot**: Queries a compact DuckDB snapshot rather
   than rescanning the full historical 13F foundation on every request. A
-  reusable 829,856-row position-quarter cube supports dynamic best-bet weight,
-  duration, and count filters without rebuilding data.
+  reusable 1,809,508-row, 20-quarter position cube supports dynamic best-bet
+  weight, duration, and count filters without rebuilding data.
 - **Disclosure-Lagged Performance Comparison**: Shows hypothetical 3Y/5Y
   annualized sleeve returns, excess CAGR versus SPY and QQQ, drawdown, and
   price coverage. Filters support SPY/QQQ hurdles, minimum excess CAGR,

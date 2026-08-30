@@ -136,7 +136,7 @@ The runtime screen uses an immutable generation referenced by
 | Metric | Result |
 |---|---:|
 | Managers with 12-quarter metrics | 5,656 |
-| Reusable position-quarter facts | 829,856 |
+| Reusable position-quarter facts | 1,809,508 |
 | Default $10B candidates | 71 |
 | Current-roster matches | 9 |
 

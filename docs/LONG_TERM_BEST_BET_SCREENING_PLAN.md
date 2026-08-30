@@ -99,7 +99,7 @@ security with:
 
 The compact snapshot stores direct-stock rows with overall non-option weight of
 at least 1%, plus each quarter's top ten positions regardless of weight, across
-the latest nine snapshots. The floor matches the minimum selectable best-bet
+the latest 20 snapshots. The floor matches the minimum selectable best-bet
 threshold, while rank retention preserves evidence needed for a future
 institution-relative position-limit rule.
 
@@ -107,7 +107,8 @@ institution-relative position-limit rule.
 
 Consecutive threshold-qualified streaks are computed from the position-quarter
 facts at query time. Weight, duration, and required-count changes are SQL
-filters over the same 829,856-row cube, not new ingestion or performance runs.
+filters over the same 1,809,508-row cube, not new ingestion or performance
+runs.
 
 ### Independent performance facts
 
@@ -119,7 +120,7 @@ universe rather than the currently selected screening style.
 ## Future enhancements
 
 - Optional institution-relative position-limit logic.
-- Longer durations if the cube's nine-snapshot bound is expanded.
+- UI options beyond 24 months using the existing 20-quarter cube.
 - Security-identity continuity through mergers and identifier changes.
 - A lower selectable weight only after rebuilding the cube with a lower
   pruning floor.
