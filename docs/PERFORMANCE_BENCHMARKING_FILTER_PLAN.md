@@ -175,6 +175,10 @@ intervals, multi-window confirmation, and future style-matched benchmarks.
 No additional performance filter should be implemented until its exact
 definition, default, and treatment of unavailable data are approved.
 
+The Investor Screening page currently includes a disabled UI preview of these
+core and advanced controls. The preview is for criteria review only and does
+not submit values to the screening API.
+
 ## Key sources
 
 - SEC, Form 13F instructions:
