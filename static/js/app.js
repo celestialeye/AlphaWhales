@@ -2803,6 +2803,7 @@ function exportInvestorToCSV() {
 const screeningPresets = {
     broad: {
         size: 1,
+        minimumStocks: 1,
         directStock: 60,
         top10: 30,
         persistence: 4,
@@ -2812,6 +2813,7 @@ const screeningPresets = {
     },
     mega: {
         size: 10,
+        minimumStocks: 1,
         directStock: 80,
         top10: 40,
         persistence: 6,
@@ -2821,6 +2823,7 @@ const screeningPresets = {
     },
     patient: {
         size: 1,
+        minimumStocks: 1,
         directStock: 90,
         top10: 50,
         persistence: 8,
@@ -2845,6 +2848,14 @@ function updateScreeningRange(inputId, outputId, suffix) {
     if (input && output) output.textContent = `${input.value}${suffix}`;
 }
 
+function updateScreeningMinimumStocks() {
+    const input = document.getElementById('screen-min-stocks');
+    const output = document.getElementById('screen-min-stocks-value');
+    if (input && output) {
+        output.textContent = input.value === '10' ? '10+' : input.value;
+    }
+}
+
 function setScreeningControl(id, value) {
     const element = document.getElementById(id);
     if (!element) return;
@@ -2856,6 +2867,7 @@ function applyScreeningPreset(name) {
     const preset = screeningPresets[name];
     if (!preset) return;
     setScreeningControl('screen-min-size', preset.size);
+    setScreeningControl('screen-min-stocks', preset.minimumStocks);
     setScreeningControl('screen-direct-stock', preset.directStock);
     setScreeningControl('screen-top10', preset.top10);
     setScreeningControl('screen-persistence', preset.persistence);
@@ -2868,6 +2880,7 @@ function applyScreeningPreset(name) {
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
     updateScreeningRange('screen-turnover', 'screen-turnover-value', '%');
+    updateScreeningMinimumStocks();
     document.querySelectorAll('.screening-preset').forEach(button => {
         button.classList.toggle('active', button.dataset.preset === name);
     });
@@ -2890,6 +2903,7 @@ function scheduleScreeningLoad() {
 }
 
 async function initializeInvestorScreening() {
+    updateScreeningMinimumStocks();
     updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
@@ -2904,6 +2918,7 @@ async function loadInvestorScreening() {
 
     const params = new URLSearchParams({
         minimum_size_billions: document.getElementById('screen-min-size')?.value || '10',
+        minimum_stock_count: document.getElementById('screen-min-stocks')?.value || '1',
         minimum_direct_stock_pct: document.getElementById('screen-direct-stock')?.value || '80',
         minimum_top10_pct: document.getElementById('screen-top10')?.value || '40',
         minimum_concentration_quarters: document.getElementById('screen-persistence')?.value || '6',

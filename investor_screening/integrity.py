@@ -732,6 +732,7 @@ def run_integrity_audit(
                     SELECT count(*)
                     FROM manager_metrics
                     WHERE median_reported_value_4q >= 10000000000
+                      AND latest_stock_count >= 1
                       AND direct_stock_pct >= 80
                       AND top10_pct >= 40
                       AND concentration_pass_quarters >= 6

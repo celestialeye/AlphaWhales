@@ -203,6 +203,7 @@ async def api_investor_history(cik: str):
 @app.get("/api/screening")
 async def api_screening(
     minimum_size_billions: float = 10.0,
+    minimum_stock_count: int = 1,
     minimum_direct_stock_pct: float = 80.0,
     minimum_top10_pct: float = 40.0,
     minimum_concentration_quarters: int = 6,
@@ -220,6 +221,7 @@ async def api_screening(
         None,
         lambda: screening_service.get_screening_results(
             minimum_size_billions=max(0.1, minimum_size_billions),
+            minimum_stock_count=min(10, max(1, minimum_stock_count)),
             minimum_direct_stock_pct=min(100.0, max(0.0, minimum_direct_stock_pct)),
             minimum_top10_pct=min(100.0, max(0.0, minimum_top10_pct)),
             minimum_concentration_quarters=min(

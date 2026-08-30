@@ -473,7 +473,7 @@ def test_screening_snapshot_returns_and_filters_current_performance(tmp_path):
         INSERT INTO manager_metrics
         VALUES (
             '1', 'Manager', DATE '2025-12-31', 12,
-            20000000000, 20000000000, 20000000000, 100,
+            20000000000, 20000000000, 20000000000, 10, 100,
             50, 20, 8, 25, 0, NULL, false
         )
         """

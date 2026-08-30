@@ -58,6 +58,17 @@
         </label>
 
         <label class="screening-field">
+            <span>Minimum number of stocks held</span>
+            <div class="range-line">
+                <input id="screen-min-stocks" type="range" min="1" max="10" step="1" value="1"
+                       oninput="updateScreeningMinimumStocks()"
+                       onchange="scheduleScreeningLoad()">
+                <output id="screen-min-stocks-value">1</output>
+            </div>
+            <small>Counts direct-company stocks in the latest filing. Selecting 10+ means at least 10 stocks, with no upper limit.</small>
+        </label>
+
+        <label class="screening-field">
             <span>Direct-company-stock sleeve</span>
             <div class="range-line">
                 <input id="screen-direct-stock" type="range" min="50" max="100" step="5" value="80"

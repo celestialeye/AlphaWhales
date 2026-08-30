@@ -678,7 +678,7 @@ class InvestorScreeningTests(unittest.TestCase):
             INSERT INTO manager_metrics
             VALUES (
                 '0000000001', 'Test Manager', DATE '2025-12-31', 12,
-                20000000000, 20000000000, 20000000000, 100,
+                20000000000, 20000000000, 20000000000, 7, 100,
                 45, 15, 8, 20, 1, NULL, false
             )
             """
@@ -713,6 +713,20 @@ class InvestorScreeningTests(unittest.TestCase):
         self.assertEqual(
             service.get_screening_results(
                 minimum_top10_pct=50,
+                minimum_concentration_quarters=1,
+            )["summary"]["candidate_count"],
+            0,
+        )
+        self.assertEqual(
+            service.get_screening_results(
+                minimum_stock_count=7,
+                minimum_concentration_quarters=1,
+            )["summary"]["candidate_count"],
+            1,
+        )
+        self.assertEqual(
+            service.get_screening_results(
+                minimum_stock_count=8,
                 minimum_concentration_quarters=1,
             )["summary"]["candidate_count"],
             0,

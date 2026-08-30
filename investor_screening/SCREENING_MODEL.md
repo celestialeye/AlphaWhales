@@ -58,6 +58,7 @@ Do not combine these dimensions into one opaque quality score.
 |---|---:|---|
 | Reporting period | Latest broadly complete quarter | Historical as-of selector |
 | Minimum reported size | Four-quarter median reported 13F value >= $10B | $100M-$5T; presets at $500M, $1B, $3.5B, $10B, $50B |
+| Minimum current direct-stock positions | >=1 | 1-10+ |
 | Filing history | 12 consecutive quarterly filings | 4-40 quarters |
 | Direct-company-stock percentage | >=80% of the non-option 13F sleeve | 60%, 70%, 80%, 90%, custom |
 | Latest top-10 concentration | >=40% of the direct-stock sleeve | 20%-100% |

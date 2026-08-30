@@ -29,6 +29,7 @@ DEFAULT_PERFORMANCE_PATH = (
 
 DEFAULT_FILTERS = {
     "minimum_size_billions": 10.0,
+    "minimum_stock_count": 1,
     "minimum_direct_stock_pct": 80.0,
     "minimum_top10_pct": 40.0,
     "minimum_concentration_quarters": 6,
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS manager_metrics (
     median_reported_value_4q DOUBLE NOT NULL,
     latest_nonoption_value DOUBLE NOT NULL,
     latest_direct_stock_value DOUBLE NOT NULL,
+    latest_stock_count INTEGER NOT NULL,
     direct_stock_pct DOUBLE NOT NULL,
     top10_pct DOUBLE NOT NULL,
     maximum_position_pct DOUBLE NOT NULL,
@@ -524,7 +526,9 @@ def build_screening_snapshot(
                 cik,
                 quarter_index,
                 sum(value_usd) AS nonoption_value,
-                sum(value_usd) FILTER (WHERE NOT is_fund_like) AS direct_stock_value
+                sum(value_usd) FILTER (WHERE NOT is_fund_like) AS direct_stock_value,
+                count(DISTINCT security_key)
+                    FILTER (WHERE NOT is_fund_like)::INTEGER AS direct_stock_count
             FROM screening_raw_positions
             GROUP BY cik, quarter_index
             """
@@ -661,6 +665,11 @@ def build_screening_snapshot(
                     0
                 ) AS latest_direct_stock_value,
                 coalesce(
+                    max(s.direct_stock_count)
+                        FILTER (WHERE s.quarter_index = 1),
+                    0
+                )::INTEGER AS latest_stock_count,
+                coalesce(
                     max(
                         s.direct_stock_value / nullif(s.nonoption_value, 0)
                     ) FILTER (WHERE s.quarter_index = 1) * 100,
@@ -754,7 +763,7 @@ def build_screening_snapshot(
         )
         manager_insert = (
             "INSERT INTO manager_metrics VALUES ("
-            + ",".join("?" for _ in range(15))
+            + ",".join("?" for _ in range(16))
             + ")"
         )
         for start in range(0, len(manager_rows), 500):
@@ -796,6 +805,7 @@ def build_screening_snapshot(
             SELECT count(*)
             FROM manager_metrics
             WHERE median_reported_value_4q >= 10000000000
+              AND latest_stock_count >= 1
               AND direct_stock_pct >= 80
               AND top10_pct >= 40
               AND concentration_pass_quarters >= 6
@@ -807,6 +817,7 @@ def build_screening_snapshot(
             SELECT count(*)
             FROM manager_metrics
             WHERE median_reported_value_4q >= 10000000000
+              AND latest_stock_count >= 1
               AND direct_stock_pct >= 80
               AND top10_pct >= 40
               AND concentration_pass_quarters >= 6
@@ -864,6 +875,7 @@ class ScreeningService:
         self,
         *,
         minimum_size_billions: float = 10.0,
+        minimum_stock_count: int = 1,
         minimum_direct_stock_pct: float = 80.0,
         minimum_top10_pct: float = 40.0,
         minimum_concentration_quarters: int = 6,
@@ -902,6 +914,7 @@ class ScreeningService:
             )
             conditions = [
                 "m.median_reported_value_4q >= ?",
+                "m.latest_stock_count >= ?",
                 "m.direct_stock_pct >= ?",
                 "m.top10_pct >= ?",
                 "p.concentration_pass_quarters >= ?",
@@ -909,6 +922,7 @@ class ScreeningService:
             ]
             params = [
                 minimum_size_billions * 1_000_000_000,
+                minimum_stock_count,
                 minimum_direct_stock_pct,
                 minimum_top10_pct,
                 minimum_concentration_quarters,
