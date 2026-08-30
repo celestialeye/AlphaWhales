@@ -177,15 +177,6 @@
             </label>
         </fieldset>
 
-        <label class="screening-check">
-            <input id="screen-roster-only" type="checkbox" onchange="scheduleScreeningLoad()">
-            {{ screening_filter_label(
-                "Current Alpha Whales roster only",
-                "Restricts results to the 26 managers already configured elsewhere in the Alpha Whales dashboard instead of searching the complete eligible 13F universe.",
-                "Alpha Whales roster filter explanation"
-            ) }}
-        </label>
-
         <fieldset class="screening-filter-group screening-filter-group-performance">
             <legend>Performance &amp; Benchmarking</legend>
 
@@ -204,9 +195,9 @@
 
             <label class="screening-field">
                 {{ screening_filter_label(
-                    "Benchmark requirement",
+                    "Benchmark hurdle",
                     "Optionally keeps only managers whose hypothetical annualized return exceeded SPY, QQQ, or both over the same dates. These are reported-holdings estimates, not actual fund returns.",
-                    "Benchmark requirement explanation"
+                    "Benchmark hurdle explanation"
                 ) }}
                 <select id="screen-benchmark-filter" onchange="scheduleScreeningLoad()">
                     <option value="none" selected>Show all managers</option>
@@ -230,21 +221,6 @@
                 <p class="screening-draft-note">
                     UI preview only. These controls do not affect results yet.
                 </p>
-
-                <label class="screening-field">
-                    {{ screening_filter_label(
-                        "Minimum excess CAGR",
-                        "Proposed rule: require the hypothetical annualized return to beat the selected benchmark by at least this many percentage points per year.",
-                        "Draft minimum excess CAGR explanation"
-                    ) }}
-                    <select>
-                        <option selected>Off — Any result</option>
-                        <option>Above 0%</option>
-                        <option>At least +2%</option>
-                        <option>At least +5%</option>
-                        <option>Custom</option>
-                    </select>
-                </label>
 
                 <label class="screening-field">
                     {{ screening_filter_label(
@@ -274,78 +250,6 @@
                         <option>40% maximum</option>
                     </select>
                 </label>
-
-                <label class="screening-check">
-                    <input type="checkbox">
-                    {{ screening_filter_label(
-                        "Require 3Y and 5Y confirmation",
-                        "Proposed rule: the manager must beat the selected benchmark in both the three-year and five-year performance windows.",
-                        "Draft multi-window confirmation explanation"
-                    ) }}
-                </label>
-
-                <details class="screening-advanced-performance">
-                    <summary>
-                        <span>Advanced performance evidence</span>
-                        <span class="screening-draft-badge">Draft</span>
-                    </summary>
-                    <div class="screening-advanced-performance-grid">
-                        <label class="screening-field">
-                            {{ screening_filter_label(
-                                "Minimum information ratio",
-                                "Proposed rule: require sufficient average excess return relative to the volatility of returns versus the selected benchmark.",
-                                "Draft minimum information ratio explanation"
-                            ) }}
-                            <select>
-                                <option selected>Off</option>
-                                <option>Positive</option>
-                                <option>At least 0.25</option>
-                                <option>At least 0.50</option>
-                            </select>
-                        </label>
-
-                        <label class="screening-field">
-                            {{ screening_filter_label(
-                                "Minimum data coverage",
-                                "Proposed rule: require this percentage of reported portfolio value to be successfully mapped to securities and valid market prices.",
-                                "Draft minimum data coverage explanation"
-                            ) }}
-                            <select>
-                                <option selected>95%</option>
-                                <option>98%</option>
-                                <option>100%</option>
-                            </select>
-                        </label>
-
-                        <label class="screening-field">
-                            {{ screening_filter_label(
-                                "Minimum rebalance periods",
-                                "Proposed rule: require at least this many filing-to-filing performance intervals so thin histories do not rank beside well-observed managers.",
-                                "Draft minimum rebalance periods explanation"
-                            ) }}
-                            <select>
-                                <option selected>Off</option>
-                                <option>At least 8</option>
-                                <option>At least 12</option>
-                                <option>At least 20</option>
-                            </select>
-                        </label>
-
-                        <label class="screening-field">
-                            {{ screening_filter_label(
-                                "Drawdown versus benchmark",
-                                "Proposed rule: limit how many percentage points worse the manager sleeve's maximum drawdown may be than the selected benchmark's drawdown.",
-                                "Draft benchmark-relative drawdown explanation"
-                            ) }}
-                            <select>
-                                <option selected>Off</option>
-                                <option>No worse than benchmark</option>
-                                <option>Within 5 percentage points</option>
-                                <option>Within 10 percentage points</option>
-                            </select>
-                        </label>
-                    </div>
-                </details>
             </fieldset>
         </fieldset>
     </aside>
@@ -407,11 +311,21 @@
                     <span class="screening-step">03</span>
                     <h2>Qualified Managers</h2>
                 </div>
-                <label class="screening-search">
-                    <span class="sr-only">Search managers</span>
-                    <input id="screening-search" type="search" placeholder="Search manager or CIK..."
-                           oninput="scheduleScreeningLoad()">
-                </label>
+                <div class="screening-table-actions">
+                    <label class="screening-roster-toggle">
+                        <input id="screen-roster-only" type="checkbox" onchange="scheduleScreeningLoad()">
+                        {{ screening_filter_label(
+                            "Roster only",
+                            "Restricts results to the 26 managers already configured elsewhere in the Alpha Whales dashboard.",
+                            "Alpha Whales roster filter explanation"
+                        ) }}
+                    </label>
+                    <label class="screening-search">
+                        <span class="sr-only">Search managers</span>
+                        <input id="screening-search" type="search" placeholder="Search manager or CIK..."
+                               oninput="scheduleScreeningLoad()">
+                    </label>
+                </div>
             </div>
             <div class="table-container screening-table-wrap">
                 <table class="data-table screening-table">

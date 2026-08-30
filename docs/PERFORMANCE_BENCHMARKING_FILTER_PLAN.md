@@ -83,35 +83,38 @@ t-statistic, and out-of-sample methods are appropriate research controls. They
 should become evidence-confidence diagnostics rather than casual slider
 thresholds.
 
-## Recommended core filters
+## Recommended filter design
 
-These are the highest-value additions without turning the sidebar into a
-statistical workstation:
+Avoid separate controls that ask the same performance question in different
+ways. The benchmark target and required excess return belong to one
+**benchmark hurdle**, while consistency and downside are independent
+dimensions.
 
-| Filter | Purpose | Possible choices |
+| Filter | Purpose | Proposed choices |
 |---|---|---|
-| Minimum excess CAGR | Require a meaningful annualized margin over the selected benchmark, not merely 0.01 percentage points | 0, 2, 5, or custom percentage points |
+| Performance window | Select the evaluation period | 3 years, 5 years, full fetched history |
+| Benchmark hurdle | Select the benchmark and required annualized lead in one control | No hurdle; beat SPY; beat QQQ; beat both; later add +2 or +5 percentage-point variants if needed |
 | Minimum benchmark beat consistency | Require outperformance across repeated periods rather than only at the endpoints | 50%, 60%, 70% of measured quarters |
 | Maximum drawdown | Reject strategies whose return came with unacceptable peak-to-trough loss | 15%, 20%, 30%, 40%, or no limit |
-| Multi-window confirmation | Require the result to hold over both 3-year and 5-year views | Off; beat selected benchmark in both |
+| Available estimate | Hide managers without enough history or the required mapping and pricing coverage | Show all; available only |
 
 The benchmark-beat consistency filter can initially use the already-computed
 quarterly beat rate. A later version should prefer rolling 12- and 36-month
 periods because isolated calendar quarters are noisy.
 
-## Recommended advanced filters
+## Evidence to display rather than filter
 
-Place these behind an **Advanced performance evidence** disclosure rather than
-in the default sidebar:
+The following metrics are useful context but add unnecessary and overlapping
+knobs when presented as filters:
 
-| Filter | Why it matters |
+| Evidence | Why it matters |
 |---|---|
-| Minimum information ratio | Measures average active return relative to tracking error against SPY or QQQ |
-| Minimum priced coverage | Lets users demand 95%, 98%, or 100% priced-value coverage |
-| Minimum rebalance intervals | Prevents thin histories from ranking beside managers with many observable filing cycles |
-| Maximum drawdown versus benchmark | Distinguishes general market crashes from unusually poor manager-sleeve downside |
-| Minimum Sharpe or Calmar ratio | Tests whether return compensated for volatility or drawdown |
-| Style-matched benchmark requirement | Avoids treating small-cap, growth, value, or sector exposure as manager skill |
+| Information ratio | Shows active return relative to tracking error against SPY or QQQ |
+| Priced coverage | Shows how much reported value was successfully mapped and priced; the availability gate retains the minimum threshold |
+| Rebalance intervals | Shows how many filing-to-filing periods support the estimate |
+| Drawdown versus benchmark | Distinguishes general market declines from unusually poor manager-sleeve downside |
+| Sharpe or Calmar ratio | Shows whether return compensated for volatility or drawdown |
+| Style-matched benchmark result | Helps distinguish manager skill from growth, value, size, or sector exposure |
 
 ## Filters requiring new performance methods
 
@@ -156,28 +159,25 @@ Do not expose these until the underlying calculations exist:
 
 ## Recommended UI structure
 
-### Performance & Benchmarking
-
-Keep the default group concise:
+Keep the **Performance & Benchmarking** group concise:
 
 1. Performance window.
-2. Benchmark.
-3. Minimum excess CAGR.
-4. Minimum benchmark beat consistency.
-5. Maximum drawdown.
-6. Require an available estimate.
+2. Benchmark hurdle.
+3. Require an available estimate.
+4. Draft benchmark beat consistency.
+5. Draft maximum drawdown.
 
-### Advanced performance evidence
-
-Use a collapsed secondary group for information ratio, coverage, minimum
-intervals, multi-window confirmation, and future style-matched benchmarks.
+Move roster-only selection beside the results search because it changes the
+manager universe rather than the performance methodology. Show information
+ratio, coverage, interval count, and benchmark-relative drawdown as result
+evidence instead of additional sidebar filters.
 
 No additional performance filter should be implemented until its exact
 definition, default, and treatment of unavailable data are approved.
 
-The Investor Screening page currently includes a disabled UI preview of these
-core and advanced controls. The preview is for criteria review only and does
-not submit values to the screening API.
+The Investor Screening page currently includes disabled previews of beat
+consistency and maximum drawdown. The previews are for criteria review only and
+do not submit values to the screening API.
 
 ## Key sources
 
