@@ -80,14 +80,14 @@
         </label>
 
         <label class="screening-field">
-            <span>Minimum top-10 concentration</span>
+            <span>Minimum share held in top 10 stocks</span>
             <div class="range-line">
                 <input id="screen-top10" type="range" min="20" max="100" step="5" value="40"
                        oninput="updateScreeningRange('screen-top10', 'screen-top10-value', '%')"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-top10-value">40%</output>
             </div>
-            <small>No upper concentration exclusion; extremes remain visible risk flags.</small>
+            <small>The selected percentage is how much of the reported direct-stock portfolio must be held in the manager's 10 largest stocks. Raise it to find more concentrated managers.</small>
         </label>
 
         <label class="screening-field">
