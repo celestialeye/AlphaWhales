@@ -576,6 +576,16 @@ def run_integrity_audit(
         if performance_file.is_file():
             performance = duckdb.connect(str(performance_file), read_only=True)
             try:
+                performance_tables = {
+                    row[0]
+                    for row in performance.execute(
+                        """
+                        SELECT table_name
+                        FROM information_schema.tables
+                        WHERE table_schema = 'main'
+                        """
+                    ).fetchall()
+                }
                 latest_performance_run = performance.execute(
                     """
                     SELECT
@@ -619,6 +629,93 @@ def run_integrity_audit(
                             "message": (
                                 f"{building_performance_runs} performance "
                                 "run(s) remain marked BUILDING"
+                            ),
+                        }
+                    )
+                state_rows = (
+                    performance.execute(
+                        """
+                        SELECT run_id, status, count(*)
+                        FROM performance_manager_state
+                        GROUP BY run_id, status
+                        ORDER BY run_id, status
+                        """
+                    ).fetchall()
+                    if "performance_manager_state" in performance_tables
+                    else []
+                )
+                checks["performance_manager_states"] = [
+                    {
+                        "run_id": run_id,
+                        "status": status,
+                        "count": count,
+                    }
+                    for run_id, status, count in state_rows
+                ]
+                invalid_complete_runs = (
+                    performance.execute(
+                        """
+                        SELECT count(*)
+                        FROM (
+                            SELECT r.run_id
+                            FROM performance_runs r
+                            JOIN performance_manager_state s USING (run_id)
+                            WHERE r.status = 'COMPLETE'
+                            GROUP BY r.run_id
+                            HAVING count(*) FILTER (
+                                WHERE s.status NOT IN (
+                                    'COMPLETE',
+                                    'EXHAUSTED'
+                                )
+                            ) > 0
+                        )
+                        """
+                    ).fetchone()[0]
+                    if state_rows
+                    else 0
+                )
+                invalid_state_cardinality = (
+                    performance.execute(
+                        """
+                        SELECT count(*)
+                        FROM (
+                            SELECT
+                                r.run_id,
+                                r.manager_count,
+                                count(s.cik) AS state_count
+                            FROM performance_runs r
+                            LEFT JOIN performance_manager_state s USING (run_id)
+                            WHERE r.status IN ('BUILDING', 'COMPLETE')
+                            GROUP BY r.run_id, r.manager_count
+                            HAVING count(s.cik) > 0
+                               AND count(s.cik) != r.manager_count
+                        )
+                        """
+                    ).fetchone()[0]
+                    if "performance_manager_state" in performance_tables
+                    else 0
+                )
+                if invalid_complete_runs:
+                    issues.append(
+                        {
+                            "severity": "ERROR",
+                            "code": "PERFORMANCE_MANAGER_STATE_INVALID",
+                            "item": str(performance_file),
+                            "message": (
+                                f"{invalid_complete_runs} COMPLETE run(s) "
+                                "contain incomplete manager checkpoints"
+                            ),
+                        }
+                    )
+                if invalid_state_cardinality:
+                    issues.append(
+                        {
+                            "severity": "ERROR",
+                            "code": "PERFORMANCE_MANAGER_STATE_COUNT_MISMATCH",
+                            "item": str(performance_file),
+                            "message": (
+                                f"{invalid_state_cardinality} active run(s) "
+                                "have manager/checkpoint count mismatches"
                             ),
                         }
                     )

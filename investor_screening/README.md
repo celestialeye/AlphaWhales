@@ -171,12 +171,15 @@ python -m investor_screening.cli refresh-integrity-metadata
 # generation, and atomically publish its pointer
 python -m investor_screening.cli refresh-screening
 
-# Build offline prices and hypothetical disclosure-lagged 13F estimates
-# for the broad size/history universe. Screening thresholds reuse these facts.
+# Build offline prices and resumable 20-quarter disclosure-lagged estimates
+# for every eligible manager. Re-running resumes incomplete manager checkpoints.
 python -m investor_screening.cli refresh-performance
+python -m investor_screening.cli refresh-performance --batch-size 10 --progress
+python -m investor_screening.cli refresh-performance --max-managers 250 --progress
+python -m investor_screening.cli refresh-performance --run-id <building-run-id> --progress
 python -m investor_screening.cli refresh-performance --minimum-size-billions 10 --as-of 2026-08-29 --window-years 5
-python -m investor_screening.cli refresh-performance --force-prices
-python -m investor_screening.cli refresh-performance --retry-no-data
+python -m investor_screening.cli refresh-performance --no-resume --force-prices
+python -m investor_screening.cli refresh-performance --no-resume --retry-no-data
 python -m investor_screening.cli performance-status
 
 # Compare one imported accession against EdgarTools' parsed filing
@@ -205,13 +208,19 @@ requested and observed ranges, row count, SHA-256, and errors in
 failed symbols individually. Normal screening reads only the immutable
 snapshot and makes no market-data request.
 
-`refresh-performance` reuses complete price files and confirmed no-data
-results. Use `--retry-no-data` for a controlled retry of previously unavailable
-symbols, or `--force-prices` to replace every requested history. A normal
-$10B/five-year production run republishes the screening snapshot with
-compatible summaries and monthly returns; diagnostic size/date/window runs do
-not replace the published performance result. Generated market data is not
-committed.
+`refresh-performance` checkpoints each manager transactionally. An interrupted
+run remains `BUILDING`; invoking the same source, as-of date, five-year window,
+size floor, and cost assumptions resumes that run and skips completed managers.
+`--max-managers` supports bounded operational batches, while `--no-resume`
+starts a separate campaign and `--run-id` resumes an explicit campaign across
+dates. Forced or no-data-retry price refreshes require a new campaign so
+completed manager checkpoints retain immutable mapping and price inputs. The
+command reuses complete price files and
+confirmed no-data results. Use `--retry-no-data` for a controlled retry of
+previously unavailable symbols, or `--force-prices` to replace requested
+histories. A completed default five-year campaign republishes the screening
+snapshot with compatible summaries and monthly returns. Generated market data
+is not committed.
 
 The screening page is available at `http://127.0.0.1:8000/screening`. Its
 default minimum reported 13F value is $10 billion, while the UI can lower or

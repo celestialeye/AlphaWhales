@@ -35,6 +35,7 @@ from investor_screening.screener import (
     ScreeningService,
     _compatible_performance_rows,
 )
+from investor_screening.performance import _mark_manager_failed
 
 
 def _add_filing(
@@ -686,7 +687,9 @@ def test_snapshot_reuses_latest_per_manager_performance_runs(tmp_path):
     }
 
 
-def test_refresh_rejects_mismatched_source_and_marks_failures(tmp_path):
+def test_refresh_rejects_mismatched_source_and_leaves_global_failures_resumable(
+    tmp_path,
+):
     source_path = tmp_path / "source.duckdb"
     duckdb.connect(str(source_path)).close()
     performance_path = tmp_path / "performance.duckdb"
@@ -738,6 +741,211 @@ def test_refresh_rejects_mismatched_source_and_marks_failures(tmp_path):
     try:
         assert store.execute(
             "SELECT status FROM performance_runs"
-        ).fetchall() == [("FAILED",)]
+        ).fetchall() == [("BUILDING",)]
+    finally:
+        store.close()
+
+
+def test_refresh_performance_resumes_completed_manager_checkpoints(tmp_path):
+    source_path = tmp_path / "source.duckdb"
+    duckdb.connect(str(source_path)).close()
+    performance_path = tmp_path / "performance.duckdb"
+    price_dir = tmp_path / "prices"
+    universe = (
+        [
+            ManagerUniverseItem("1", "Manager One", 20_000_000_000),
+            ManagerUniverseItem("2", "Manager Two", 10_000_000_000),
+        ],
+        "snapshot-fingerprint",
+        tmp_path / "snapshot.duckdb",
+    )
+
+    def price_fetcher(symbols, start_date, end_date):
+        rows = []
+        for symbol in symbols:
+            rows.extend(
+                [
+                    {"date": start_date, "symbol": symbol, "close": 100.0},
+                    {"date": end_date, "symbol": symbol, "close": 110.0},
+                ]
+            )
+        return pd.DataFrame(rows)
+
+    shared_patches = (
+        mock.patch(
+            "investor_screening.performance.load_manager_universe",
+            return_value=universe,
+        ),
+        mock.patch(
+            "investor_screening.performance.compute_source_fingerprint",
+            return_value="snapshot-fingerprint",
+        ),
+        mock.patch(
+            "investor_screening.performance.reconstruct_filing_chronology",
+            return_value=[],
+        ),
+    )
+    with shared_patches[0], shared_patches[1], shared_patches[2]:
+        first = refresh_performance(
+            source_path=source_path,
+            performance_path=performance_path,
+            price_dir=price_dir,
+            as_of=date(2025, 12, 31),
+            mapping_loader=lambda: {"000000001": "AAA"},
+            price_fetcher=price_fetcher,
+            batch_size=1,
+            max_managers=1,
+        )
+    assert first["status"] == "BUILDING"
+    assert first["manager_states"] == {
+        "PENDING": 1,
+        "BUILDING": 0,
+        "COMPLETE": 1,
+        "FAILED": 0,
+        "EXHAUSTED": 0,
+    }
+
+    with (
+        mock.patch(
+            "investor_screening.performance.load_manager_universe",
+            return_value=universe,
+        ),
+        mock.patch(
+            "investor_screening.performance.compute_source_fingerprint",
+            return_value="snapshot-fingerprint",
+        ),
+        mock.patch(
+            "investor_screening.performance.reconstruct_filing_chronology",
+            return_value=[],
+        ),
+    ):
+        second = refresh_performance(
+            source_path=source_path,
+            performance_path=performance_path,
+            price_dir=price_dir,
+            as_of=date(2025, 12, 31),
+            mapping_loader=lambda: (_ for _ in ()).throw(
+                AssertionError("frozen run mapping should be reused")
+            ),
+            price_fetcher=lambda *_: (_ for _ in ()).throw(
+                AssertionError("frozen benchmark prices should be reused")
+            ),
+            batch_size=1,
+        )
+
+    assert second["run_id"] == first["run_id"]
+    assert second["status"] == "COMPLETE"
+    assert second["processed_this_invocation"] == 1
+    assert second["manager_states"] == {
+        "PENDING": 0,
+        "BUILDING": 0,
+        "COMPLETE": 2,
+        "FAILED": 0,
+        "EXHAUSTED": 0,
+    }
+    with (
+        mock.patch(
+            "investor_screening.performance.load_manager_universe",
+            return_value=universe,
+        ),
+        mock.patch(
+            "investor_screening.performance.compute_source_fingerprint",
+            return_value="snapshot-fingerprint",
+        ),
+    ):
+        repeated = refresh_performance(
+            source_path=source_path,
+            performance_path=performance_path,
+            price_dir=price_dir,
+            as_of=date(2025, 12, 31),
+        )
+    assert repeated["run_id"] == first["run_id"]
+    assert repeated["status"] == "COMPLETE"
+    assert repeated["processed_this_invocation"] == 0
+    assert repeated["reused_complete_run"] is True
+    store = connect_performance_store(performance_path)
+    try:
+        assert store.execute(
+            """
+            SELECT cik, attempt_count, status
+            FROM performance_manager_state
+            ORDER BY cik
+            """
+        ).fetchall() == [
+            ("1", 1, "COMPLETE"),
+            ("2", 1, "COMPLETE"),
+        ]
+        assert store.execute(
+            """
+            SELECT cik, count(*)
+            FROM manager_performance
+            WHERE run_id = ?
+            GROUP BY cik
+            ORDER BY cik
+            """,
+            [first["run_id"]],
+        ).fetchall() == [("1", 3), ("2", 3)]
+        assert store.execute(
+            """
+            SELECT count(*)
+            FROM performance_run_mapping
+            WHERE run_id = ?
+            """,
+            [first["run_id"]],
+        ).fetchone()[0] == 1
+        assert store.execute(
+            """
+            SELECT count(*)
+            FROM performance_run_prices
+            WHERE run_id = ?
+            """,
+            [first["run_id"]],
+        ).fetchone()[0] == 2
+    finally:
+        store.close()
+
+
+def test_manager_failures_become_terminal_after_bounded_retries(tmp_path):
+    store = connect_performance_store(tmp_path / "performance.duckdb")
+    manager = ManagerUniverseItem("1", "Manager", 1_000_000_000)
+    try:
+        store.execute(
+            """
+            INSERT INTO performance_manager_state
+            VALUES (
+                'run', '1', 'Manager', 'PENDING', 0, NULL, NULL, NULL, now()
+            )
+            """
+        )
+        _mark_manager_failed(
+            store,
+            run_id="run",
+            manager=manager,
+            error="first",
+        )
+        assert store.execute(
+            """
+            SELECT status, attempt_count
+            FROM performance_manager_state
+            """
+        ).fetchone() == ("FAILED", 1)
+        _mark_manager_failed(
+            store,
+            run_id="run",
+            manager=manager,
+            error="second",
+        )
+        _mark_manager_failed(
+            store,
+            run_id="run",
+            manager=manager,
+            error="third",
+        )
+        assert store.execute(
+            """
+            SELECT status, attempt_count, last_error
+            FROM performance_manager_state
+            """
+        ).fetchone() == ("EXHAUSTED", 3, "third")
     finally:
         store.close()

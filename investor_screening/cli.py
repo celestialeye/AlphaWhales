@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -165,10 +166,10 @@ def build_parser() -> argparse.ArgumentParser:
     performance_parser.add_argument(
         "--minimum-size-billions",
         type=float,
-        default=10.0,
+        default=0.0,
         help=(
             "Minimum reported size for the reusable performance universe "
-            "(default: 10)"
+            "(default: 0, all eligible managers)"
         ),
     )
     performance_parser.add_argument(
@@ -181,6 +182,31 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=5,
         help="Filing and price history to calculate (default: 5)",
+    )
+    performance_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=10,
+        help="Managers reconstructed and priced per batch (default: 10)",
+    )
+    performance_parser.add_argument(
+        "--max-managers",
+        type=int,
+        help="Process at most this many pending managers, then exit resumably",
+    )
+    performance_parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Start a new campaign instead of resuming a matching BUILDING run",
+    )
+    performance_parser.add_argument(
+        "--run-id",
+        help="Resume one specific BUILDING campaign, including across dates",
+    )
+    performance_parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Print per-batch checkpoint progress to stderr",
     )
     subparsers.add_parser(
         "performance-status",
@@ -408,16 +434,26 @@ def main() -> int:
         elif args.command == "refresh-performance":
             connection.close()
             connection = None
+
+            def report_progress(progress: dict[str, object]) -> None:
+                print(json.dumps(progress, default=str), file=sys.stderr)
+
             result = refresh_performance(
                 source_path=args.database,
                 minimum_size_billions=args.minimum_size_billions,
                 as_of=args.as_of,
                 window_years=args.window_years,
+                batch_size=args.batch_size,
+                max_managers=args.max_managers,
+                resume=not args.no_resume,
+                resume_run_id=args.run_id,
                 force_prices=args.force_prices,
                 retry_no_data=args.retry_no_data,
+                progress_callback=report_progress if args.progress else None,
             )
             if (
-                args.minimum_size_billions == 10.0
+                result["status"] == "COMPLETE"
+                and args.minimum_size_billions <= 10.0
                 and args.window_years >= 5
                 and args.as_of is None
             ):

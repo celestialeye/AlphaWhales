@@ -22,6 +22,9 @@
 - Future performance refreshes use broad size/history eligibility rather than
   the active screening preset; criteria changes reuse existing performance
   facts.
+- Performance refreshes now checkpoint each manager transactionally, process
+  bounded chronology/price batches, and resume matching incomplete campaigns
+  without repeating completed managers.
 
 ## 2026-08-29 - Ticker sentiment and market context
 

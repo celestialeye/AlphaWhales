@@ -39,6 +39,7 @@ METHODOLOGY_VERSION = "13f-disclosure-lag-v1"
 MINIMUM_COVERAGE = 0.95
 MAX_PRICE_BATCH_SIZE = 30
 MAX_FORWARD_FILL_SESSIONS = 5
+MAX_MANAGER_ATTEMPTS = 3
 NON_COMMON_INSTRUMENT_PATTERN = re.compile(
     r"\b(WARRANTS?|RIGHTS?|UNITS?|PREFERRED|PFD|NOTES?|BONDS?|"
     r"DEBENTURES?|DEBT|CONVERTIBLE)\b",
@@ -64,6 +65,54 @@ CREATE TABLE IF NOT EXISTS performance_runs (
     manager_count INTEGER NOT NULL,
     started_at TIMESTAMPTZ NOT NULL,
     completed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS performance_manager_state (
+    run_id VARCHAR NOT NULL,
+    cik VARCHAR NOT NULL,
+    manager_name VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    last_error VARCHAR,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (run_id, cik)
+);
+
+CREATE TABLE IF NOT EXISTS performance_run_universe (
+    run_id VARCHAR NOT NULL,
+    cik VARCHAR NOT NULL,
+    manager_name VARCHAR NOT NULL,
+    median_reported_value_4q DOUBLE NOT NULL,
+    PRIMARY KEY (run_id, cik)
+);
+
+CREATE TABLE IF NOT EXISTS performance_run_mapping (
+    run_id VARCHAR NOT NULL,
+    cusip VARCHAR NOT NULL,
+    ticker VARCHAR NOT NULL,
+    market_symbol VARCHAR NOT NULL,
+    source VARCHAR NOT NULL,
+    retrieved_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (run_id, cusip)
+);
+
+CREATE TABLE IF NOT EXISTS performance_run_options (
+    run_id VARCHAR PRIMARY KEY,
+    implicit_as_of BOOLEAN NOT NULL,
+    publish_on_complete BOOLEAN NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS performance_run_prices (
+    run_id VARCHAR NOT NULL,
+    symbol VARCHAR NOT NULL,
+    min_date DATE NOT NULL,
+    max_date DATE NOT NULL,
+    parquet_path VARCHAR NOT NULL,
+    parquet_sha256 VARCHAR NOT NULL,
+    row_count BIGINT NOT NULL,
+    PRIMARY KEY (run_id, symbol)
 );
 
 CREATE TABLE IF NOT EXISTS cusip_ticker_mapping (
@@ -294,12 +343,18 @@ def refresh_cusip_ticker_mapping(
     connection: duckdb.DuckDBPyConnection,
     *,
     mapping_loader: Callable[[], object] | None = None,
+    minimum_rows: int = 1,
 ) -> dict[str, str]:
     if mapping_loader is None:
         from edgar.reference.tickers import cusip_ticker_mapping
 
         mapping_loader = cusip_ticker_mapping
     rows = _mapping_rows(mapping_loader())
+    if len(rows) < minimum_rows:
+        raise ValueError(
+            "EdgarTools CUSIP mapping returned "
+            f"{len(rows)} usable rows; expected at least {minimum_rows}"
+        )
     retrieved_at = datetime.now(timezone.utc)
     connection.execute("BEGIN TRANSACTION")
     try:
@@ -443,6 +498,9 @@ def _eligible_positions(
 def reconstruct_filing_chronology(
     connection: duckdb.DuckDBPyConnection,
     managers: Sequence[ManagerUniverseItem],
+    *,
+    minimum_filing_date: date | None = None,
+    maximum_filing_date: date | None = None,
 ) -> list[PortfolioEvent]:
     """Reconstruct the portfolio known after each filing, in filing-time order."""
     if not managers:
@@ -450,6 +508,19 @@ def reconstruct_filing_chronology(
     manager_by_cik = {manager.cik: manager for manager in managers}
     canonical_by_source, source_ciks = _source_ciks_by_canonical(managers)
     placeholders = ",".join("?" for _ in source_ciks)
+    date_conditions = []
+    filing_params: list[object] = sorted(source_ciks)
+    if minimum_filing_date is not None:
+        date_conditions.append("s.filing_date >= ?")
+        filing_params.append(minimum_filing_date)
+    if maximum_filing_date is not None:
+        date_conditions.append("s.filing_date <= ?")
+        filing_params.append(maximum_filing_date)
+    date_clause = (
+        " AND " + " AND ".join(date_conditions)
+        if date_conditions
+        else ""
+    )
     filing_rows = connection.execute(
         f"""
         SELECT
@@ -463,9 +534,10 @@ def reconstruct_filing_chronology(
         LEFT JOIN cover_pages cp USING (accession_number)
         WHERE s.submission_type IN ('13F-HR', '13F-HR/A')
           AND s.cik IN ({placeholders})
+          {date_clause}
         ORDER BY s.filing_date, s.accession_number
         """,
-        sorted(source_ciks),
+        filing_params,
     ).fetchall()
     if not filing_rows:
         return []
@@ -701,11 +773,16 @@ def _write_symbol_prices(
     requested_end: date,
 ) -> None:
     price_dir.mkdir(parents=True, exist_ok=True)
-    output = price_dir / f"{_safe_symbol_filename(symbol)}.parquet"
-    partial = output.with_suffix(".parquet.partial")
+    partial = price_dir / f"{_safe_symbol_filename(symbol)}.{uuid.uuid4().hex}.partial"
     frame.to_parquet(partial, index=False, compression="zstd")
-    os.replace(partial, output)
-    digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    digest = hashlib.sha256(partial.read_bytes()).hexdigest()
+    output = price_dir / (
+        f"{_safe_symbol_filename(symbol)}.{digest[:16]}.parquet"
+    )
+    if output.is_file():
+        partial.unlink()
+    else:
+        os.replace(partial, output)
     _record_price_manifest(
         connection,
         symbol=symbol,
@@ -910,9 +987,37 @@ def load_cached_prices(
             continue
         path = Path(row[1])
         if not path.is_file():
+            connection.execute(
+                """
+                UPDATE price_manifest
+                SET status = 'ERROR',
+                    error = ?,
+                    updated_at = ?
+                WHERE symbol = ?
+                """,
+                [
+                    f"Price cache file is missing: {path}",
+                    datetime.now(timezone.utc),
+                    symbol,
+                ],
+            )
             raise FileNotFoundError(f"Price cache file is missing for {symbol}: {path}")
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != row[2]:
+            connection.execute(
+                """
+                UPDATE price_manifest
+                SET status = 'ERROR',
+                    error = ?,
+                    updated_at = ?
+                WHERE symbol = ?
+                """,
+                [
+                    "Price cache hash mismatch",
+                    datetime.now(timezone.utc),
+                    symbol,
+                ],
+            )
             raise ValueError(f"Price cache hash mismatch for {symbol}")
         frame = pd.read_parquet(path, columns=["date", "symbol", "close"])
         if set(frame["symbol"].astype(str).unique()) != {symbol}:
@@ -927,6 +1032,80 @@ def load_cached_prices(
         if series.isna().any() or (series <= 0).any():
             raise ValueError(f"Price cache contains unusable closes for {symbol}")
         prices[symbol] = series[~series.index.duplicated(keep="last")]
+    return prices
+
+
+def _freeze_run_prices(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    run_id: str,
+    symbols: Sequence[str],
+) -> None:
+    if not symbols:
+        return
+    placeholders = ",".join("?" for _ in symbols)
+    connection.execute(
+        f"""
+        INSERT OR IGNORE INTO performance_run_prices
+        SELECT ?, symbol, min_date, max_date, parquet_path, parquet_sha256,
+               row_count
+        FROM price_manifest
+        WHERE symbol IN ({placeholders})
+          AND status = 'READY'
+          AND min_date IS NOT NULL
+          AND max_date IS NOT NULL
+          AND parquet_path IS NOT NULL
+          AND parquet_sha256 IS NOT NULL
+        """,
+        [run_id, *symbols],
+    )
+
+
+def _load_run_prices(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    run_id: str,
+    symbols: Sequence[str],
+) -> dict[str, pd.Series]:
+    prices: dict[str, pd.Series] = {}
+    if not symbols:
+        return prices
+    placeholders = ",".join("?" for _ in symbols)
+    rows = connection.execute(
+        f"""
+        SELECT symbol, parquet_path, parquet_sha256
+        FROM performance_run_prices
+        WHERE run_id = ? AND symbol IN ({placeholders})
+        ORDER BY symbol
+        """,
+        [run_id, *symbols],
+    ).fetchall()
+    for symbol, raw_path, expected_hash in rows:
+        path = Path(raw_path)
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Frozen price file is missing for {symbol}: {path}"
+            )
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != expected_hash:
+            raise ValueError(f"Frozen price hash mismatch for {symbol}")
+        frame = pd.read_parquet(path, columns=["date", "symbol", "close"])
+        if set(frame["symbol"].astype(str).unique()) != {symbol}:
+            raise ValueError(f"Frozen price symbol mismatch for {symbol}")
+        index = pd.Index(pd.to_datetime(frame["date"]).dt.date, name="date")
+        series = pd.Series(
+            pd.to_numeric(frame["close"], errors="coerce").to_numpy(),
+            index=index,
+            name=symbol,
+            dtype=float,
+        ).sort_index()
+        if series.isna().any() or (series <= 0).any():
+            raise ValueError(
+                f"Frozen price cache contains unusable closes for {symbol}"
+            )
+        prices[str(symbol)] = series[
+            ~series.index.duplicated(keep="last")
+        ]
     return prices
 
 
@@ -1280,35 +1459,511 @@ def _subtract_years(value: date, years: int) -> date:
         return value.replace(year=value.year - years, day=28)
 
 
+def _select_events_for_window(
+    events: Sequence[PortfolioEvent],
+    *,
+    calculation_start: date,
+    requested_as_of: date,
+) -> list[PortfolioEvent]:
+    selected: list[PortfolioEvent] = []
+    before = [
+        event for event in events if event.filing_date < calculation_start
+    ]
+    if before:
+        selected.append(before[-1])
+    selected.extend(
+        event
+        for event in events
+        if calculation_start <= event.filing_date <= requested_as_of
+    )
+    return selected
+
+
+def _manager_state_counts(
+    connection: duckdb.DuckDBPyConnection,
+    run_id: str,
+) -> dict[str, int]:
+    counts = dict(
+        connection.execute(
+            """
+            SELECT status, count(*)
+            FROM performance_manager_state
+            WHERE run_id = ?
+            GROUP BY status
+            """,
+            [run_id],
+        ).fetchall()
+    )
+    return {
+        status: int(counts.get(status, 0))
+        for status in (
+            "PENDING",
+            "BUILDING",
+            "COMPLETE",
+            "FAILED",
+            "EXHAUSTED",
+        )
+    }
+
+
+def _mark_manager_failed(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    run_id: str,
+    manager: ManagerUniverseItem,
+    error: object,
+    increment_attempt: bool = True,
+) -> None:
+    failed_at = datetime.now(timezone.utc)
+    connection.execute(
+        """
+        UPDATE performance_manager_state
+        SET status = CASE
+                WHEN attempt_count + ? >= ? THEN 'EXHAUSTED'
+                ELSE 'FAILED'
+            END,
+            attempt_count = attempt_count + ?,
+            last_error = ?,
+            completed_at = ?,
+            updated_at = ?
+        WHERE run_id = ? AND cik = ?
+        """,
+        [
+            int(increment_attempt),
+            MAX_MANAGER_ATTEMPTS,
+            int(increment_attempt),
+            str(error),
+            failed_at,
+            failed_at,
+            run_id,
+            manager.cik,
+        ],
+    )
+
+
+def _persist_manager_performance(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    run_id: str,
+    manager: ManagerUniverseItem,
+    manager_events: Sequence[PortfolioEvent],
+    latest_end: date,
+    prices: Mapping[str, pd.Series],
+    mapping: Mapping[str, str],
+    ticker_by_cusip: Mapping[str, str],
+    cost_bps: float,
+    calculation_start: date,
+) -> None:
+    started_at = datetime.now(timezone.utc)
+    try:
+        connection.execute("BEGIN TRANSACTION")
+        connection.execute(
+            """
+            UPDATE performance_manager_state
+            SET status = 'BUILDING',
+                attempt_count = attempt_count + 1,
+                last_error = NULL,
+                started_at = ?,
+                completed_at = NULL,
+                updated_at = ?
+            WHERE run_id = ? AND cik = ?
+            """,
+            [started_at, started_at, run_id, manager.cik],
+        )
+        for table_name in (
+            "performance_events",
+            "performance_event_positions",
+            "performance_intervals",
+            "monthly_returns",
+            "manager_performance",
+        ):
+            connection.execute(
+                f"DELETE FROM {table_name} WHERE run_id = ? AND cik = ?",
+                [run_id, manager.cik],
+            )
+
+        interval_results: list[IntervalResult] = []
+        for index, event in enumerate(manager_events):
+            assert event.execution_date is not None
+            end = (
+                manager_events[index + 1].execution_date
+                if index + 1 < len(manager_events)
+                else latest_end
+            )
+            assert end is not None
+            mapping_coverage = (
+                sum(
+                    position.reported_value
+                    for position in event.positions
+                    if position.cusip in mapping
+                )
+                / event.eligible_value
+                if event.eligible_value > 0
+                else 0.0
+            )
+            connection.execute(
+                """
+                INSERT INTO performance_events
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    run_id,
+                    manager.cik,
+                    index,
+                    event.report_period,
+                    event.filing_date,
+                    event.execution_date,
+                    event.triggering_accession,
+                    json.dumps(event.effective_accessions),
+                    event.eligible_value,
+                    mapping_coverage,
+                ],
+            )
+            position_rows = [
+                (
+                    run_id,
+                    manager.cik,
+                    index,
+                    position.cusip,
+                    ticker_by_cusip.get(position.cusip)
+                    if position.cusip
+                    else None,
+                    mapping.get(position.cusip) if position.cusip else None,
+                    position.reported_value,
+                )
+                for position in event.positions
+            ]
+            if position_rows:
+                connection.executemany(
+                    """
+                    INSERT INTO performance_event_positions
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    position_rows,
+                )
+            result = calculate_interval(event, end, prices, mapping)
+            interval_results.append(result)
+            connection.execute(
+                """
+                INSERT INTO performance_intervals
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    run_id,
+                    manager.cik,
+                    index,
+                    result.start_date,
+                    result.end_date,
+                    cost_bps,
+                    result.status,
+                    result.mapping_coverage,
+                    result.priced_coverage,
+                    result.estimated_return,
+                    result.unavailable_reason,
+                ],
+            )
+
+        manager_nav, spy_nav, qqq_nav = _chain_available_tail(
+            interval_results,
+            prices,
+            cost_bps=cost_bps,
+        )
+        monthly_index = [
+            item for item in manager_nav.index if item >= calculation_start
+        ]
+        monthly = _monthly_rows(
+            manager_nav.loc[monthly_index],
+            spy_nav.loc[monthly_index],
+            qqq_nav.loc[monthly_index],
+        )
+        if monthly:
+            connection.executemany(
+                """
+                INSERT INTO monthly_returns
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        run_id,
+                        manager.cik,
+                        month,
+                        cost_bps,
+                        estimate,
+                        spy,
+                        qqq,
+                    )
+                    for month, estimate, spy, qqq in monthly
+                ],
+            )
+        for window in ("3Y", "5Y", "FULL"):
+            metrics = calculate_summary_metrics(
+                manager_nav,
+                spy_nav,
+                qqq_nav,
+                interval_results,
+                window=window,
+                end_date=latest_end,
+                window_start=calculation_start,
+            )
+            connection.execute(
+                """
+                INSERT INTO manager_performance
+                VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?
+                )
+                """,
+                [
+                    run_id,
+                    manager.cik,
+                    window,
+                    cost_bps,
+                    metrics["status"],
+                    metrics.get("start_date"),
+                    metrics.get("end_date"),
+                    metrics.get("years"),
+                    metrics.get("estimated_cagr"),
+                    metrics.get("spy_cagr"),
+                    metrics.get("qqq_cagr"),
+                    metrics.get("spy_excess_cagr"),
+                    metrics.get("qqq_excess_cagr"),
+                    metrics.get("max_drawdown"),
+                    metrics.get("monthly_sharpe_rf0"),
+                    metrics.get("spy_information_ratio"),
+                    metrics.get("qqq_information_ratio"),
+                    metrics.get("spy_quarterly_beat_rate"),
+                    metrics.get("qqq_quarterly_beat_rate"),
+                    metrics.get("mapping_coverage"),
+                    metrics.get("priced_coverage"),
+                    metrics["interval_count"],
+                    metrics.get("unavailable_reason"),
+                    PERFORMANCE_LABEL,
+                    PERFORMANCE_DISCLAIMER,
+                ],
+            )
+        completed_at = datetime.now(timezone.utc)
+        connection.execute(
+            """
+            UPDATE performance_manager_state
+            SET status = 'COMPLETE',
+                completed_at = ?,
+                updated_at = ?
+            WHERE run_id = ? AND cik = ?
+            """,
+            [completed_at, completed_at, run_id, manager.cik],
+        )
+        connection.execute("COMMIT")
+    except Exception as exc:
+        try:
+            connection.execute("ROLLBACK")
+        except duckdb.Error:
+            pass
+        _mark_manager_failed(
+            connection,
+            run_id=run_id,
+            manager=manager,
+            error=exc,
+            increment_attempt=True,
+        )
+
+
+def _process_manager_batch(
+    source: duckdb.DuckDBPyConnection,
+    store: duckdb.DuckDBPyConnection,
+    *,
+    run_id: str,
+    managers: Sequence[ManagerUniverseItem],
+    requested_as_of: date,
+    calculation_start: date,
+    latest_end: date,
+    spy_sessions: Sequence[date],
+    mapping: Mapping[str, str],
+    ticker_by_cusip: Mapping[str, str],
+    price_dir: str | Path,
+    force_prices: bool,
+    force_refreshed_symbols: set[str],
+    retry_no_data: bool,
+    cost_bps: float,
+    price_fetcher: PriceFetcher | None,
+) -> None:
+    raw_events = reconstruct_filing_chronology(
+        source,
+        managers,
+        minimum_filing_date=calculation_start - timedelta(days=400),
+        maximum_filing_date=requested_as_of,
+    )
+    raw_by_manager: defaultdict[str, list[PortfolioEvent]] = defaultdict(list)
+    for event in raw_events:
+        raw_by_manager[event.cik].append(event)
+    selected_by_manager = {
+        manager.cik: _select_events_for_window(
+            raw_by_manager.get(manager.cik, []),
+            calculation_start=calculation_start,
+            requested_as_of=requested_as_of,
+        )
+        for manager in managers
+    }
+    symbols = {
+        mapping[position.cusip]
+        for manager_events in selected_by_manager.values()
+        for event in manager_events
+        for position in event.positions
+        if position.cusip in mapping
+    }
+    symbols.update({"SPY", "QQQ"})
+    price_start = calculation_start - timedelta(days=400)
+    frozen_symbols = {
+        str(symbol)
+        for (symbol,) in store.execute(
+            """
+            SELECT symbol
+            FROM performance_run_prices
+            WHERE run_id = ?
+            """,
+            [run_id],
+        ).fetchall()
+    }
+    unfrozen_symbols = symbols - frozen_symbols
+    if force_prices:
+        new_force_symbols = sorted(
+            unfrozen_symbols - force_refreshed_symbols
+        )
+        if new_force_symbols:
+            refresh_price_cache(
+                store,
+                new_force_symbols,
+                start_date=price_start,
+                end_date=requested_as_of,
+                price_dir=price_dir,
+                force=True,
+                retry_no_data=retry_no_data,
+                fetcher=price_fetcher,
+            )
+            force_refreshed_symbols.update(new_force_symbols)
+    statuses = refresh_price_cache(
+        store,
+        sorted(unfrozen_symbols),
+        start_date=price_start,
+        end_date=requested_as_of,
+        price_dir=price_dir,
+        force=False,
+        retry_no_data=retry_no_data,
+        fetcher=price_fetcher,
+    )
+    _freeze_run_prices(
+        store,
+        run_id=run_id,
+        symbols=sorted(unfrozen_symbols),
+    )
+    prices = _load_run_prices(
+        store,
+        run_id=run_id,
+        symbols=sorted(symbols),
+    )
+    statuses.update(
+        {
+            symbol: "READY"
+            for symbol in frozen_symbols
+            if symbol in symbols
+        }
+    )
+    executable = assign_and_consolidate_execution_dates(
+        [
+            event
+            for manager_events in selected_by_manager.values()
+            for event in manager_events
+        ],
+        spy_sessions,
+    )
+    executable_by_manager: defaultdict[str, list[PortfolioEvent]] = defaultdict(
+        list
+    )
+    for event in executable:
+        if event.execution_date and event.execution_date <= latest_end:
+            executable_by_manager[event.cik].append(event)
+
+    transient_symbols = {
+        symbol
+        for symbol, status in statuses.items()
+        if status in {"ERROR", "MISSING"}
+    }
+    for manager in managers:
+        manager_events = executable_by_manager.get(manager.cik, [])
+        blocked_exposure = max(
+            (
+                sum(
+                    position.reported_value
+                    for position in event.positions
+                    if mapping.get(position.cusip) in transient_symbols
+                )
+                / event.eligible_value
+                for event in manager_events
+                if event.eligible_value > 0
+            ),
+            default=0.0,
+        )
+        if blocked_exposure > 1 - MINIMUM_COVERAGE:
+            _mark_manager_failed(
+                store,
+                run_id=run_id,
+                manager=manager,
+                error=(
+                    "Transient price failures affect "
+                    f"{blocked_exposure:.2%} of an eligible interval"
+                ),
+            )
+            continue
+        _persist_manager_performance(
+            store,
+            run_id=run_id,
+            manager=manager,
+            manager_events=manager_events,
+            latest_end=latest_end,
+            prices=prices,
+            mapping=mapping,
+            ticker_by_cusip=ticker_by_cusip,
+            cost_bps=cost_bps,
+            calculation_start=calculation_start,
+        )
+
+
 def refresh_performance(
     *,
     source_path: str | Path = DEFAULT_DATABASE_PATH,
     snapshot_path: str | Path = DEFAULT_SNAPSHOT_POINTER,
     performance_path: str | Path = DEFAULT_PERFORMANCE_PATH,
     price_dir: str | Path = DEFAULT_PRICE_DIR,
-    minimum_size_billions: float = 10.0,
+    minimum_size_billions: float = 0.0,
     as_of: date | None = None,
     window_years: int = 5,
+    batch_size: int = 10,
+    max_managers: int | None = None,
+    resume: bool = True,
+    resume_run_id: str | None = None,
     force_prices: bool = False,
     retry_no_data: bool = False,
     cost_bps: float = 0.0,
     mapping_loader: Callable[[], object] | None = None,
     price_fetcher: PriceFetcher | None = None,
+    progress_callback: Callable[[dict[str, object]], None] | None = None,
 ) -> dict[str, object]:
     if window_years < 1:
         raise ValueError("window_years must be at least 1")
+    if batch_size < 1:
+        raise ValueError("batch_size must be at least 1")
+    if max_managers is not None and max_managers < 1:
+        raise ValueError("max_managers must be at least 1")
+    if resume_run_id and not resume:
+        raise ValueError("resume_run_id cannot be combined with resume=False")
     if cost_bps < 0:
         raise ValueError("cost_bps cannot be negative")
-    requested_as_of = as_of or date.today()
     managers, fingerprint, generation = load_manager_universe(
         snapshot_path,
         minimum_size_billions=minimum_size_billions,
     )
     store = connect_performance_store(performance_path)
     source = duckdb.connect(str(Path(source_path).resolve()), read_only=True)
-    run_id = uuid.uuid4().hex
     started_at = datetime.now(timezone.utc)
-    run_created = False
     try:
         source_fingerprint = compute_source_fingerprint(source)
         if source_fingerprint != fingerprint:
@@ -1316,271 +1971,500 @@ def refresh_performance(
                 "Performance source database does not match the screening "
                 "snapshot fingerprint"
             )
-        store.execute(
-            """
-            UPDATE performance_runs
-            SET status = 'FAILED', completed_at = ?
-            WHERE status = 'BUILDING'
-            """,
-            [started_at],
-        )
-        store.execute(
-            """
-            INSERT INTO performance_runs
-            VALUES (?, 'BUILDING', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL)
-            """,
-            [
-                run_id,
+        run = None
+        if resume:
+            run_id_filter = "AND r.run_id = ?" if resume_run_id else ""
+            date_filter = "AND r.requested_as_of = ?" if as_of is not None else ""
+            implicit_filter = (
+                "AND o.implicit_as_of" if as_of is None and not resume_run_id else ""
+            )
+            run_params: list[object] = [
                 METHODOLOGY_VERSION,
-                PERFORMANCE_LABEL,
-                PERFORMANCE_DISCLAIMER,
                 fingerprint,
-                str(generation),
-                str(Path(source_path).resolve()),
-                requested_as_of,
                 window_years,
                 minimum_size_billions,
                 cost_bps,
-                len(managers),
-                started_at,
-            ],
+            ]
+            if resume_run_id:
+                run_params.append(resume_run_id)
+            if as_of is not None:
+                run_params.append(as_of)
+            run = store.execute(
+                f"""
+                SELECT r.run_id, r.requested_as_of, r.source_database
+                FROM performance_runs r
+                LEFT JOIN performance_run_options o USING (run_id)
+                WHERE r.status = 'BUILDING'
+                  AND r.methodology_version = ?
+                  AND r.screening_source_fingerprint = ?
+                  AND r.window_years = ?
+                  AND coalesce(r.minimum_size_billions, 0) = ?
+                  AND r.cost_bps = ?
+                  {run_id_filter}
+                  {date_filter}
+                  {implicit_filter}
+                ORDER BY r.started_at DESC
+                LIMIT 1
+                """,
+                run_params,
+            ).fetchone()
+            if resume_run_id and run is None:
+                raise ValueError(
+                    f"No matching BUILDING performance run: {resume_run_id}"
+                )
+            if run is None and resume_run_id is None:
+                completed_as_of = as_of or date.today()
+                completed = store.execute(
+                    """
+                    SELECT r.run_id, r.latest_end_date
+                    FROM performance_runs r
+                    JOIN (
+                        SELECT
+                            run_id,
+                            count(*) AS state_count,
+                            count(*) FILTER (
+                                WHERE status IN ('COMPLETE', 'EXHAUSTED')
+                            ) AS terminal_count
+                        FROM performance_manager_state
+                        GROUP BY run_id
+                    ) s USING (run_id)
+                    WHERE r.status = 'COMPLETE'
+                      AND r.methodology_version = ?
+                      AND r.screening_source_fingerprint = ?
+                      AND r.requested_as_of = ?
+                      AND r.window_years = ?
+                      AND coalesce(r.minimum_size_billions, 0) = ?
+                      AND r.cost_bps = ?
+                      AND r.source_database = ?
+                      AND s.state_count = r.manager_count
+                      AND s.terminal_count = r.manager_count
+                    ORDER BY r.completed_at DESC
+                    LIMIT 1
+                    """,
+                    [
+                        METHODOLOGY_VERSION,
+                        fingerprint,
+                        completed_as_of,
+                        window_years,
+                        minimum_size_billions,
+                        cost_bps,
+                        str(Path(source_path).resolve()),
+                    ],
+                ).fetchone()
+                if completed:
+                    completed_run_id = str(completed[0])
+                    available = store.execute(
+                        """
+                        SELECT count(*)
+                        FROM manager_performance
+                        WHERE run_id = ?
+                          AND "window" = '5Y'
+                          AND status = 'AVAILABLE'
+                        """,
+                        [completed_run_id],
+                    ).fetchone()[0]
+                    return {
+                        "run_id": completed_run_id,
+                        "status": "COMPLETE",
+                        "manager_count": len(managers),
+                        "processed_this_invocation": 0,
+                        "manager_states": _manager_state_counts(
+                            store,
+                            completed_run_id,
+                        ),
+                        "available_5y_count": available,
+                        "latest_end_date": completed[1],
+                        "performance_path": str(
+                            Path(performance_path).resolve()
+                        ),
+                        "price_dir": str(Path(price_dir).resolve()),
+                        "label": PERFORMANCE_LABEL,
+                        "disclaimer": PERFORMANCE_DISCLAIMER,
+                        "reused_complete_run": True,
+                    }
+        if run:
+            run_id = str(run[0])
+            requested_as_of = run[1]
+            if Path(str(run[2])).resolve() != Path(source_path).resolve():
+                raise ValueError(
+                    "Matching performance campaign uses a different source "
+                    "database"
+                )
+            new_run = False
+        else:
+            run_id = uuid.uuid4().hex
+            requested_as_of = as_of or date.today()
+            new_run = True
+        expected_universe = {
+            manager.cik: manager
+            for manager in managers
+        }
+        stored_universe = {
+            str(cik)
+            for (cik,) in store.execute(
+                """
+                SELECT cik
+                FROM performance_run_universe
+                WHERE run_id = ?
+                """,
+                [run_id],
+            ).fetchall()
+        }
+        if stored_universe and stored_universe != set(expected_universe):
+            raise ValueError(
+                "Matching performance campaign has a different manager "
+                "universe"
+            )
+        if new_run or not stored_universe:
+            store.execute("BEGIN TRANSACTION")
+            try:
+                if new_run:
+                    store.execute(
+                        """
+                        INSERT INTO performance_runs
+                        VALUES (
+                            ?, 'BUILDING', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?,
+                            ?, ?, NULL
+                        )
+                        """,
+                        [
+                            run_id,
+                            METHODOLOGY_VERSION,
+                            PERFORMANCE_LABEL,
+                            PERFORMANCE_DISCLAIMER,
+                            fingerprint,
+                            str(generation),
+                            str(Path(source_path).resolve()),
+                            requested_as_of,
+                            window_years,
+                            minimum_size_billions,
+                            cost_bps,
+                            len(managers),
+                            started_at,
+                        ],
+                    )
+                store.execute(
+                    """
+                    INSERT OR IGNORE INTO performance_run_options
+                    VALUES (?, ?, true)
+                    """,
+                    [run_id, as_of is None],
+                )
+                store.executemany(
+                    """
+                    INSERT OR IGNORE INTO performance_run_universe
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            run_id,
+                            manager.cik,
+                            manager.manager_name,
+                            manager.median_reported_value_4q,
+                        )
+                        for manager in managers
+                    ],
+                )
+                store.executemany(
+                    """
+                    INSERT OR IGNORE INTO performance_manager_state
+                    VALUES (?, ?, ?, 'PENDING', 0, NULL, NULL, NULL, ?)
+                    """,
+                    [
+                        (
+                            run_id,
+                            manager.cik,
+                            manager.manager_name,
+                            started_at,
+                        )
+                        for manager in managers
+                    ],
+                )
+                store.execute("COMMIT")
+            except duckdb.Error:
+                store.execute("ROLLBACK")
+                raise
+        state_count = store.execute(
+            """
+            SELECT count(*)
+            FROM performance_manager_state
+            WHERE run_id = ?
+            """,
+            [run_id],
+        ).fetchone()[0]
+        if state_count != len(managers):
+            raise ValueError(
+                "Performance campaign checkpoint count does not match its "
+                "manager universe"
+            )
+        store.execute(
+            """
+            INSERT OR IGNORE INTO performance_run_options
+            VALUES (?, ?, true)
+            """,
+            [run_id, as_of is None],
         )
-        run_created = True
-        mapping = refresh_cusip_ticker_mapping(
-            store, mapping_loader=mapping_loader
+        store.execute(
+            """
+            UPDATE performance_manager_state
+            SET status = 'PENDING',
+                attempt_count = greatest(attempt_count - 1, 0),
+                last_error = 'Recovered interrupted manager transaction',
+                started_at = NULL,
+                completed_at = NULL,
+                updated_at = ?
+            WHERE run_id = ? AND status = 'BUILDING'
+            """,
+            [started_at, run_id],
+        )
+        if (force_prices or retry_no_data) and not new_run:
+            raise ValueError(
+                "--force-prices and --retry-no-data require --no-resume so "
+                "completed manager checkpoints remain immutable"
+            )
+        run_mapping_count = store.execute(
+            """
+            SELECT count(*)
+            FROM performance_run_mapping
+            WHERE run_id = ?
+            """,
+            [run_id],
+        ).fetchone()[0]
+        if not run_mapping_count:
+            refresh_cusip_ticker_mapping(
+                store,
+                mapping_loader=mapping_loader,
+                minimum_rows=1000 if mapping_loader is None else 1,
+            )
+            store.execute("BEGIN TRANSACTION")
+            try:
+                store.execute(
+                    """
+                    INSERT INTO performance_run_mapping
+                    SELECT ?, cusip, ticker, market_symbol, source, retrieved_at
+                    FROM cusip_ticker_mapping
+                    """,
+                    [run_id],
+                )
+                store.execute("COMMIT")
+            except duckdb.Error:
+                store.execute("ROLLBACK")
+                raise
+        mapping = dict(
+            store.execute(
+                """
+                SELECT cusip, market_symbol
+                FROM performance_run_mapping
+                WHERE run_id = ?
+                """,
+                [run_id],
+            ).fetchall()
         )
         ticker_by_cusip = dict(
             store.execute(
-                "SELECT cusip, ticker FROM cusip_ticker_mapping"
+                """
+                SELECT cusip, ticker
+                FROM performance_run_mapping
+                WHERE run_id = ?
+                """,
+                [run_id],
             ).fetchall()
         )
-        all_events = reconstruct_filing_chronology(source, managers)
-        events_by_manager: dict[str, list[PortfolioEvent]] = defaultdict(list)
-        for event in all_events:
-            events_by_manager[event.cik].append(event)
         calculation_start = _subtract_years(requested_as_of, window_years)
-        selected_events: list[PortfolioEvent] = []
-        for manager in managers:
-            manager_events = events_by_manager.get(manager.cik, [])
-            before = [
-                event
-                for event in manager_events
-                if event.filing_date < calculation_start
-            ]
-            if before:
-                selected_events.append(before[-1])
-            selected_events.extend(
-                event
-                for event in manager_events
-                if event.filing_date >= calculation_start
-                and event.filing_date <= requested_as_of
+        run_price_count = store.execute(
+            """
+            SELECT count(*)
+            FROM performance_run_prices
+            WHERE run_id = ?
+            """,
+            [run_id],
+        ).fetchone()[0]
+        if not new_run and run_price_count == 0:
+            store.execute(
+                """
+                UPDATE performance_manager_state
+                SET status = 'PENDING',
+                    completed_at = NULL,
+                    updated_at = ?
+                WHERE run_id = ? AND status = 'COMPLETE'
+                """,
+                [started_at, run_id],
             )
-
-        symbols = {
-            mapping[position.cusip]
-            for event in selected_events
-            for position in event.positions
-            if position.cusip in mapping
+        frozen_benchmarks = {
+            str(symbol)
+            for (symbol,) in store.execute(
+                """
+                SELECT symbol
+                FROM performance_run_prices
+                WHERE run_id = ? AND symbol IN ('SPY', 'QQQ')
+                """,
+                [run_id],
+            ).fetchall()
         }
-        symbols.update({"SPY", "QQQ"})
-        first_filing = min(
-            (event.filing_date for event in selected_events),
-            default=calculation_start,
-        )
+        missing_benchmarks = sorted({"SPY", "QQQ"} - frozen_benchmarks)
         refresh_price_cache(
             store,
-            sorted(symbols),
-            start_date=first_filing - timedelta(days=10),
+            missing_benchmarks,
+            start_date=calculation_start - timedelta(days=400),
             end_date=requested_as_of,
             price_dir=price_dir,
             force=force_prices,
             retry_no_data=retry_no_data,
             fetcher=price_fetcher,
         )
-        prices = load_cached_prices(store, sorted(symbols))
-        if "SPY" not in prices or "QQQ" not in prices:
+        _freeze_run_prices(
+            store,
+            run_id=run_id,
+            symbols=missing_benchmarks,
+        )
+        benchmark_prices = _load_run_prices(
+            store,
+            run_id=run_id,
+            symbols=["SPY", "QQQ"],
+        )
+        if "SPY" not in benchmark_prices or "QQQ" not in benchmark_prices:
             raise RuntimeError(
                 "SPY and QQQ must both have READY price caches before calculation"
             )
+        benchmark_bounds = {
+            str(symbol): (min_date, max_date)
+            for symbol, min_date, max_date in store.execute(
+                """
+                SELECT symbol, min_date, max_date
+                FROM performance_run_prices
+                WHERE run_id = ? AND symbol IN ('SPY', 'QQQ')
+                """,
+                [run_id],
+            ).fetchall()
+        }
+        for symbol in ("SPY", "QQQ"):
+            min_date, max_date = benchmark_bounds[symbol]
+            if min_date > calculation_start:
+                raise RuntimeError(
+                    f"{symbol} price history does not cover calculation start"
+                )
+            if (requested_as_of - max_date).days > 7:
+                raise RuntimeError(
+                    f"{symbol} price history is stale at {max_date}"
+                )
         common_dates = sorted(
-            set(prices["SPY"].index)
-            .intersection(prices["QQQ"].index)
-            .intersection({item for item in prices["SPY"].index if item <= requested_as_of})
+            set(benchmark_prices["SPY"].index)
+            .intersection(benchmark_prices["QQQ"].index)
+            .intersection(
+                {
+                    item
+                    for item in benchmark_prices["SPY"].index
+                    if item <= requested_as_of
+                }
+            )
         )
         if not common_dates:
             raise RuntimeError("SPY and QQQ have no common date on or before as-of")
         latest_end = common_dates[-1]
         spy_sessions = [
-            item for item in prices["SPY"].index if item <= latest_end
+            item for item in benchmark_prices["SPY"].index
+            if item <= latest_end
         ]
-        executable_events = assign_and_consolidate_execution_dates(
-            selected_events, spy_sessions
+        manager_by_cik = {manager.cik: manager for manager in managers}
+        pending_ciks = [
+            str(row[0])
+            for row in store.execute(
+                """
+                SELECT cik
+                FROM performance_manager_state
+                WHERE run_id = ?
+                  AND status IN ('PENDING', 'BUILDING', 'FAILED')
+                  AND attempt_count < ?
+                ORDER BY
+                    CASE status
+                        WHEN 'PENDING' THEN 0
+                        WHEN 'BUILDING' THEN 1
+                        ELSE 2
+                    END,
+                    cik
+                """,
+                [run_id, MAX_MANAGER_ATTEMPTS],
+            ).fetchall()
+        ]
+        if max_managers is not None:
+            pending_ciks = pending_ciks[:max_managers]
+
+        force_refreshed_symbols = (
+            {"SPY", "QQQ"} if force_prices else set()
         )
-        events_by_manager: defaultdict[str, list[PortfolioEvent]] = defaultdict(list)
-        for event in executable_events:
-            if event.execution_date and event.execution_date <= latest_end:
-                events_by_manager[event.cik].append(event)
-
-        for manager in managers:
-            manager_events = events_by_manager[manager.cik]
-            interval_results: list[IntervalResult] = []
-            for index, event in enumerate(manager_events):
-                assert event.execution_date is not None
-                end = (
-                    manager_events[index + 1].execution_date
-                    if index + 1 < len(manager_events)
-                    else latest_end
-                )
-                assert end is not None
-                mapping_coverage = (
-                    sum(
-                        position.reported_value
-                        for position in event.positions
-                        if position.cusip in mapping
-                    )
-                    / event.eligible_value
-                    if event.eligible_value > 0
-                    else 0.0
-                )
-                store.execute(
-                    """
-                    INSERT INTO performance_events
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        run_id,
-                        manager.cik,
-                        index,
-                        event.report_period,
-                        event.filing_date,
-                        event.execution_date,
-                        event.triggering_accession,
-                        json.dumps(event.effective_accessions),
-                        event.eligible_value,
-                        mapping_coverage,
-                    ],
-                )
-                position_rows = [
-                    (
-                        run_id,
-                        manager.cik,
-                        index,
-                        position.cusip,
-                        ticker_by_cusip.get(position.cusip)
-                        if position.cusip else None,
-                        mapping.get(position.cusip)
-                        if position.cusip
-                        else None,
-                        position.reported_value,
-                    )
-                    for position in event.positions
-                ]
-                if position_rows:
-                    store.executemany(
-                        """
-                        INSERT INTO performance_event_positions
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        position_rows,
-                    )
-                result = calculate_interval(event, end, prices, mapping)
-                interval_results.append(result)
-                store.execute(
-                    """
-                    INSERT INTO performance_intervals
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        run_id,
-                        manager.cik,
-                        index,
-                        result.start_date,
-                        result.end_date,
-                        cost_bps,
-                        result.status,
-                        result.mapping_coverage,
-                        result.priced_coverage,
-                        result.estimated_return,
-                        result.unavailable_reason,
-                    ],
-                )
-
-            manager_nav, spy_nav, qqq_nav = _chain_available_tail(
-                interval_results, prices, cost_bps=cost_bps
-            )
-            monthly_index = [
-                item for item in manager_nav.index if item >= calculation_start
+        for offset in range(0, len(pending_ciks), batch_size):
+            batch_ciks = pending_ciks[offset : offset + batch_size]
+            batch_managers = [
+                manager_by_cik[cik]
+                for cik in batch_ciks
+                if cik in manager_by_cik
             ]
-            monthly = _monthly_rows(
-                manager_nav.loc[monthly_index],
-                spy_nav.loc[monthly_index],
-                qqq_nav.loc[monthly_index],
-            )
-            if monthly:
-                store.executemany(
-                    """
-                    INSERT INTO monthly_returns
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        (run_id, manager.cik, month, cost_bps, estimate, spy, qqq)
-                        for month, estimate, spy, qqq in monthly
-                    ],
+            try:
+                _process_manager_batch(
+                    source,
+                    store,
+                    run_id=run_id,
+                    managers=batch_managers,
+                    requested_as_of=requested_as_of,
+                    calculation_start=calculation_start,
+                    latest_end=latest_end,
+                    spy_sessions=spy_sessions,
+                    mapping=mapping,
+                    ticker_by_cusip=ticker_by_cusip,
+                    price_dir=price_dir,
+                    force_prices=force_prices,
+                    force_refreshed_symbols=force_refreshed_symbols,
+                    retry_no_data=retry_no_data,
+                    cost_bps=cost_bps,
+                    price_fetcher=price_fetcher,
                 )
-            for window in ("3Y", "5Y", "FULL"):
-                metrics = calculate_summary_metrics(
-                    manager_nav,
-                    spy_nav,
-                    qqq_nav,
-                    interval_results,
-                    window=window,
-                    end_date=latest_end,
-                    window_start=calculation_start,
-                )
-                store.execute(
-                    """
-                    INSERT INTO manager_performance
-                    VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?, ?
+            except Exception as exc:
+                for manager in batch_managers:
+                    _mark_manager_failed(
+                        store,
+                        run_id=run_id,
+                        manager=manager,
+                        error=f"Batch failure: {exc}",
                     )
-                    """,
-                    [
-                        run_id,
-                        manager.cik,
-                        window,
-                        cost_bps,
-                        metrics["status"],
-                        metrics.get("start_date"),
-                        metrics.get("end_date"),
-                        metrics.get("years"),
-                        metrics.get("estimated_cagr"),
-                        metrics.get("spy_cagr"),
-                        metrics.get("qqq_cagr"),
-                        metrics.get("spy_excess_cagr"),
-                        metrics.get("qqq_excess_cagr"),
-                        metrics.get("max_drawdown"),
-                        metrics.get("monthly_sharpe_rf0"),
-                        metrics.get("spy_information_ratio"),
-                        metrics.get("qqq_information_ratio"),
-                        metrics.get("spy_quarterly_beat_rate"),
-                        metrics.get("qqq_quarterly_beat_rate"),
-                        metrics.get("mapping_coverage"),
-                        metrics.get("priced_coverage"),
-                        metrics["interval_count"],
-                        metrics.get("unavailable_reason"),
-                        PERFORMANCE_LABEL,
-                        PERFORMANCE_DISCLAIMER,
-                    ],
+            if progress_callback:
+                progress_callback(
+                    {
+                        "run_id": run_id,
+                        "processed": min(
+                            offset + len(batch_ciks),
+                            len(pending_ciks),
+                        ),
+                        "selected": len(pending_ciks),
+                        "total": len(managers),
+                        "states": _manager_state_counts(store, run_id),
+                    }
                 )
-        store.execute(
-            """
-            UPDATE performance_runs
-            SET status = 'COMPLETE', latest_end_date = ?, completed_at = ?
-            WHERE run_id = ?
-            """,
-            [latest_end, datetime.now(timezone.utc), run_id],
-        )
+
+        states = _manager_state_counts(store, run_id)
+        if (
+            states["PENDING"] == 0
+            and states["BUILDING"] == 0
+            and states["FAILED"] == 0
+        ):
+            store.execute(
+                """
+                UPDATE performance_runs
+                SET status = 'COMPLETE', latest_end_date = ?, completed_at = ?
+                WHERE run_id = ?
+                """,
+                [latest_end, datetime.now(timezone.utc), run_id],
+            )
+            status = "COMPLETE"
+        else:
+            store.execute(
+                """
+                UPDATE performance_runs
+                SET latest_end_date = ?
+                WHERE run_id = ?
+                """,
+                [latest_end, run_id],
+            )
+            status = "BUILDING"
         available = store.execute(
             """
             SELECT count(*)
@@ -1591,8 +2475,10 @@ def refresh_performance(
         ).fetchone()[0]
         return {
             "run_id": run_id,
-            "status": "COMPLETE",
+            "status": status,
             "manager_count": len(managers),
+            "processed_this_invocation": len(pending_ciks),
+            "manager_states": states,
             "available_5y_count": available,
             "latest_end_date": latest_end,
             "performance_path": str(Path(performance_path).resolve()),
@@ -1600,17 +2486,6 @@ def refresh_performance(
             "label": PERFORMANCE_LABEL,
             "disclaimer": PERFORMANCE_DISCLAIMER,
         }
-    except Exception:
-        if run_created:
-            store.execute(
-                """
-                UPDATE performance_runs
-                SET status = 'FAILED', completed_at = ?
-                WHERE run_id = ? AND status = 'BUILDING'
-                """,
-                [datetime.now(timezone.utc), run_id],
-            )
-        raise
     finally:
         source.close()
         store.close()
@@ -1652,12 +2527,71 @@ def performance_status(
                 """
             ).fetchall()
         )
+        has_manager_state = bool(
+            connection.execute(
+                """
+                SELECT count(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'main'
+                  AND table_name = 'performance_manager_state'
+                """
+            ).fetchone()[0]
+        )
+        manager_state_counts = (
+            [
+                dict(zip(
+                    ("run_id", "status", "manager_count"),
+                    row,
+                ))
+                for row in connection.execute(
+                    """
+                    SELECT run_id, status, count(*)
+                    FROM performance_manager_state
+                    GROUP BY run_id, status
+                    ORDER BY run_id, status
+                    """
+                ).fetchall()
+            ]
+            if has_manager_state
+            else []
+        )
+        manager_failures = (
+            [
+                dict(zip(
+                    (
+                        "run_id",
+                        "cik",
+                        "manager_name",
+                        "status",
+                        "attempt_count",
+                        "last_error",
+                        "updated_at",
+                    ),
+                    row,
+                ))
+                for row in connection.execute(
+                    """
+                    SELECT
+                        run_id, cik, manager_name, status, attempt_count,
+                        last_error, updated_at
+                    FROM performance_manager_state
+                    WHERE status IN ('FAILED', 'EXHAUSTED')
+                    ORDER BY updated_at DESC
+                    LIMIT 50
+                    """
+                ).fetchall()
+            ]
+            if has_manager_state
+            else []
+        )
         return {
             "status": "READY",
             "performance_path": str(path),
             "runs": [
                 dict(zip(columns, row)) for row in run_rows
             ],
+            "manager_states": manager_state_counts,
+            "manager_failures": manager_failures,
             "prices": price_counts,
             "label": PERFORMANCE_LABEL,
             "disclaimer": PERFORMANCE_DISCLAIMER,
