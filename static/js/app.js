@@ -3091,6 +3091,13 @@ function formatPerformancePercent(value, includeSign = false) {
     return `${sign}${percent.toFixed(2)}%`;
 }
 
+function formatBeatRate(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '—';
+    }
+    return `${(Number(value) * 100).toFixed(1)}%`;
+}
+
 function renderScreeningTable() {
     const tbody = document.getElementById('screening-table-body');
     const summary = document.getElementById('screening-page-summary');
@@ -3158,7 +3165,13 @@ function renderScreeningTable() {
                     </td>
                     <td class="font-mono screening-performance-cell">
                         ${performanceAvailable
-                            ? `<strong>${formatPerformancePercent(manager.estimated_cagr)}</strong>`
+                            ? `
+                                <strong>${formatPerformancePercent(manager.estimated_cagr)}</strong>
+                                <span class="screening-performance-detail">
+                                    Quarterly wins: SPY ${formatBeatRate(manager.spy_quarterly_beat_rate)}
+                                    · QQQ ${formatBeatRate(manager.qqq_quarterly_beat_rate)}
+                                </span>
+                            `
                             : `<span class="screening-performance-unavailable" title="${escapeScreeningHtml(manager.performance_unavailable_reason || 'Unavailable')}">Unavailable</span>`}
                     </td>
                     <td class="font-mono ${performanceAvailable ? spyClass : ''}">

@@ -2843,6 +2843,16 @@ body.period-loading {
     color: #f8fafc;
 }
 
+.screening-performance-detail {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.62rem;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+
 .screening-performance-unavailable {
     color: var(--text-dim);
     font-size: 0.68rem;

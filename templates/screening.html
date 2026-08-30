@@ -248,15 +248,15 @@
 
                 <label class="screening-field">
                     {{ screening_filter_label(
-                        "Benchmark beat consistency",
-                        "Proposed rule: require the manager's hypothetical sleeve to beat the selected benchmark in at least this percentage of measured periods.",
-                        "Draft benchmark beat consistency explanation"
+                        "Quarterly win rate vs benchmark",
+                        "Checks each calendar quarter separately, not the overall 3Y or 5Y return. With Both selected, the manager must meet the win rate against SPY and QQQ separately. Over 3 years, 70% requires at least 9 of 12 quarters against each benchmark.",
+                        "Quarterly benchmark win rate explanation"
                     ) }}
                     <select id="screen-beat-consistency" onchange="scheduleScreeningLoad()">
-                        <option value="" selected>Off — Endpoint return only</option>
-                        <option value="50">At least 50% of periods</option>
-                        <option value="60">At least 60% of periods</option>
-                        <option value="70">At least 70% of periods</option>
+                        <option value="" selected>Off — Total-window return only</option>
+                        <option value="50">At least half of quarters</option>
+                        <option value="60">At least 60% of quarters</option>
+                        <option value="70">At least 70% of quarters — Very strict</option>
                     </select>
                 </label>
 

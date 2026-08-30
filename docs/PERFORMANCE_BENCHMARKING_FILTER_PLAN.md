@@ -27,9 +27,9 @@ The production UI provides:
 6. Maximum drawdown: no limit, 15%, 20%, 30%, or 40%.
 
 The current result table also displays estimated CAGR, excess CAGR, maximum
-drawdown, and coverage. The data layer already calculates monthly Sharpe,
-SPY/QQQ information ratios, and quarterly benchmark beat rates, but those
-metrics are not yet user-facing filters.
+drawdown, coverage, and SPY/QQQ quarterly win rates. The data layer also
+calculates monthly Sharpe and SPY/QQQ information ratios, but those metrics are
+not user-facing filters.
 
 ## Research conclusions
 
@@ -98,13 +98,15 @@ filters. Consistency and downside remain independent dimensions.
 | Performance window | Select the evaluation period | 3 years, 5 years, full fetched history |
 | Benchmark hurdle | Select which benchmark must be beaten | No hurdle; beat SPY; beat QQQ; beat both |
 | Minimum excess CAGR | Select the required annualized winning margin over that benchmark | Any positive margin; +1, +2, or +5 percentage points; custom |
-| Minimum benchmark beat consistency | Require outperformance across repeated periods rather than only at the endpoints | Off; 50%, 60%, 70% of measured quarters |
+| Quarterly win rate versus benchmark | Require outperformance across calendar quarters rather than only across the total window | Off; half, 60%, or 70% of quarters |
 | Maximum drawdown | Reject strategies whose return came with unacceptable peak-to-trough loss | 15%, 20%, 30%, 40%, or no limit |
 | Available estimate | Hide managers without enough history or the required mapping and pricing coverage | Show all; available only |
 
-The benchmark-beat consistency filter can initially use the already-computed
-quarterly beat rate. A later version should prefer rolling 12- and 36-month
-periods because isolated calendar quarters are noisy.
+The quarterly win-rate filter uses the already-computed quarterly beat rate.
+With Both selected, the threshold applies separately to SPY and QQQ. A 70%
+threshold over the 3Y window requires at least 9 of 12 quarterly wins against
+each benchmark. A later version should also show rolling 12- and 36-month
+results because isolated calendar quarters are noisy.
 
 ## Evidence to display rather than filter
 
@@ -169,7 +171,7 @@ Keep the **Performance & Benchmarking** group concise:
 2. Benchmark hurdle.
 3. Require an available estimate.
 4. Minimum excess CAGR.
-5. Benchmark beat consistency.
+5. Quarterly win rate versus benchmark.
 6. Maximum drawdown.
 
 Move roster-only selection beside the results search because it changes the
