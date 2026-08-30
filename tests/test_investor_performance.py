@@ -11,6 +11,7 @@ from investor_screening.database import connect_database
 from investor_screening.performance import (
     PERFORMANCE_DISCLAIMER,
     PERFORMANCE_LABEL,
+    METHODOLOGY_VERSION,
     MAPPING_SOURCE,
     EligiblePosition,
     IntervalResult,
@@ -21,12 +22,17 @@ from investor_screening.performance import (
     calculate_summary_metrics,
     connect_performance_store,
     execution_date_after,
+    load_manager_universe,
     normalize_yfinance_symbol,
     reconstruct_filing_chronology,
     refresh_cusip_ticker_mapping,
     refresh_price_cache,
 )
-from investor_screening.screener import SNAPSHOT_SCHEMA, ScreeningService
+from investor_screening.screener import (
+    SNAPSHOT_SCHEMA,
+    ScreeningService,
+    _compatible_performance_rows,
+)
 
 
 def _add_filing(
@@ -481,6 +487,26 @@ def test_screening_snapshot_returns_and_filters_current_performance(tmp_path):
     snapshot.execute(
         "INSERT INTO manager_quarter_concentration VALUES ('1', 1, 50)"
     )
+    snapshot.executemany(
+        "INSERT INTO manager_position_quarters VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        [
+            (
+                "1",
+                "stock-a",
+                quarter,
+                date(2025, 12, 31),
+                "000000001",
+                "AAA",
+                "Stock A",
+                "COM",
+                800000000,
+                4.0,
+                4.0,
+                1,
+            )
+            for quarter in range(1, 6)
+        ],
+    )
     snapshot.execute(
         """
         INSERT INTO manager_performance
@@ -508,6 +534,32 @@ def test_screening_snapshot_returns_and_filters_current_performance(tmp_path):
     row = result["data"][0]
     assert row["performance_status"] == "AVAILABLE"
     assert row["estimated_cagr"] == pytest.approx(0.15)
+    assert row["persistent_best_bet_count"] == 1
+    assert service.get_screening_results(
+        minimum_concentration_quarters=1,
+        performance_window="5Y",
+        benchmark_hurdle="both",
+        minimum_excess_cagr=0.03,
+        minimum_beat_consistency=0.55,
+        maximum_drawdown=0.20,
+    )["summary"]["candidate_count"] == 1
+    assert service.get_screening_results(
+        minimum_concentration_quarters=1,
+        performance_window="5Y",
+        benchmark_hurdle="both",
+        minimum_excess_cagr=0.04,
+    )["summary"]["candidate_count"] == 0
+    assert service.get_screening_results(
+        minimum_concentration_quarters=1,
+        performance_window="5Y",
+        benchmark_hurdle="both",
+        minimum_beat_consistency=0.60,
+    )["summary"]["candidate_count"] == 0
+    assert service.get_screening_results(
+        minimum_concentration_quarters=1,
+        performance_window="5Y",
+        maximum_drawdown=0.15,
+    )["summary"]["candidate_count"] == 0
     assert row["performance_label"] == PERFORMANCE_LABEL
 
     excluded = service.get_screening_results(
@@ -515,3 +567,115 @@ def test_screening_snapshot_returns_and_filters_current_performance(tmp_path):
         minimum_spy_excess_cagr=0.06,
     )
     assert excluded["summary"]["candidate_count"] == 0
+
+
+def test_performance_universe_is_independent_of_screening_style(tmp_path):
+    generation = tmp_path / "screening.duckdb"
+    snapshot = duckdb.connect(str(generation))
+    snapshot.execute(SNAPSHOT_SCHEMA)
+    snapshot.execute(
+        """
+        INSERT INTO snapshot_metadata
+        VALUES (
+            DATE '2025-12-31', now(), 'screening-v1', 'test', 'test', 'fp'
+        )
+        """
+    )
+    snapshot.execute(
+        """
+        INSERT INTO manager_metrics
+        VALUES (
+            '1', 'Diversified Manager', DATE '2025-12-31', 12,
+            20000000000, 20000000000, 10000000000, 200, 50,
+            10, 1, 0, 200, 0, NULL, false
+        )
+        """
+    )
+    snapshot.close()
+    pointer = tmp_path / "screening_snapshot.json"
+    pointer.write_text(json.dumps({"generation": generation.name}))
+
+    managers, fingerprint, resolved = load_manager_universe(pointer)
+
+    assert [manager.cik for manager in managers] == ["1"]
+    assert fingerprint == "fp"
+    assert resolved == generation.resolve()
+
+
+def test_snapshot_reuses_latest_per_manager_performance_runs(tmp_path):
+    performance_path = tmp_path / "performance.duckdb"
+    store = connect_performance_store(performance_path)
+    try:
+        store.executemany(
+            """
+            INSERT INTO performance_runs
+            VALUES (
+                ?, 'COMPLETE', ?, ?, ?, 'fp', 'generation', 'source',
+                DATE '2025-12-31', DATE '2025-12-31', 5, ?, 0, 1,
+                ?, ?
+            )
+            """,
+            [
+                (
+                    "old",
+                    METHODOLOGY_VERSION,
+                    PERFORMANCE_LABEL,
+                    PERFORMANCE_DISCLAIMER,
+                    10.0,
+                    "2025-01-01T00:00:00+00:00",
+                    "2025-01-02T00:00:00+00:00",
+                ),
+                (
+                    "new",
+                    METHODOLOGY_VERSION,
+                    PERFORMANCE_LABEL,
+                    PERFORMANCE_DISCLAIMER,
+                    1.0,
+                    "2025-02-01T00:00:00+00:00",
+                    "2025-02-02T00:00:00+00:00",
+                ),
+            ],
+        )
+        performance_values = (
+            "'5Y', 0, 'AVAILABLE', DATE '2021-01-01', "
+            "DATE '2025-12-31', 5, .15, .10, .12, .05, .03, -.20, "
+            "1.1, .4, .2, .60, .55, .99, .98, 20, NULL, ?, ?"
+        )
+        store.execute(
+            f"""
+            INSERT INTO manager_performance
+            VALUES ('old', '1', {performance_values})
+            """,
+            [PERFORMANCE_LABEL, PERFORMANCE_DISCLAIMER],
+        )
+        store.execute(
+            f"""
+            INSERT INTO manager_performance
+            VALUES ('new', '2', {performance_values})
+            """,
+            [PERFORMANCE_LABEL, PERFORMANCE_DISCLAIMER],
+        )
+        store.executemany(
+            """
+            INSERT INTO monthly_returns
+            VALUES (?, ?, DATE '2025-12-31', 0, .01, .01, .01)
+            """,
+            [("old", "1"), ("new", "2")],
+        )
+    finally:
+        store.close()
+
+    runs, summaries, monthly = _compatible_performance_rows(
+        performance_path,
+        "fp",
+    )
+
+    assert {row[0] for row in runs} == {"old", "new"}
+    assert {(row[0], row[-1]) for row in summaries} == {
+        ("1", "old"),
+        ("2", "new"),
+    }
+    assert {(row[0], row[-1]) for row in monthly} == {
+        ("1", "old"),
+        ("2", "new"),
+    }

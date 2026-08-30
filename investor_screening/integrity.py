@@ -12,6 +12,8 @@ import duckdb
 from .database import DEFAULT_DATABASE_PATH
 from .performance import DEFAULT_PERFORMANCE_PATH, METHODOLOGY_VERSION
 from .screener import (
+    BEST_BET_CUBE_WEIGHT_FLOOR_PCT,
+    MAX_BEST_BET_SNAPSHOTS,
     DEFAULT_SNAPSHOT_PATH,
     compute_source_fingerprint,
     resolve_snapshot_path,
@@ -582,13 +584,14 @@ def run_integrity_audit(
                     FROM performance_runs
                     WHERE status = 'COMPLETE'
                       AND methodology_version = ?
+                      AND screening_source_fingerprint = ?
                       AND window_years >= 5
-                      AND minimum_size_billions = 10
+                      AND coalesce(minimum_size_billions, 10) <= 10
                       AND cost_bps = 0
                     ORDER BY latest_end_date DESC, completed_at DESC
                     LIMIT 1
                     """,
-                    [METHODOLOGY_VERSION],
+                    [METHODOLOGY_VERSION, current_fingerprint],
                 ).fetchone()
                 checks["performance_price_status"] = dict(
                     performance.execute(
@@ -618,16 +621,9 @@ def run_integrity_audit(
                             "severity": "ERROR",
                             "code": "PERFORMANCE_RUN_MISSING",
                             "item": str(performance_file),
-                            "message": "No complete production-compatible run",
-                        }
-                    )
-                elif latest_performance_run[1] != current_fingerprint:
-                    issues.append(
-                        {
-                            "severity": "ERROR",
-                            "code": "PERFORMANCE_RUN_STALE",
-                            "item": latest_performance_run[0],
-                            "message": "Source fingerprint does not match",
+                            "message": (
+                                "No complete source-compatible reusable run"
+                            ),
                         }
                     )
                 if verify_hashes:
@@ -727,16 +723,111 @@ def run_integrity_audit(
                 checks["screening_managers"] = screening.execute(
                     "SELECT count(*) FROM manager_metrics"
                 ).fetchone()[0]
-                checks["screening_default_candidates"] = screening.execute(
+                checks["screening_position_quarters"] = screening.execute(
+                    "SELECT count(*) FROM manager_position_quarters"
+                ).fetchone()[0]
+                cube_quality = screening.execute(
+                    """
+                    SELECT
+                        count(*) FILTER (
+                            WHERE cik IS NULL
+                               OR security_key IS NULL
+                               OR report_period IS NULL
+                               OR reported_value IS NULL
+                               OR weight_nonoption_pct IS NULL
+                               OR direct_sleeve_weight_pct IS NULL
+                               OR position_rank IS NULL
+                        ) AS missing_required,
+                        count(*) FILTER (
+                            WHERE weight_nonoption_pct < ?
+                              AND position_rank > 10
+                        ) AS below_weight_floor_without_rank_retention,
+                        count(*) FILTER (
+                            WHERE quarter_index NOT BETWEEN 1 AND ?
+                        ) AS invalid_quarter_index,
+                        count(*) FILTER (
+                            WHERE direct_sleeve_weight_pct + 1e-9
+                                < weight_nonoption_pct
+                        ) AS invalid_weight_relationship,
+                        count(*) FILTER (
+                            WHERE reported_value <= 0
+                               OR weight_nonoption_pct <= 0
+                               OR direct_sleeve_weight_pct <= 0
+                               OR position_rank <= 0
+                        ) AS invalid_positive_values
+                    FROM manager_position_quarters
+                    """,
+                    [
+                        BEST_BET_CUBE_WEIGHT_FLOOR_PCT,
+                        MAX_BEST_BET_SNAPSHOTS,
+                    ],
+                ).fetchone()
+                cube_duplicates = screening.execute(
                     """
                     SELECT count(*)
-                    FROM manager_metrics
-                    WHERE median_reported_value_4q >= 10000000000
-                      AND latest_stock_count >= 1
-                      AND direct_stock_pct >= 80
-                      AND top10_pct >= 40
-                      AND concentration_pass_quarters >= 6
-                      AND annualized_turnover_pct <= 100
+                    FROM (
+                        SELECT cik, security_key, quarter_index
+                        FROM manager_position_quarters
+                        GROUP BY cik, security_key, quarter_index
+                        HAVING count(*) > 1
+                    )
+                    """
+                ).fetchone()[0]
+                cube_period_conflicts = screening.execute(
+                    """
+                    SELECT count(*)
+                    FROM (
+                        SELECT quarter_index
+                        FROM manager_position_quarters
+                        GROUP BY quarter_index
+                        HAVING count(DISTINCT report_period) > 1
+                    )
+                    """
+                ).fetchone()[0]
+                checks["screening_position_cube_quality"] = {
+                    "missing_required": cube_quality[0],
+                    "below_weight_floor_without_rank_retention": cube_quality[1],
+                    "invalid_quarter_index": cube_quality[2],
+                    "invalid_weight_relationship": cube_quality[3],
+                    "invalid_positive_values": cube_quality[4],
+                    "duplicate_keys": cube_duplicates,
+                    "quarter_period_conflicts": cube_period_conflicts,
+                }
+                if any(checks["screening_position_cube_quality"].values()):
+                    issues.append(
+                        {
+                            "severity": "ERROR",
+                            "code": "SCREENING_POSITION_CUBE_INVALID",
+                            "item": str(snapshot),
+                            "message": json.dumps(
+                                checks["screening_position_cube_quality"],
+                                sort_keys=True,
+                            ),
+                        }
+                    )
+                checks["screening_default_candidates"] = screening.execute(
+                    """
+                    WITH persistent_best_bets AS (
+                        SELECT cik, count(*) AS best_bet_count
+                        FROM (
+                            SELECT cik, security_key
+                            FROM manager_position_quarters
+                            WHERE quarter_index <= 5
+                              AND weight_nonoption_pct >= 3
+                            GROUP BY cik, security_key
+                            HAVING count(*) = 5
+                        ) positions
+                        GROUP BY cik
+                    )
+                    SELECT count(*)
+                    FROM manager_metrics m
+                    JOIN persistent_best_bets b USING (cik)
+                    WHERE m.median_reported_value_4q >= 10000000000
+                      AND m.latest_stock_count >= 1
+                      AND m.direct_stock_pct >= 80
+                      AND m.top10_pct >= 40
+                      AND m.concentration_pass_quarters >= 6
+                      AND b.best_bet_count >= 1
                     """
                 ).fetchone()[0]
                 metadata = screening.execute(

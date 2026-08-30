@@ -2807,6 +2807,9 @@ const screeningPresets = {
         directStock: 60,
         top10: 30,
         persistence: 4,
+        bestBetWeight: 2,
+        bestBetDuration: 6,
+        bestBetCount: 1,
         performanceWindow: '3Y'
     },
     mega: {
@@ -2815,6 +2818,9 @@ const screeningPresets = {
         directStock: 80,
         top10: 40,
         persistence: 6,
+        bestBetWeight: 3,
+        bestBetDuration: 12,
+        bestBetCount: 1,
         performanceWindow: '3Y'
     },
     patient: {
@@ -2823,6 +2829,9 @@ const screeningPresets = {
         directStock: 90,
         top10: 50,
         persistence: 8,
+        bestBetWeight: 3,
+        bestBetDuration: 24,
+        bestBetCount: 2,
         performanceWindow: '3Y'
     }
 };
@@ -2850,6 +2859,29 @@ function updateScreeningMinimumStocks() {
     }
 }
 
+function updateScreeningBestBetCount() {
+    const input = document.getElementById('screen-best-bet-count');
+    const output = document.getElementById('screen-best-bet-count-value');
+    if (input && output) {
+        output.textContent = input.value === '10' ? '10+' : input.value;
+    }
+}
+
+function updateScreeningPerformanceControls() {
+    const hurdle = document.getElementById('screen-benchmark-filter')?.value || 'none';
+    const excess = document.getElementById('screen-min-excess-cagr');
+    const custom = document.getElementById('screen-min-excess-cagr-custom');
+    const consistency = document.getElementById('screen-beat-consistency');
+    const benchmarkRequired = hurdle !== 'none';
+    if (excess) excess.disabled = !benchmarkRequired;
+    if (consistency) consistency.disabled = !benchmarkRequired;
+    if (custom) {
+        const customSelected = benchmarkRequired && excess?.value === 'custom';
+        custom.hidden = !customSelected;
+        custom.disabled = !customSelected;
+    }
+}
+
 function setScreeningControl(id, value) {
     const element = document.getElementById(id);
     if (!element) return;
@@ -2865,13 +2897,22 @@ function applyScreeningPreset(name) {
     setScreeningControl('screen-direct-stock', preset.directStock);
     setScreeningControl('screen-top10', preset.top10);
     setScreeningControl('screen-persistence', preset.persistence);
+    setScreeningControl('screen-best-bet-weight', preset.bestBetWeight);
+    setScreeningControl('screen-best-bet-duration', preset.bestBetDuration);
+    setScreeningControl('screen-best-bet-count', preset.bestBetCount);
     setScreeningControl('screen-performance-window', preset.performanceWindow);
     setScreeningControl('screen-benchmark-filter', 'none');
     setScreeningControl('screen-performance-required', false);
+    setScreeningControl('screen-min-excess-cagr', '0');
+    setScreeningControl('screen-beat-consistency', '');
+    setScreeningControl('screen-max-drawdown', '');
     updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
+    updateScreeningRange('screen-best-bet-weight', 'screen-best-bet-weight-value', '%');
     updateScreeningMinimumStocks();
+    updateScreeningBestBetCount();
+    updateScreeningPerformanceControls();
     document.querySelectorAll('.screening-preset').forEach(button => {
         button.classList.toggle('active', button.dataset.preset === name);
     });
@@ -2895,9 +2936,12 @@ function scheduleScreeningLoad() {
 
 async function initializeInvestorScreening() {
     updateScreeningMinimumStocks();
+    updateScreeningBestBetCount();
     updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
+    updateScreeningRange('screen-best-bet-weight', 'screen-best-bet-weight-value', '%');
+    updateScreeningPerformanceControls();
     await loadInvestorScreening();
 }
 
@@ -2912,20 +2956,37 @@ async function loadInvestorScreening() {
         minimum_direct_stock_pct: document.getElementById('screen-direct-stock')?.value || '80',
         minimum_top10_pct: document.getElementById('screen-top10')?.value || '40',
         minimum_concentration_quarters: document.getElementById('screen-persistence')?.value || '6',
+        minimum_best_bet_weight_pct: document.getElementById('screen-best-bet-weight')?.value || '3',
+        best_bet_duration_months: document.getElementById('screen-best-bet-duration')?.value || '12',
+        minimum_best_bet_count: document.getElementById('screen-best-bet-count')?.value || '1',
+        benchmark_hurdle: document.getElementById('screen-benchmark-filter')?.value || 'none',
         roster_only: document.getElementById('screen-roster-only')?.checked || false,
         performance_window: document.getElementById('screen-performance-window')?.value || '3Y'
     });
     const benchmarkFilter = document.getElementById('screen-benchmark-filter')?.value || 'none';
+    const excessSelection = document.getElementById('screen-min-excess-cagr')?.value || '0';
+    const minimumExcess = excessSelection === 'custom'
+        ? document.getElementById('screen-min-excess-cagr-custom')?.value
+        : excessSelection;
+    const beatConsistency = document.getElementById('screen-beat-consistency')?.value;
+    const maximumDrawdown = document.getElementById('screen-max-drawdown')?.value;
     const requirePerformance = document.getElementById('screen-performance-required')?.checked || false;
-    if (benchmarkFilter === 'spy' || benchmarkFilter === 'both') {
-        params.set('minimum_spy_excess_cagr_pct', '0');
+    if (benchmarkFilter !== 'none' && minimumExcess !== '') {
+        params.set('minimum_excess_cagr_pct', minimumExcess || '0');
     }
-    if (benchmarkFilter === 'qqq' || benchmarkFilter === 'both') {
-        params.set('minimum_qqq_excess_cagr_pct', '0');
+    if (benchmarkFilter !== 'none' && beatConsistency) {
+        params.set('minimum_beat_consistency_pct', beatConsistency);
+    }
+    if (maximumDrawdown) {
+        params.set('maximum_drawdown_pct', maximumDrawdown);
     }
     params.set(
         'require_performance',
-        String(requirePerformance || benchmarkFilter !== 'none')
+        String(
+            requirePerformance
+            || benchmarkFilter !== 'none'
+            || Boolean(maximumDrawdown)
+        )
     );
     const search = document.getElementById('screening-search')?.value.trim();
     if (search) params.set('search', search);
@@ -3050,7 +3111,11 @@ function renderScreeningTable() {
             </tr>`;
     } else {
         tbody.innerHTML = rows.map(manager => {
-            const positionChips = (manager.durable_positions || []).slice(0, 3).map(position => `
+            const positionChips = (
+                manager.persistent_best_bets
+                || manager.durable_positions
+                || []
+            ).slice(0, 3).map(position => `
                 <span class="screening-position-chip">
                     ${escapeScreeningHtml(position.ticker || position.issuer)}
                     <b>${Number(position.latest_weight_pct).toFixed(1)}%</b>
@@ -3089,7 +3154,7 @@ function renderScreeningTable() {
                     <td class="font-mono">${formatPct(manager.maximum_position_pct)}</td>
                     <td class="font-mono">${formatPct(manager.annualized_turnover_pct)}</td>
                     <td>
-                        <span class="screening-durable-count">${formatInt(manager.durable_position_count)}</span>
+                        <span class="screening-durable-count">${formatInt(manager.persistent_best_bet_count)}</span>
                     </td>
                     <td class="font-mono screening-performance-cell">
                         ${performanceAvailable

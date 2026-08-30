@@ -356,19 +356,9 @@ def load_manager_universe(
             """
             SELECT m.cik, m.manager_name, m.median_reported_value_4q
             FROM manager_metrics m
-            JOIN (
-                SELECT
-                    cik,
-                    count(*) FILTER (WHERE top10_pct >= 40)
-                        AS concentration_pass_quarters
-                FROM manager_quarter_concentration
-                GROUP BY cik
-            ) p USING (cik)
             WHERE m.median_reported_value_4q >= ?
-              AND m.direct_stock_pct >= 80
-              AND m.top10_pct >= 40
-              AND p.concentration_pass_quarters >= 6
-              AND m.annualized_turnover_pct <= 100
+              AND m.filing_quarters >= 12
+              AND m.latest_direct_stock_value > 0
             ORDER BY median_reported_value_4q DESC, cik
             """,
             [minimum_size_billions * 1_000_000_000],

@@ -27,17 +27,29 @@ DEFAULT_PERFORMANCE_PATH = (
     / "performance.duckdb"
 )
 
+BEST_BET_CUBE_WEIGHT_FLOOR_PCT = 1.0
+MAX_BEST_BET_SNAPSHOTS = 9
+BEST_BET_DURATION_SNAPSHOTS = {
+    6: 3,
+    12: 5,
+    18: 7,
+    24: 9,
+}
+
 DEFAULT_FILTERS = {
     "minimum_size_billions": 10.0,
     "minimum_stock_count": 1,
     "minimum_direct_stock_pct": 80.0,
     "minimum_top10_pct": 40.0,
     "minimum_concentration_quarters": 6,
-    "maximum_turnover_pct": 100.0,
-    "require_durable_position": False,
+    "minimum_best_bet_weight_pct": 3.0,
+    "best_bet_duration_months": 12,
+    "minimum_best_bet_count": 1,
     "performance_window": "3Y",
-    "minimum_spy_excess_cagr": None,
-    "minimum_qqq_excess_cagr": None,
+    "benchmark_hurdle": "none",
+    "minimum_excess_cagr_pct": 0.0,
+    "minimum_beat_consistency_pct": None,
+    "maximum_drawdown_pct": None,
     "require_performance": False,
 }
 
@@ -93,6 +105,30 @@ CREATE TABLE IF NOT EXISTS durable_positions (
     conviction_quarters INTEGER NOT NULL,
     PRIMARY KEY (cik, security_key)
 );
+
+CREATE TABLE IF NOT EXISTS manager_position_quarters (
+    cik VARCHAR NOT NULL,
+    security_key VARCHAR NOT NULL,
+    quarter_index INTEGER NOT NULL,
+    report_period DATE NOT NULL,
+    cusip VARCHAR,
+    ticker VARCHAR,
+    issuer VARCHAR,
+    title_of_class VARCHAR,
+    reported_value DOUBLE NOT NULL,
+    weight_nonoption_pct DOUBLE NOT NULL,
+    direct_sleeve_weight_pct DOUBLE NOT NULL,
+    position_rank INTEGER NOT NULL,
+    PRIMARY KEY (cik, security_key, quarter_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_manager_position_quarters_streak
+    ON manager_position_quarters (
+        cik,
+        quarter_index,
+        weight_nonoption_pct,
+        security_key
+    );
 
 CREATE TABLE IF NOT EXISTS manager_quarter_concentration (
     cik VARCHAR NOT NULL,
@@ -262,6 +298,7 @@ def _compatible_performance_rows(
             "requested_as_of",
             "latest_end_date",
             "window_years",
+            "minimum_size_billions",
             "cost_bps",
             "completed_at",
         }.issubset(columns_by_table["performance_runs"]):
@@ -313,55 +350,99 @@ def _compatible_performance_rows(
             run_filter = """
               AND methodology_version = '13f-disclosure-lag-v1'
               AND window_years >= 5
-              AND minimum_size_billions = 10
+              AND coalesce(minimum_size_billions, 10) <= 10
             """
-        run = performance.execute(
-            f"""
-            SELECT
-                run_id, methodology_version, label, disclaimer,
-                screening_source_fingerprint, requested_as_of, latest_end_date,
-                window_years, cost_bps, completed_at
+        eligible_runs_sql = f"""
+            SELECT *
             FROM performance_runs
             WHERE status = 'COMPLETE'
               AND screening_source_fingerprint = ?
               AND cost_bps = 0
               {run_filter}
-            ORDER BY latest_end_date DESC, requested_as_of DESC, completed_at DESC
-            LIMIT 1
+        """
+        selected_runs_sql = f"""
+            WITH eligible_runs AS (
+                {eligible_runs_sql}
+            ),
+            candidate_manager_runs AS (
+                SELECT DISTINCT
+                    mp.cik,
+                    r.run_id,
+                    r.latest_end_date,
+                    r.requested_as_of,
+                    r.completed_at
+                FROM manager_performance mp
+                JOIN eligible_runs r USING (run_id)
+            )
+            SELECT cik, run_id
+            FROM candidate_manager_runs
+            QUALIFY row_number() OVER (
+                PARTITION BY cik
+                ORDER BY
+                    latest_end_date DESC,
+                    requested_as_of DESC,
+                    completed_at DESC
+            ) = 1
+        """
+        selected_count = performance.execute(
+            f"SELECT count(*) FROM ({selected_runs_sql})",
+            params,
+        ).fetchone()[0]
+        if not selected_count:
+            return [], [], []
+        runs = performance.execute(
+            f"""
+            WITH selected_manager_runs AS (
+                {selected_runs_sql}
+            )
+            SELECT DISTINCT
+                r.run_id, r.methodology_version, r.label, r.disclaimer,
+                r.screening_source_fingerprint, r.requested_as_of,
+                r.latest_end_date, r.window_years, r.cost_bps, r.completed_at
+            FROM performance_runs r
+            JOIN (
+                SELECT DISTINCT run_id
+                FROM selected_manager_runs
+            ) selected USING (run_id)
+            ORDER BY r.latest_end_date DESC, r.completed_at DESC
             """,
             params,
-        ).fetchone()
-        if run is None:
-            return [], [], []
-        run_id = run[0]
+        ).fetchall()
         summaries = performance.execute(
-            """
+            f"""
+            WITH selected_manager_runs AS (
+                {selected_runs_sql}
+            )
             SELECT
-                cik, "window", cost_bps, status, start_date, end_date, years,
-                estimated_cagr, spy_cagr, qqq_cagr, spy_excess_cagr,
-                qqq_excess_cagr, max_drawdown, monthly_sharpe_rf0,
-                spy_information_ratio, qqq_information_ratio,
-                spy_quarterly_beat_rate, qqq_quarterly_beat_rate,
-                mapping_coverage, priced_coverage, interval_count,
-                unavailable_reason, label, disclaimer, run_id
-            FROM manager_performance
-            WHERE run_id = ?
-            ORDER BY cik, "window"
+                mp.cik, mp."window", mp.cost_bps, mp.status, mp.start_date,
+                mp.end_date, mp.years, mp.estimated_cagr, mp.spy_cagr,
+                mp.qqq_cagr, mp.spy_excess_cagr, mp.qqq_excess_cagr,
+                mp.max_drawdown, mp.monthly_sharpe_rf0,
+                mp.spy_information_ratio, mp.qqq_information_ratio,
+                mp.spy_quarterly_beat_rate, mp.qqq_quarterly_beat_rate,
+                mp.mapping_coverage, mp.priced_coverage, mp.interval_count,
+                mp.unavailable_reason, mp.label, mp.disclaimer, mp.run_id
+            FROM manager_performance mp
+            JOIN selected_manager_runs selected USING (cik, run_id)
+            ORDER BY mp.cik, mp."window"
             """,
-            [run_id],
+            params,
         ).fetchall()
         monthly = performance.execute(
-            """
+            f"""
+            WITH selected_manager_runs AS (
+                {selected_runs_sql}
+            )
             SELECT
-                cik, month_end, cost_bps, estimated_return, spy_return,
-                qqq_return, run_id
-            FROM monthly_returns
-            WHERE run_id = ?
-            ORDER BY cik, month_end
+                mr.cik, mr.month_end, mr.cost_bps, mr.estimated_return,
+                mr.spy_return, mr.qqq_return, mr.run_id
+            FROM monthly_returns mr
+            JOIN selected_manager_runs selected USING (cik, run_id)
+            ORDER BY mr.cik, mr.month_end
             """,
-            [run_id],
+            params,
         ).fetchall()
-        return [run], summaries, monthly
+        return runs, summaries, monthly
     finally:
         performance.close()
 
@@ -549,6 +630,37 @@ def build_screening_snapshot(
             """
         )
         source.execute(
+            f"""
+            CREATE OR REPLACE TEMP TABLE screening_position_quarters AS
+            SELECT
+                p.cik,
+                p.security_key,
+                p.quarter_index,
+                q.period_of_report AS report_period,
+                p.cusip,
+                p.ticker,
+                p.issuer,
+                p.title_of_class,
+                p.value_usd AS reported_value,
+                p.value_usd / nullif(s.nonoption_value, 0) * 100
+                    AS weight_nonoption_pct,
+                p.weight * 100 AS direct_sleeve_weight_pct,
+                p.position_rank::INTEGER AS position_rank
+            FROM screening_positions p
+            JOIN screening_sleeves s USING (cik, quarter_index)
+            JOIN screening_quarters q USING (quarter_index)
+            WHERE p.quarter_index <= {MAX_BEST_BET_SNAPSHOTS}
+              AND p.value_usd > 0
+              AND s.nonoption_value > 0
+              AND s.direct_stock_value > 0
+              AND (
+                  p.value_usd / nullif(s.nonoption_value, 0) * 100
+                      >= {BEST_BET_CUBE_WEIGHT_FLOOR_PCT}
+                  OR p.position_rank <= 10
+              )
+            """
+        )
+        source.execute(
             """
             CREATE OR REPLACE TEMP TABLE screening_concentration AS
             SELECT
@@ -726,6 +838,9 @@ def build_screening_snapshot(
         position_rows = source.execute(
             "SELECT * FROM screening_durable_positions"
         ).fetchall()
+        position_quarter_rows = source.execute(
+            "SELECT * FROM screening_position_quarters"
+        ).fetchall()
         concentration_rows = source.execute(
             """
             SELECT cik, quarter_index, coalesce(top10_weight * 100, 0)
@@ -748,6 +863,7 @@ def build_screening_snapshot(
         snapshot.execute("DELETE FROM snapshot_metadata")
         snapshot.execute("DELETE FROM manager_metrics")
         snapshot.execute("DELETE FROM durable_positions")
+        snapshot.execute("DELETE FROM manager_position_quarters")
         snapshot.execute("DELETE FROM manager_quarter_concentration")
         snapshot.execute("DELETE FROM performance_run_metadata")
         snapshot.execute("DELETE FROM manager_performance")
@@ -776,6 +892,13 @@ def build_screening_snapshot(
                 "INSERT INTO durable_positions VALUES (?,?,?,?,?,?,?,?,?,?)",
                 position_rows[start:start + 500],
             )
+        for start in range(0, len(position_quarter_rows), 1000):
+            snapshot.executemany(
+                "INSERT INTO manager_position_quarters VALUES ("
+                + ",".join("?" for _ in range(12))
+                + ")",
+                position_quarter_rows[start:start + 1000],
+            )
         for start in range(0, len(concentration_rows), 500):
             snapshot.executemany(
                 "INSERT INTO manager_quarter_concentration VALUES (?,?,?)",
@@ -802,33 +925,60 @@ def build_screening_snapshot(
 
         default_count = snapshot.execute(
             """
+            WITH persistent_best_bets AS (
+                SELECT cik, count(*) AS best_bet_count
+                FROM (
+                    SELECT cik, security_key
+                    FROM manager_position_quarters
+                    WHERE quarter_index <= 5
+                      AND weight_nonoption_pct >= 3
+                    GROUP BY cik, security_key
+                    HAVING count(*) = 5
+                ) positions
+                GROUP BY cik
+            )
             SELECT count(*)
-            FROM manager_metrics
-            WHERE median_reported_value_4q >= 10000000000
-              AND latest_stock_count >= 1
-              AND direct_stock_pct >= 80
-              AND top10_pct >= 40
-              AND concentration_pass_quarters >= 6
-              AND annualized_turnover_pct <= 100
+            FROM manager_metrics m
+            JOIN persistent_best_bets b USING (cik)
+            WHERE m.median_reported_value_4q >= 10000000000
+              AND m.latest_stock_count >= 1
+              AND m.direct_stock_pct >= 80
+              AND m.top10_pct >= 40
+              AND m.concentration_pass_quarters >= 6
+              AND b.best_bet_count >= 1
             """
         ).fetchone()[0]
         roster_count = snapshot.execute(
             """
+            WITH persistent_best_bets AS (
+                SELECT cik, count(*) AS best_bet_count
+                FROM (
+                    SELECT cik, security_key
+                    FROM manager_position_quarters
+                    WHERE quarter_index <= 5
+                      AND weight_nonoption_pct >= 3
+                    GROUP BY cik, security_key
+                    HAVING count(*) = 5
+                ) positions
+                GROUP BY cik
+            )
             SELECT count(*)
-            FROM manager_metrics
-            WHERE median_reported_value_4q >= 10000000000
-              AND latest_stock_count >= 1
-              AND direct_stock_pct >= 80
-              AND top10_pct >= 40
-              AND concentration_pass_quarters >= 6
-              AND annualized_turnover_pct <= 100
-              AND is_current_roster
+            FROM manager_metrics m
+            JOIN persistent_best_bets b USING (cik)
+            WHERE m.median_reported_value_4q >= 10000000000
+              AND m.latest_stock_count >= 1
+              AND m.direct_stock_pct >= 80
+              AND m.top10_pct >= 40
+              AND m.concentration_pass_quarters >= 6
+              AND b.best_bet_count >= 1
+              AND m.is_current_roster
             """
         ).fetchone()[0]
         result = {
             "report_period": report_period,
             "manager_count": len(manager_rows),
             "durable_position_count": len(position_rows),
+            "position_quarter_count": len(position_quarter_rows),
             "default_count": default_count,
             "default_roster_count": roster_count,
             "performance_summary_count": len(performance_summary_rows),
@@ -879,7 +1029,14 @@ class ScreeningService:
         minimum_direct_stock_pct: float = 80.0,
         minimum_top10_pct: float = 40.0,
         minimum_concentration_quarters: int = 6,
-        maximum_turnover_pct: float = 100.0,
+        minimum_best_bet_weight_pct: float = 3.0,
+        best_bet_duration_months: int = 12,
+        minimum_best_bet_count: int = 1,
+        benchmark_hurdle: str = "none",
+        minimum_excess_cagr: float = 0.0,
+        minimum_beat_consistency: float | None = None,
+        maximum_drawdown: float | None = None,
+        maximum_turnover_pct: float | None = None,
         require_durable_position: bool = False,
         roster_only: bool = False,
         search: str | None = None,
@@ -902,23 +1059,51 @@ class ScreeningService:
             normalized_window = performance_window.strip().upper()
             if normalized_window not in {"3Y", "5Y", "FULL"}:
                 raise ValueError("performance_window must be 3Y, 5Y, or FULL")
-            has_performance = bool(
-                connection.execute(
+            if best_bet_duration_months not in BEST_BET_DURATION_SNAPSHOTS:
+                raise ValueError(
+                    "best_bet_duration_months must be 6, 12, 18, or 24"
+                )
+            if minimum_best_bet_weight_pct < BEST_BET_CUBE_WEIGHT_FLOOR_PCT:
+                raise ValueError(
+                    "minimum_best_bet_weight_pct cannot be below "
+                    f"{BEST_BET_CUBE_WEIGHT_FLOOR_PCT:g}"
+                )
+            normalized_hurdle = benchmark_hurdle.strip().lower()
+            if normalized_hurdle not in {"none", "spy", "qqq", "both"}:
+                raise ValueError(
+                    "benchmark_hurdle must be none, spy, qqq, or both"
+                )
+            available_tables = {
+                row[0]
+                for row in connection.execute(
                     """
-                    SELECT count(*)
+                    SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'main'
-                      AND table_name = 'manager_performance'
                     """
-                ).fetchone()[0]
-            )
+                ).fetchall()
+            }
+            has_performance = "manager_performance" in available_tables
+            has_position_cube = "manager_position_quarters" in available_tables
+            if not has_position_cube:
+                return {
+                    "data": [],
+                    "summary": {},
+                    "metadata": {
+                        "position_cube_available": False,
+                    },
+                    "defaults": DEFAULT_FILTERS,
+                    "error": (
+                        "Screening snapshot predates dynamic best-bet facts; "
+                        "run refresh-screening"
+                    ),
+                }
             conditions = [
                 "m.median_reported_value_4q >= ?",
                 "m.latest_stock_count >= ?",
                 "m.direct_stock_pct >= ?",
                 "m.top10_pct >= ?",
                 "p.concentration_pass_quarters >= ?",
-                "m.annualized_turnover_pct <= ?",
             ]
             params = [
                 minimum_size_billions * 1_000_000_000,
@@ -926,8 +1111,47 @@ class ScreeningService:
                 minimum_direct_stock_pct,
                 minimum_top10_pct,
                 minimum_concentration_quarters,
-                maximum_turnover_pct,
             ]
+            query_prefix_params: list[object] = [minimum_top10_pct]
+            required_best_bet_snapshots = BEST_BET_DURATION_SNAPSHOTS[
+                best_bet_duration_months
+            ]
+            if has_position_cube:
+                best_bet_join = """
+                JOIN (
+                    SELECT cik, count(*)::INTEGER AS persistent_best_bet_count
+                    FROM (
+                        SELECT cik, security_key
+                        FROM manager_position_quarters
+                        WHERE quarter_index <= ?
+                          AND weight_nonoption_pct >= ?
+                        GROUP BY cik, security_key
+                        HAVING count(*) = ?
+                    ) qualified_positions
+                    GROUP BY cik
+                ) bb USING (cik)
+                """
+                best_bet_projection = (
+                    "bb.persistent_best_bet_count "
+                    "AS persistent_best_bet_count"
+                )
+                query_prefix_params.extend(
+                    [
+                        required_best_bet_snapshots,
+                        minimum_best_bet_weight_pct,
+                        required_best_bet_snapshots,
+                    ]
+                )
+                conditions.append("bb.persistent_best_bet_count >= ?")
+                params.append(minimum_best_bet_count)
+            else:
+                best_bet_join = ""
+                best_bet_projection = (
+                    "NULL::INTEGER AS persistent_best_bet_count"
+                )
+            if maximum_turnover_pct is not None:
+                conditions.append("m.annualized_turnover_pct <= ?")
+                params.append(maximum_turnover_pct)
             if require_durable_position:
                 conditions.append("m.durable_position_count > 0")
             if roster_only:
@@ -941,19 +1165,62 @@ class ScreeningService:
             if has_performance:
                 if require_performance:
                     conditions.append("perf.status = 'AVAILABLE'")
-                if minimum_spy_excess_cagr is not None:
+                excess_operator = (
+                    ">=" if minimum_excess_cagr > 0 else ">"
+                )
+                if normalized_hurdle in {"spy", "both"}:
                     conditions.extend(
                         [
                             "perf.status = 'AVAILABLE'",
-                            "perf.spy_excess_cagr >= ?",
+                            f"perf.spy_excess_cagr {excess_operator} ?",
+                        ]
+                    )
+                    params.append(minimum_excess_cagr)
+                    if minimum_beat_consistency is not None:
+                        conditions.append(
+                            "perf.spy_quarterly_beat_rate >= ?"
+                        )
+                        params.append(minimum_beat_consistency)
+                if normalized_hurdle in {"qqq", "both"}:
+                    conditions.extend(
+                        [
+                            "perf.status = 'AVAILABLE'",
+                            f"perf.qqq_excess_cagr {excess_operator} ?",
+                        ]
+                    )
+                    params.append(minimum_excess_cagr)
+                    if minimum_beat_consistency is not None:
+                        conditions.append(
+                            "perf.qqq_quarterly_beat_rate >= ?"
+                        )
+                        params.append(minimum_beat_consistency)
+                if maximum_drawdown is not None:
+                    conditions.extend(
+                        [
+                            "perf.status = 'AVAILABLE'",
+                            "perf.max_drawdown >= ?",
+                        ]
+                    )
+                    params.append(-abs(maximum_drawdown))
+                if minimum_spy_excess_cagr is not None:
+                    legacy_spy_operator = (
+                        ">=" if minimum_spy_excess_cagr > 0 else ">"
+                    )
+                    conditions.extend(
+                        [
+                            "perf.status = 'AVAILABLE'",
+                            f"perf.spy_excess_cagr {legacy_spy_operator} ?",
                         ]
                     )
                     params.append(minimum_spy_excess_cagr)
                 if minimum_qqq_excess_cagr is not None:
+                    legacy_qqq_operator = (
+                        ">=" if minimum_qqq_excess_cagr > 0 else ">"
+                    )
                     conditions.extend(
                         [
                             "perf.status = 'AVAILABLE'",
-                            "perf.qqq_excess_cagr >= ?",
+                            f"perf.qqq_excess_cagr {legacy_qqq_operator} ?",
                         ]
                     )
                     params.append(minimum_qqq_excess_cagr)
@@ -987,13 +1254,12 @@ class ScreeningService:
                     perf.label AS performance_label,
                     perf.disclaimer AS performance_disclaimer
                 """
-                query_prefix_params: list[object] = [
-                    minimum_top10_pct,
-                    normalized_window,
-                ]
+                query_prefix_params.append(normalized_window)
             else:
                 if (
                     require_performance
+                    or normalized_hurdle != "none"
+                    or maximum_drawdown is not None
                     or minimum_spy_excess_cagr is not None
                     or minimum_qqq_excess_cagr is not None
                 ):
@@ -1024,7 +1290,6 @@ class ScreeningService:
                     NULL::VARCHAR AS performance_label,
                     NULL::VARCHAR AS performance_disclaimer
                 """
-                query_prefix_params = [minimum_top10_pct]
 
             where_clause = " AND ".join(conditions)
             rows = connection.execute(
@@ -1032,6 +1297,7 @@ class ScreeningService:
                 SELECT
                     m.* EXCLUDE (concentration_pass_quarters),
                     p.concentration_pass_quarters,
+                    {best_bet_projection},
                     {performance_projection}
                 FROM manager_metrics m
                 JOIN (
@@ -1042,6 +1308,7 @@ class ScreeningService:
                     FROM manager_quarter_concentration
                     GROUP BY cik
                 ) p USING (cik)
+                {best_bet_join}
                 {performance_join}
                 WHERE {where_clause}
                 ORDER BY m.median_reported_value_4q DESC, m.manager_name
@@ -1053,23 +1320,51 @@ class ScreeningService:
 
             ciks = [item["cik"] for item in data]
             positions_by_cik = {}
-            if ciks:
+            if ciks and has_position_cube:
                 placeholders = ",".join("?" for _ in ciks)
                 position_rows = connection.execute(
                     f"""
-                    SELECT *
-                    FROM durable_positions
+                    SELECT
+                        cik,
+                        security_key,
+                        max(cusip) FILTER (WHERE quarter_index = 1) AS cusip,
+                        max(ticker) FILTER (WHERE quarter_index = 1) AS ticker,
+                        max(issuer) FILTER (WHERE quarter_index = 1) AS issuer,
+                        max(title_of_class)
+                            FILTER (WHERE quarter_index = 1) AS title_of_class,
+                        max(weight_nonoption_pct)
+                            FILTER (WHERE quarter_index = 1)
+                            AS latest_weight_pct,
+                        max(direct_sleeve_weight_pct)
+                            FILTER (WHERE quarter_index = 1)
+                            AS latest_direct_sleeve_pct,
+                        max(position_rank)
+                            FILTER (WHERE quarter_index = 1) AS latest_rank,
+                        min(weight_nonoption_pct) AS minimum_weight_pct,
+                        count(*)::INTEGER AS observed_snapshots
+                    FROM manager_position_quarters
                     WHERE cik IN ({placeholders})
+                      AND quarter_index <= ?
+                      AND weight_nonoption_pct >= ?
+                    GROUP BY cik, security_key
+                    HAVING count(*) = ?
                     ORDER BY cik, latest_weight_pct DESC
                     """,
-                    ciks,
+                    [
+                        *ciks,
+                        required_best_bet_snapshots,
+                        minimum_best_bet_weight_pct,
+                        required_best_bet_snapshots,
+                    ],
                 )
                 position_columns = [item[0] for item in position_rows.description]
                 for row in position_rows.fetchall():
                     item = dict(zip(position_columns, row))
                     positions_by_cik.setdefault(item["cik"], []).append(item)
             for item in data:
-                item["durable_positions"] = positions_by_cik.get(item["cik"], [])
+                best_bets = positions_by_cik.get(item["cik"], [])
+                item["persistent_best_bets"] = best_bets
+                item["durable_positions"] = best_bets
 
             metadata = connection.execute(
                 "SELECT * FROM snapshot_metadata LIMIT 1"
@@ -1081,6 +1376,7 @@ class ScreeningService:
                 if metadata_row
                 else {}
             )
+            meta["position_cube_available"] = has_position_cube
             summary = {
                 "candidate_count": len(data),
                 "roster_count": sum(1 for item in data if item["is_current_roster"]),

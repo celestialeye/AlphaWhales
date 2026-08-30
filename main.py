@@ -207,7 +207,14 @@ async def api_screening(
     minimum_direct_stock_pct: float = 80.0,
     minimum_top10_pct: float = 40.0,
     minimum_concentration_quarters: int = 6,
-    maximum_turnover_pct: float = 100.0,
+    minimum_best_bet_weight_pct: float = 3.0,
+    best_bet_duration_months: int = 12,
+    minimum_best_bet_count: int = 1,
+    benchmark_hurdle: str = "none",
+    minimum_excess_cagr_pct: float = 0.0,
+    minimum_beat_consistency_pct: float = None,
+    maximum_drawdown_pct: float = None,
+    maximum_turnover_pct: float = None,
     require_durable_position: bool = False,
     roster_only: bool = False,
     performance_window: str = "3Y",
@@ -228,7 +235,40 @@ async def api_screening(
                 8,
                 max(1, minimum_concentration_quarters)
             ),
-            maximum_turnover_pct=max(0.0, maximum_turnover_pct),
+            minimum_best_bet_weight_pct=min(
+                10.0,
+                max(1.0, minimum_best_bet_weight_pct),
+            ),
+            best_bet_duration_months=(
+                best_bet_duration_months
+                if best_bet_duration_months in {6, 12, 18, 24}
+                else 12
+            ),
+            minimum_best_bet_count=min(
+                10,
+                max(1, minimum_best_bet_count),
+            ),
+            benchmark_hurdle=(
+                benchmark_hurdle.lower()
+                if benchmark_hurdle.lower() in {"none", "spy", "qqq", "both"}
+                else "none"
+            ),
+            minimum_excess_cagr=max(0.0, minimum_excess_cagr_pct) / 100,
+            minimum_beat_consistency=(
+                min(100.0, max(0.0, minimum_beat_consistency_pct)) / 100
+                if minimum_beat_consistency_pct is not None
+                else None
+            ),
+            maximum_drawdown=(
+                min(100.0, max(0.0, maximum_drawdown_pct)) / 100
+                if maximum_drawdown_pct is not None
+                else None
+            ),
+            maximum_turnover_pct=(
+                max(0.0, maximum_turnover_pct)
+                if maximum_turnover_pct is not None
+                else None
+            ),
             require_durable_position=require_durable_position,
             roster_only=roster_only,
             performance_window=performance_window,

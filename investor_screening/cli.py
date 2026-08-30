@@ -166,7 +166,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--minimum-size-billions",
         type=float,
         default=10.0,
-        help="Minimum reported size for screened managers (default: 10)",
+        help=(
+            "Minimum reported size for the reusable performance universe "
+            "(default: 10)"
+        ),
     )
     performance_parser.add_argument(
         "--as-of",

@@ -696,6 +696,46 @@ class InvestorScreeningTests(unittest.TestCase):
                 ("0000000001", 8, 36),
             ],
         )
+        snapshot.executemany(
+            "INSERT INTO manager_position_quarters VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    "0000000001",
+                    "stock-a",
+                    quarter,
+                    date(2025, 12, 31),
+                    "000000001",
+                    "AAA",
+                    "Stock A",
+                    "COM",
+                    weight * 200000000,
+                    weight,
+                    weight,
+                    1,
+                )
+                for quarter, weight in enumerate(
+                    [5.0, 4.5, 4.0, 3.5, 3.0],
+                    start=1,
+                )
+            ]
+            + [
+                (
+                    "0000000001",
+                    "stock-b",
+                    quarter,
+                    date(2025, 12, 31),
+                    "000000002",
+                    "BBB",
+                    "Stock B",
+                    "COM",
+                    700000000,
+                    3.5,
+                    3.5,
+                    2,
+                )
+                for quarter in range(1, 4)
+            ],
+        )
         snapshot.close()
         pointer = self.root / "screening_snapshot.json"
         pointer.write_text(
@@ -728,6 +768,35 @@ class InvestorScreeningTests(unittest.TestCase):
             service.get_screening_results(
                 minimum_stock_count=8,
                 minimum_concentration_quarters=1,
+            )["summary"]["candidate_count"],
+            0,
+        )
+        six_months = service.get_screening_results(
+            minimum_concentration_quarters=1,
+            best_bet_duration_months=6,
+            minimum_best_bet_count=2,
+        )
+        self.assertEqual(six_months["summary"]["candidate_count"], 1)
+        self.assertEqual(
+            six_months["data"][0]["persistent_best_bet_count"],
+            2,
+        )
+        self.assertEqual(
+            len(six_months["data"][0]["persistent_best_bets"]),
+            2,
+        )
+        self.assertEqual(
+            service.get_screening_results(
+                minimum_concentration_quarters=1,
+                best_bet_duration_months=12,
+                minimum_best_bet_count=2,
+            )["summary"]["candidate_count"],
+            0,
+        )
+        self.assertEqual(
+            service.get_screening_results(
+                minimum_concentration_quarters=1,
+                minimum_best_bet_weight_pct=4,
             )["summary"]["candidate_count"],
             0,
         )

@@ -21,7 +21,8 @@
         <h1>Investor Screening</h1>
         <p class="text-muted">
             Find established managers with scale, direct-stock focus,
-            persistent concentration, and followable portfolio turnover.
+            persistent concentration, long-held best bets, and
+            disclosure-lagged performance.
         </p>
     </div>
     <div class="screening-asof">
@@ -42,7 +43,7 @@
     </button>
     <button class="screening-preset" data-preset="patient" onclick="applyScreeningPreset('patient')">
         <span>Patient Tilt</span>
-        <small>Low-turnover filter</small>
+        <small>Long-held best bets</small>
     </button>
     <button class="screening-reset" onclick="resetScreeningDefaults()">Reset defaults</button>
 </div>
@@ -132,11 +133,8 @@
             </label>
         </fieldset>
 
-        <fieldset class="screening-filter-group screening-filter-group-draft" disabled>
-            <legend>Long-term investor — Draft</legend>
-            <p class="screening-draft-note">
-                UI preview only. These controls do not affect results yet.
-            </p>
+        <fieldset class="screening-filter-group screening-filter-group-long-term">
+            <legend>Long-term investor</legend>
 
             <label class="screening-field">
                 {{ screening_filter_label(
@@ -145,8 +143,10 @@
                     "Draft minimum best-bet weight explanation"
                 ) }}
                 <div class="range-line">
-                    <input type="range" min="1" max="10" step="0.5" value="3">
-                    <output>3%</output>
+                    <input id="screen-best-bet-weight" type="range" min="1" max="10" step="0.5" value="3"
+                           oninput="updateScreeningRange('screen-best-bet-weight', 'screen-best-bet-weight-value', '%')"
+                           onchange="scheduleScreeningLoad()">
+                    <output id="screen-best-bet-weight-value">3%</output>
                 </div>
             </label>
 
@@ -156,11 +156,11 @@
                     "Proposed rule: the stock must meet the selected weight in every quarterly filing throughout this period.",
                     "Draft best-bet holding period explanation"
                 ) }}
-                <select>
-                    <option>6 months</option>
-                    <option selected>12 months — Draft default</option>
-                    <option>18 months</option>
-                    <option>24 months</option>
+                <select id="screen-best-bet-duration" onchange="scheduleScreeningLoad()">
+                    <option value="6">6 months</option>
+                    <option value="12" selected>12 months — Default</option>
+                    <option value="18">18 months</option>
+                    <option value="24">24 months</option>
                 </select>
             </label>
 
@@ -171,8 +171,10 @@
                     "Draft minimum long-term best-bet count explanation"
                 ) }}
                 <div class="range-line">
-                    <input type="range" min="1" max="10" step="1" value="1">
-                    <output>1</output>
+                    <input id="screen-best-bet-count" type="range" min="1" max="10" step="1" value="1"
+                           oninput="updateScreeningBestBetCount()"
+                           onchange="scheduleScreeningLoad()">
+                    <output id="screen-best-bet-count-value">1</output>
                 </div>
             </label>
         </fieldset>
@@ -199,7 +201,7 @@
                     "Optionally keeps only managers whose hypothetical annualized return exceeded SPY, QQQ, or both over the same dates. These are reported-holdings estimates, not actual fund returns.",
                     "Benchmark hurdle explanation"
                 ) }}
-                <select id="screen-benchmark-filter" onchange="scheduleScreeningLoad()">
+                <select id="screen-benchmark-filter" onchange="updateScreeningPerformanceControls(); scheduleScreeningLoad()">
                     <option value="none" selected>Show all managers</option>
                     <option value="spy">Must beat SPY</option>
                     <option value="qqq">Must beat QQQ</option>
@@ -216,11 +218,8 @@
                 ) }}
             </label>
 
-            <fieldset class="screening-performance-draft" disabled>
-                <legend>Additional filters — Draft</legend>
-                <p class="screening-draft-note">
-                    UI preview only. These controls do not affect results yet.
-                </p>
+            <fieldset class="screening-performance-draft">
+                <legend>Performance quality</legend>
 
                 <label class="screening-field">
                     {{ screening_filter_label(
@@ -228,13 +227,23 @@
                         "Proposed rule: after selecting SPY, QQQ, or both above, require the hypothetical annualized return to beat that benchmark by at least this many percentage points per year.",
                         "Draft minimum excess CAGR explanation"
                     ) }}
-                    <select>
-                        <option selected>Off — Any winning margin</option>
-                        <option>At least +1%</option>
-                        <option>At least +2%</option>
-                        <option>At least +5%</option>
-                        <option>Custom</option>
+                    <select id="screen-min-excess-cagr" onchange="updateScreeningPerformanceControls(); scheduleScreeningLoad()">
+                        <option value="0" selected>Any winning margin</option>
+                        <option value="1">At least +1%</option>
+                        <option value="2">At least +2%</option>
+                        <option value="5">At least +5%</option>
+                        <option value="custom">Custom</option>
                     </select>
+                    <input id="screen-min-excess-cagr-custom"
+                           class="screening-custom-value"
+                           type="number"
+                           min="0"
+                           max="50"
+                           step="0.5"
+                           placeholder="Custom percentage points"
+                           oninput="scheduleScreeningLoad()"
+                           hidden
+                           disabled>
                 </label>
 
                 <label class="screening-field">
@@ -243,11 +252,11 @@
                         "Proposed rule: require the manager's hypothetical sleeve to beat the selected benchmark in at least this percentage of measured periods.",
                         "Draft benchmark beat consistency explanation"
                     ) }}
-                    <select>
-                        <option selected>Off — Endpoint return only</option>
-                        <option>At least 50% of periods</option>
-                        <option>At least 60% of periods</option>
-                        <option>At least 70% of periods</option>
+                    <select id="screen-beat-consistency" onchange="scheduleScreeningLoad()">
+                        <option value="" selected>Off — Endpoint return only</option>
+                        <option value="50">At least 50% of periods</option>
+                        <option value="60">At least 60% of periods</option>
+                        <option value="70">At least 70% of periods</option>
                     </select>
                 </label>
 
@@ -257,12 +266,12 @@
                         "Proposed rule: exclude hypothetical sleeves whose largest peak-to-trough loss exceeds this limit during the selected performance window.",
                         "Draft maximum drawdown explanation"
                     ) }}
-                    <select>
-                        <option selected>No limit</option>
-                        <option>15% maximum</option>
-                        <option>20% maximum</option>
-                        <option>30% maximum</option>
-                        <option>40% maximum</option>
+                    <select id="screen-max-drawdown" onchange="scheduleScreeningLoad()">
+                        <option value="" selected>No limit</option>
+                        <option value="15">15% maximum</option>
+                        <option value="20">20% maximum</option>
+                        <option value="30">30% maximum</option>
+                        <option value="40">40% maximum</option>
                     </select>
                 </label>
             </fieldset>
@@ -313,8 +322,8 @@
             <div>
                 <strong>Evidence before ranking</strong>
                 <p>
-                    Twelve filings are required. ETF classification and turnover remain
-                    provisional until security-reference and price-drift enrichment are complete.
+                    Twelve filings are required. Long-term best bets must stay above
+                    the selected overall 13F weight in every required quarterly snapshot.
                 </p>
             </div>
             <a href="#screening-methodology">Methodology</a>
@@ -379,8 +388,8 @@
                             </th>
                             <th>
                                 <span class="screening-header-label">
-                                    <button type="button" onclick="sortScreening('durable_position_count')">Durable Ideas</button>
-                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Durable ideas definition" data-tooltip="Current direct-stock positions held in all five latest filings, currently top 10 at 3% or more of the sleeve, and meeting those conviction thresholds in at least three of the latest four filings.">i</span>
+                                    <button type="button" onclick="sortScreening('persistent_best_bet_count')">Long-term Best Bets</button>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Long-term best bets definition" data-tooltip="Current stocks that stayed at or above your selected percentage of the manager's complete reported non-option 13F portfolio in every filing throughout your selected holding period.">i</span>
                                 </span>
                             </th>
                             <th>
