@@ -72,61 +72,65 @@
             </select>
         </label>
 
-        <label class="screening-field">
-            {{ screening_filter_label(
-                "Minimum number of stocks held",
-                "Counts direct-company stocks in the manager's latest filing. Selecting 10+ means at least 10 stocks, with no upper limit.",
-                "Minimum number of stocks explanation"
-            ) }}
-            <div class="range-line">
-                <input id="screen-min-stocks" type="range" min="1" max="10" step="1" value="1"
-                       oninput="updateScreeningMinimumStocks()"
-                       onchange="scheduleScreeningLoad()">
-                <output id="screen-min-stocks-value">1</output>
-            </div>
-        </label>
+        <fieldset class="screening-filter-group">
+            <legend>Concentrated stock investor</legend>
 
-        <label class="screening-field">
-            {{ screening_filter_label(
-                "Direct-company-stock sleeve",
-                "The selected percentage is the minimum share of the reported non-option 13F portfolio that must consist of individual company stocks rather than ETFs, pooled funds, and similar products. It is not a percentage of total firm assets.",
-                "Direct-company-stock sleeve explanation"
-            ) }}
-            <div class="range-line">
-                <input id="screen-direct-stock" type="range" min="50" max="100" step="5" value="80"
-                       oninput="updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%')"
-                       onchange="scheduleScreeningLoad()">
-                <output id="screen-direct-stock-value">80%</output>
-            </div>
-        </label>
+            <label class="screening-field">
+                {{ screening_filter_label(
+                    "Minimum number of stocks held",
+                    "Counts direct-company stocks in the manager's latest filing. Selecting 10+ means at least 10 stocks, with no upper limit.",
+                    "Minimum number of stocks explanation"
+                ) }}
+                <div class="range-line">
+                    <input id="screen-min-stocks" type="range" min="1" max="10" step="1" value="1"
+                           oninput="updateScreeningMinimumStocks()"
+                           onchange="scheduleScreeningLoad()">
+                    <output id="screen-min-stocks-value">1</output>
+                </div>
+            </label>
 
-        <label class="screening-field">
-            {{ screening_filter_label(
-                "Minimum share held in top 10 stocks",
-                "The selected percentage is how much of the reported direct-stock portfolio must be held in the manager's 10 largest stocks. Raise it to find more concentrated managers.",
-                "Top ten concentration explanation"
-            ) }}
-            <div class="range-line">
-                <input id="screen-top10" type="range" min="20" max="100" step="5" value="40"
-                       oninput="updateScreeningRange('screen-top10', 'screen-top10-value', '%')"
-                       onchange="scheduleScreeningLoad()">
-                <output id="screen-top10-value">40%</output>
-            </div>
-        </label>
+            <label class="screening-field">
+                {{ screening_filter_label(
+                    "Direct-company-stock sleeve",
+                    "The selected percentage is the minimum share of the reported non-option 13F portfolio that must consist of individual company stocks rather than ETFs, pooled funds, and similar products. It is not a percentage of total firm assets.",
+                    "Direct-company-stock sleeve explanation"
+                ) }}
+                <div class="range-line">
+                    <input id="screen-direct-stock" type="range" min="50" max="100" step="5" value="80"
+                           oninput="updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%')"
+                           onchange="scheduleScreeningLoad()">
+                    <output id="screen-direct-stock-value">80%</output>
+                </div>
+            </label>
 
-        <label class="screening-field">
-            {{ screening_filter_label(
-                "How consistently concentrated?",
-                "6/8 means the manager's top 10 stocks met the concentration setting above in 6 of the latest 8 filings. Raise it to require concentration in more quarters.",
-                "Concentration consistency explanation"
-            ) }}
-            <div class="range-line">
-                <input id="screen-persistence" type="range" min="1" max="8" step="1" value="6"
-                       oninput="updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8')"
-                       onchange="scheduleScreeningLoad()">
-                <output id="screen-persistence-value">6/8</output>
-            </div>
-        </label>
+            <label class="screening-field">
+                {{ screening_filter_label(
+                    "Minimum share held in top 10 stocks",
+                    "The selected percentage is how much of the reported direct-stock portfolio must be held in the manager's 10 largest stocks. Raise it to find more concentrated managers.",
+                    "Top ten concentration explanation"
+                ) }}
+                <div class="range-line">
+                    <input id="screen-top10" type="range" min="20" max="100" step="5" value="40"
+                           oninput="updateScreeningRange('screen-top10', 'screen-top10-value', '%')"
+                           onchange="scheduleScreeningLoad()">
+                    <output id="screen-top10-value">40%</output>
+                </div>
+            </label>
+
+            <label class="screening-field">
+                {{ screening_filter_label(
+                    "How consistently concentrated?",
+                    "6/8 means the manager's top 10 stocks met the concentration setting above in 6 of the latest 8 filings. Raise it to require concentration in more quarters.",
+                    "Concentration consistency explanation"
+                ) }}
+                <div class="range-line">
+                    <input id="screen-persistence" type="range" min="1" max="8" step="1" value="6"
+                           oninput="updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8')"
+                           onchange="scheduleScreeningLoad()">
+                    <output id="screen-persistence-value">6/8</output>
+                </div>
+            </label>
+        </fieldset>
 
         <label class="screening-field">
             {{ screening_filter_label(
