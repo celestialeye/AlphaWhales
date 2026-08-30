@@ -80,32 +80,32 @@
         </label>
 
         <label class="screening-field">
-            <span>Concentration persistence</span>
+            <span>How consistently concentrated?</span>
             <div class="range-line">
                 <input id="screen-persistence" type="range" min="1" max="8" step="1" value="6"
                        oninput="updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8')"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-persistence-value">6/8</output>
             </div>
-            <small>Quarters meeting the selected top-10 threshold.</small>
+            <small>6/8 means the top 10 stocks met your concentration setting above in 6 of the last 8 filings. Raise it to require more consistency.</small>
         </label>
 
         <label class="screening-field">
-            <span>Maximum estimated turnover</span>
+            <span>Maximum annual portfolio turnover</span>
             <div class="range-line">
                 <input id="screen-turnover" type="range" min="25" max="200" step="25" value="100"
                        oninput="updateScreeningRange('screen-turnover', 'screen-turnover-value', '%')"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-turnover-value">100%</output>
             </div>
-            <small>Annualized material share-confirmed weight proxy; lower values are easier to follow.</small>
+            <small>100% means roughly one portfolio's worth of material positions changed per year. Lower this limit to find managers that trade less; routine adjustments are ignored.</small>
         </label>
 
         <label class="screening-check">
             <input id="screen-durable" type="checkbox" onchange="scheduleScreeningLoad()">
             <span>
-                Require a durable conviction position
-                <small>3%+, top 10, visible across five snapshots spanning 12 months.</small>
+                Require at least one long-held top position
+                <small>Keeps managers with a stock held in all 5 latest filings (about 12 months), currently top 10 at 3%+ weight, and at that conviction level in at least 3 of the latest 4 filings.</small>
             </span>
         </label>
 
@@ -145,8 +145,8 @@
         <label class="screening-check">
             <input id="screen-performance-required" type="checkbox" onchange="scheduleScreeningLoad()">
             <span>
-                Require an available estimate
-                <small>Excludes managers below the 95% mapping or price-coverage gate.</small>
+                Only show managers with a performance estimate
+                <small>Hides managers without enough filing history or where less than 95% of reported portfolio value could be matched to a ticker and valid market prices.</small>
             </span>
         </label>
     </aside>
@@ -252,7 +252,7 @@
                             <th>
                                 <span class="screening-header-label">
                                     <button type="button" onclick="sortScreening('durable_position_count')">Durable Ideas</button>
-                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Durable ideas definition" data-tooltip="Current direct-stock positions that remained top-10 conviction holdings at 3% or more of the sleeve in at least three of the latest four filings, including the latest filing.">i</span>
+                                    <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Durable ideas definition" data-tooltip="Current direct-stock positions held in all five latest filings, currently top 10 at 3% or more of the sleeve, and meeting those conviction thresholds in at least three of the latest four filings.">i</span>
                                 </span>
                             </th>
                             <th>
