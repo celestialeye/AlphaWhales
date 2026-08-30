@@ -224,6 +224,21 @@
 
                 <label class="screening-field">
                     {{ screening_filter_label(
+                        "Minimum excess CAGR",
+                        "Proposed rule: after selecting SPY, QQQ, or both above, require the hypothetical annualized return to beat that benchmark by at least this many percentage points per year.",
+                        "Draft minimum excess CAGR explanation"
+                    ) }}
+                    <select>
+                        <option selected>Off — Any winning margin</option>
+                        <option>At least +1%</option>
+                        <option>At least +2%</option>
+                        <option>At least +5%</option>
+                        <option>Custom</option>
+                    </select>
+                </label>
+
+                <label class="screening-field">
+                    {{ screening_filter_label(
                         "Benchmark beat consistency",
                         "Proposed rule: require the manager's hypothetical sleeve to beat the selected benchmark in at least this percentage of measured periods.",
                         "Draft benchmark beat consistency explanation"

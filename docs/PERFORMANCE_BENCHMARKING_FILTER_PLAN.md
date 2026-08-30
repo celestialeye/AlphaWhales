@@ -86,14 +86,15 @@ thresholds.
 ## Recommended filter design
 
 Avoid separate controls that ask the same performance question in different
-ways. The benchmark target and required excess return belong to one
-**benchmark hurdle**, while consistency and downside are independent
-dimensions.
+ways. The benchmark hurdle selects **what must be beaten**; minimum excess CAGR
+selects **by how much it must be beaten**. They are related but not duplicate
+filters. Consistency and downside remain independent dimensions.
 
 | Filter | Purpose | Proposed choices |
 |---|---|---|
 | Performance window | Select the evaluation period | 3 years, 5 years, full fetched history |
-| Benchmark hurdle | Select the benchmark and required annualized lead in one control | No hurdle; beat SPY; beat QQQ; beat both; later add +2 or +5 percentage-point variants if needed |
+| Benchmark hurdle | Select which benchmark must be beaten | No hurdle; beat SPY; beat QQQ; beat both |
+| Minimum excess CAGR | Select the required annualized winning margin over that benchmark | Any positive margin; +1, +2, or +5 percentage points; custom |
 | Minimum benchmark beat consistency | Require outperformance across repeated periods rather than only at the endpoints | 50%, 60%, 70% of measured quarters |
 | Maximum drawdown | Reject strategies whose return came with unacceptable peak-to-trough loss | 15%, 20%, 30%, 40%, or no limit |
 | Available estimate | Hide managers without enough history or the required mapping and pricing coverage | Show all; available only |
@@ -164,8 +165,9 @@ Keep the **Performance & Benchmarking** group concise:
 1. Performance window.
 2. Benchmark hurdle.
 3. Require an available estimate.
-4. Draft benchmark beat consistency.
-5. Draft maximum drawdown.
+4. Draft minimum excess CAGR.
+5. Draft benchmark beat consistency.
+6. Draft maximum drawdown.
 
 Move roster-only selection beside the results search because it changes the
 manager universe rather than the performance methodology. Show information
@@ -175,9 +177,9 @@ evidence instead of additional sidebar filters.
 No additional performance filter should be implemented until its exact
 definition, default, and treatment of unavailable data are approved.
 
-The Investor Screening page currently includes disabled previews of beat
-consistency and maximum drawdown. The previews are for criteria review only and
-do not submit values to the screening API.
+The Investor Screening page currently includes disabled previews of minimum
+excess CAGR, beat consistency, and maximum drawdown. The previews are for
+criteria review only and do not submit values to the screening API.
 
 ## Key sources
 
