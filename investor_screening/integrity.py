@@ -602,6 +602,26 @@ def run_integrity_audit(
                         """
                     ).fetchall()
                 )
+                building_performance_runs = performance.execute(
+                    """
+                    SELECT count(*)
+                    FROM performance_runs
+                    WHERE status = 'BUILDING'
+                    """
+                ).fetchone()[0]
+                checks["performance_building_runs"] = building_performance_runs
+                if building_performance_runs:
+                    issues.append(
+                        {
+                            "severity": "WARNING",
+                            "code": "PERFORMANCE_RUN_INCOMPLETE",
+                            "item": str(performance_file),
+                            "message": (
+                                f"{building_performance_runs} performance "
+                                "run(s) remain marked BUILDING"
+                            ),
+                        }
+                    )
                 checks["performance_available"] = dict(
                     performance.execute(
                         """
