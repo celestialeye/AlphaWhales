@@ -2387,6 +2387,41 @@ body.period-loading {
     letter-spacing: 0.045em;
 }
 
+.screening-filter-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.screening-filter-info {
+    position: static;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    font-size: 0.55rem;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+.screening-filter-info::before {
+    right: auto;
+    left: 4px;
+}
+
+.screening-filter-info::after {
+    right: auto;
+    left: 0;
+    width: min(300px, calc(100vw - 64px));
+    white-space: normal;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
 .screening-field small,
 .screening-check small {
     display: block;
@@ -2446,6 +2481,11 @@ body.period-loading {
 .screening-check span {
     font-size: 0.78rem;
     font-weight: 600;
+}
+
+.screening-check .screening-filter-info {
+    font-size: 0.55rem;
+    font-weight: 700;
 }
 
 .screening-control-divider {

@@ -1,5 +1,17 @@
 {% extends "base.html" %}
 
+{% macro screening_filter_label(text, tooltip, aria_label) -%}
+<span class="screening-filter-label">
+    {{ text }}
+    <span class="stats-info screening-filter-info"
+          tabindex="0"
+          role="img"
+          aria-label="{{ aria_label }}"
+          data-tooltip="{{ tooltip }}"
+          onclick="event.preventDefault(); event.stopPropagation()">i</span>
+</span>
+{%- endmacro %}
+
 {% block title %}Investor Screening - Alpha Whales Intelligence{% endblock %}
 
 {% block content %}
@@ -46,7 +58,11 @@
         </div>
 
         <label class="screening-field">
-            <span>Minimum reported size</span>
+            {{ screening_filter_label(
+                "Minimum reported size",
+                "Uses the median total value from the manager's latest four quarterly 13F filings. This smooths one-quarter changes and measures reported 13F value, not the firm's total assets under management.",
+                "Minimum reported size explanation"
+            ) }}
             <select id="screen-min-size" onchange="scheduleScreeningLoad()">
                 <option value="0.5">$500M</option>
                 <option value="1">$1B</option>
@@ -54,78 +70,94 @@
                 <option value="10" selected>$10B — Default</option>
                 <option value="50">$50B</option>
             </select>
-            <small>Four-quarter median reported 13F value, not firm AUM.</small>
         </label>
 
         <label class="screening-field">
-            <span>Minimum number of stocks held</span>
+            {{ screening_filter_label(
+                "Minimum number of stocks held",
+                "Counts direct-company stocks in the manager's latest filing. Selecting 10+ means at least 10 stocks, with no upper limit.",
+                "Minimum number of stocks explanation"
+            ) }}
             <div class="range-line">
                 <input id="screen-min-stocks" type="range" min="1" max="10" step="1" value="1"
                        oninput="updateScreeningMinimumStocks()"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-min-stocks-value">1</output>
             </div>
-            <small>Counts direct-company stocks in the latest filing. Selecting 10+ means at least 10 stocks, with no upper limit.</small>
         </label>
 
         <label class="screening-field">
-            <span>Direct-company-stock sleeve</span>
+            {{ screening_filter_label(
+                "Direct-company-stock sleeve",
+                "The selected percentage is the minimum share of the reported non-option 13F portfolio that must consist of individual company stocks rather than ETFs, pooled funds, and similar products. It is not a percentage of total firm assets.",
+                "Direct-company-stock sleeve explanation"
+            ) }}
             <div class="range-line">
                 <input id="screen-direct-stock" type="range" min="50" max="100" step="5" value="80"
                        oninput="updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%')"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-direct-stock-value">80%</output>
             </div>
-            <small>Reduces ETF and pooled-product allocators.</small>
         </label>
 
         <label class="screening-field">
-            <span>Minimum share held in top 10 stocks</span>
+            {{ screening_filter_label(
+                "Minimum share held in top 10 stocks",
+                "The selected percentage is how much of the reported direct-stock portfolio must be held in the manager's 10 largest stocks. Raise it to find more concentrated managers.",
+                "Top ten concentration explanation"
+            ) }}
             <div class="range-line">
                 <input id="screen-top10" type="range" min="20" max="100" step="5" value="40"
                        oninput="updateScreeningRange('screen-top10', 'screen-top10-value', '%')"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-top10-value">40%</output>
             </div>
-            <small>The selected percentage is how much of the reported direct-stock portfolio must be held in the manager's 10 largest stocks. Raise it to find more concentrated managers.</small>
         </label>
 
         <label class="screening-field">
-            <span>How consistently concentrated?</span>
+            {{ screening_filter_label(
+                "How consistently concentrated?",
+                "6/8 means the manager's top 10 stocks met the concentration setting above in 6 of the latest 8 filings. Raise it to require concentration in more quarters.",
+                "Concentration consistency explanation"
+            ) }}
             <div class="range-line">
                 <input id="screen-persistence" type="range" min="1" max="8" step="1" value="6"
                        oninput="updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8')"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-persistence-value">6/8</output>
             </div>
-            <small>6/8 means the top 10 stocks met your concentration setting above in 6 of the last 8 filings. Raise it to require more consistency.</small>
         </label>
 
         <label class="screening-field">
-            <span>Maximum annual portfolio turnover</span>
+            {{ screening_filter_label(
+                "Maximum annual portfolio turnover",
+                "100% means the model estimates that roughly one direct-stock portfolio's worth of material positions changed during a year. Lower the limit to find managers that trade less. Routine small adjustments are ignored.",
+                "Maximum annual portfolio turnover explanation"
+            ) }}
             <div class="range-line">
                 <input id="screen-turnover" type="range" min="25" max="200" step="25" value="100"
                        oninput="updateScreeningRange('screen-turnover', 'screen-turnover-value', '%')"
                        onchange="scheduleScreeningLoad()">
                 <output id="screen-turnover-value">100%</output>
             </div>
-            <small>100% means roughly one portfolio's worth of material positions changed per year. Lower this limit to find managers that trade less; routine adjustments are ignored.</small>
         </label>
 
         <label class="screening-check">
             <input id="screen-durable" type="checkbox" onchange="scheduleScreeningLoad()">
-            <span>
-                Require at least one long-held top position
-                <small>Keeps managers with a stock held in all 5 latest filings (about 12 months), currently top 10 at 3%+ weight, and at that conviction level in at least 3 of the latest 4 filings.</small>
-            </span>
+            {{ screening_filter_label(
+                "Require at least one long-held top position",
+                "Keeps managers with a stock held in all 5 latest filings, spanning about 12 months. The stock must currently rank in the top 10 at 3% or more and meet those conviction thresholds in at least 3 of the latest 4 filings.",
+                "Long-held top position explanation"
+            ) }}
         </label>
 
         <label class="screening-check">
             <input id="screen-roster-only" type="checkbox" onchange="scheduleScreeningLoad()">
-            <span>
-                Current Alpha Whales roster only
-                <small>Restrict results to the configured 26-manager catalog.</small>
-            </span>
+            {{ screening_filter_label(
+                "Current Alpha Whales roster only",
+                "Restricts results to the 26 managers already configured elsewhere in the Alpha Whales dashboard instead of searching the complete eligible 13F universe.",
+                "Alpha Whales roster filter explanation"
+            ) }}
         </label>
 
         <div class="screening-control-divider">
@@ -133,32 +165,39 @@
         </div>
 
         <label class="screening-field">
-            <span>Performance window</span>
+            {{ screening_filter_label(
+                "Performance window",
+                "Selects the period used for the hypothetical annualized return estimate. The 3-year and 5-year choices require continuous eligible history; Full uses the longest complete fetched history, capped at 5 years.",
+                "Performance window explanation"
+            ) }}
             <select id="screen-performance-window" onchange="scheduleScreeningLoad()">
                 <option value="3Y" selected>3 years — Default</option>
                 <option value="5Y">5 years</option>
                 <option value="FULL">Full fetched history (up to 5 years)</option>
             </select>
-            <small>Disclosure-lagged sleeve entered after filings become public.</small>
         </label>
 
         <label class="screening-field">
-            <span>Benchmark requirement</span>
+            {{ screening_filter_label(
+                "Benchmark requirement",
+                "Optionally keeps only managers whose hypothetical annualized return exceeded SPY, QQQ, or both over the same dates. These are reported-holdings estimates, not actual fund returns.",
+                "Benchmark requirement explanation"
+            ) }}
             <select id="screen-benchmark-filter" onchange="scheduleScreeningLoad()">
                 <option value="none" selected>Show all managers</option>
                 <option value="spy">Must beat SPY</option>
                 <option value="qqq">Must beat QQQ</option>
                 <option value="both">Must beat both</option>
             </select>
-            <small>Compares annualized total return over the selected window.</small>
         </label>
 
         <label class="screening-check">
             <input id="screen-performance-required" type="checkbox" onchange="scheduleScreeningLoad()">
-            <span>
-                Only show managers with a performance estimate
-                <small>Hides managers without enough filing history or where less than 95% of reported portfolio value could be matched to a ticker and valid market prices.</small>
-            </span>
+            {{ screening_filter_label(
+                "Only show managers with a performance estimate",
+                "Hides managers without enough continuous filing history or where less than 95% of reported portfolio value could be matched to a ticker and valid market prices.",
+                "Available performance estimate explanation"
+            ) }}
         </label>
     </aside>
 
