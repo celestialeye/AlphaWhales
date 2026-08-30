@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-29 - Dynamic investor screening cube
+
+### Added
+
+- An 829,856-row position-quarter fact cube supports dynamic best-bet weight,
+  6/12/18/24-month duration, and required-count filters without rebuilding
+  screening data.
+- Performance & Benchmarking filters now support minimum excess CAGR,
+  quarterly benchmark beat consistency, and maximum drawdown.
+
+### Changed
+
+- Long-term-investor eligibility now measures current stocks that remained
+  above the selected share of total reported non-option 13F value in every
+  required quarterly snapshot.
+- Estimated turnover remains visible as a diagnostic but is no longer a
+  default eligibility filter.
+- Future performance refreshes use broad size/history eligibility rather than
+  the active screening preset; criteria changes reuse existing performance
+  facts.
+
 ## 2026-08-29 - Ticker sentiment and market context
 
 ### Changed

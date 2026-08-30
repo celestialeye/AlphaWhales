@@ -1,7 +1,6 @@
 # Performance & Benchmarking Filter Plan
 
-**Status:** Research-backed criteria draft; no backend implementation or data
-rebuild is authorized yet.
+**Status:** Implemented baseline using reusable per-manager performance facts.
 
 ## Objective
 
@@ -16,12 +15,16 @@ fees, and intra-quarter trading.
 
 ## Current controls
 
-The production UI currently provides:
+The production UI provides:
 
 1. Performance window: 3 years, 5 years, or full fetched history.
-2. Benchmark requirement: show all, beat SPY, beat QQQ, or beat both.
+2. Benchmark hurdle: show all, beat SPY, beat QQQ, or beat both.
 3. Available-estimate requirement: enough continuous history with at least 95%
    identifier-mapping and priced-value coverage.
+4. Minimum excess CAGR: any positive margin, +1, +2, +5 percentage points, or
+   a custom margin.
+5. Benchmark beat consistency: off, 50%, 60%, or 70% of measured quarters.
+6. Maximum drawdown: no limit, 15%, 20%, 30%, or 40%.
 
 The current result table also displays estimated CAGR, excess CAGR, maximum
 drawdown, and coverage. The data layer already calculates monthly Sharpe,
@@ -95,7 +98,7 @@ filters. Consistency and downside remain independent dimensions.
 | Performance window | Select the evaluation period | 3 years, 5 years, full fetched history |
 | Benchmark hurdle | Select which benchmark must be beaten | No hurdle; beat SPY; beat QQQ; beat both |
 | Minimum excess CAGR | Select the required annualized winning margin over that benchmark | Any positive margin; +1, +2, or +5 percentage points; custom |
-| Minimum benchmark beat consistency | Require outperformance across repeated periods rather than only at the endpoints | 50%, 60%, 70% of measured quarters |
+| Minimum benchmark beat consistency | Require outperformance across repeated periods rather than only at the endpoints | Off; 50%, 60%, 70% of measured quarters |
 | Maximum drawdown | Reject strategies whose return came with unacceptable peak-to-trough loss | 15%, 20%, 30%, 40%, or no limit |
 | Available estimate | Hide managers without enough history or the required mapping and pricing coverage | Show all; available only |
 
@@ -158,28 +161,25 @@ Do not expose these until the underlying calculations exist:
    - False-discovery-rate correction across managers.
    - Multiple-testing-aware significance thresholds.
 
-## Recommended UI structure
+## Current UI structure
 
 Keep the **Performance & Benchmarking** group concise:
 
 1. Performance window.
 2. Benchmark hurdle.
 3. Require an available estimate.
-4. Draft minimum excess CAGR.
-5. Draft benchmark beat consistency.
-6. Draft maximum drawdown.
+4. Minimum excess CAGR.
+5. Benchmark beat consistency.
+6. Maximum drawdown.
 
 Move roster-only selection beside the results search because it changes the
 manager universe rather than the performance methodology. Show information
 ratio, coverage, interval count, and benchmark-relative drawdown as result
 evidence instead of additional sidebar filters.
 
-No additional performance filter should be implemented until its exact
-definition, default, and treatment of unavailable data are approved.
-
-The Investor Screening page currently includes disabled previews of minimum
-excess CAGR, beat consistency, and maximum drawdown. The previews are for
-criteria review only and do not submit values to the screening API.
+All six controls query existing window-specific performance facts. Changing a
+threshold does not recalculate returns or rebuild the screening snapshot.
+Unavailable performance is never converted to a passing value.
 
 ## Key sources
 

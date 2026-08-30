@@ -19,13 +19,15 @@ The default screening result requires:
 - At least 80% direct-company-stock exposure in the non-option sleeve.
 - At least 40% in the top ten direct-stock positions.
 - The concentration threshold in at least six of eight quarters.
-- Estimated annualized material turnover no greater than 100%.
+- At least one current stock that remained at or above 3% of total reported
+  non-option 13F value in each of the latest five quarterly snapshots.
 
 Routine adjustments below either 0.25 portfolio-weight percentage points or a
 10% share-count change do not contribute to the material-turnover proxy.
 New/closed positions below 0.5% are retained as reported facts but excluded
-from material conviction turnover. Full price-drift adjustment remains a
-documented future refinement, so turnover is labeled an estimate.
+from material conviction turnover. Turnover remains a diagnostic rather than a
+default eligibility filter. Full price-drift adjustment remains a documented
+future refinement, so turnover is labeled an estimate.
 
 ## Holdings and ownership
 

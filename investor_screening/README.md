@@ -167,11 +167,12 @@ python -m investor_screening.cli refresh-bulk-views
 python -m investor_screening.cli refresh-npx-votes
 python -m investor_screening.cli refresh-integrity-metadata
 
-# Build a new immutable screening generation and atomically publish its pointer
+# Build the reusable position-quarter cube, create a new immutable screening
+# generation, and atomically publish its pointer
 python -m investor_screening.cli refresh-screening
 
 # Build offline prices and hypothetical disclosure-lagged 13F estimates
-# for managers passing the screening rules at the $10B default.
+# for the broad size/history universe. Screening thresholds reuse these facts.
 python -m investor_screening.cli refresh-performance
 python -m investor_screening.cli refresh-performance --minimum-size-billions 10 --as-of 2026-08-29 --window-years 5
 python -m investor_screening.cli refresh-performance --force-prices
@@ -214,9 +215,12 @@ committed.
 
 The screening page is available at `http://127.0.0.1:8000/screening`. Its
 default minimum reported 13F value is $10 billion, while the UI can lower or
-raise the threshold without rebuilding the snapshot. Each refresh creates an
-immutable `screening_snapshot.<generation>.duckdb` and atomically updates
-`screening_snapshot.json`; active readers never share the writer's file.
+raise size, concentration, long-term-best-bet, and performance thresholds
+without rebuilding the snapshot. The compact snapshot stores a pruned
+position-quarter cube for dynamic weight/duration/count queries. Each refresh
+creates an immutable `screening_snapshot.<generation>.duckdb` and atomically
+updates `screening_snapshot.json`; active readers never share the writer's
+file.
 
 ## Amendment handling
 

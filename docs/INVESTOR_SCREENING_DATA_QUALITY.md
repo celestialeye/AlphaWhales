@@ -136,27 +136,32 @@ The runtime screen uses an immutable generation referenced by
 | Metric | Result |
 |---|---:|
 | Managers with 12-quarter metrics | 5,656 |
-| Default $10B candidates | 70 |
+| Reusable position-quarter facts | 829,856 |
+| Default $10B candidates | 71 |
 | Current-roster matches | 9 |
 
 The snapshot includes a source-manifest fingerprint. The integrity audit fails
-if imported 13F datasets change without a new screening generation.
+if imported 13F datasets change without a new screening generation. It also
+checks the position cube for duplicate keys, missing required values, rows
+below the 1% storage floor that are not retained top-10 positions, invalid
+quarter indexes, non-positive values, and inconsistent
+overall-versus-direct-sleeve weights.
 
 ## Hypothetical performance coverage
 
-The production performance run evaluates the 70 managers passing the default
-$10 billion screening preset. It uses actual filing dates, next-session
-execution, a value-weighted direct-stock sleeve, split-and-dividend-adjusted
-OpenBB/yfinance prices, and 95% mapping and priced-value gates.
+The published snapshot contains performance facts for the existing 70-manager
+production run. The dynamic 3%/12-month best-bet default currently returns 71
+managers, 45 of whom have available 3Y estimates. Criteria changes reuse these
+facts and never trigger performance recalculation.
 
 | Metric | Result |
 |---|---:|
 | Cached adjusted-price symbols | 4,043 |
 | Confirmed no-data/delisted symbols | 2,149 |
-| Managers with available 3Y estimates | 46 of 70 |
-| Managers beating SPY over 3Y | 16 of 46 |
-| Managers beating QQQ over 3Y | 8 of 46 |
-| Managers with available 5Y estimates | 22 of 70 |
+| Managers with available 3Y estimates | 45 of 71 |
+| Managers beating SPY over 3Y | 15 of 45 |
+| Managers beating QQQ over 3Y | 8 of 45 |
+| Managers with available 5Y estimates | 22 of 71 |
 | Managers beating SPY over 5Y | 6 of 22 |
 | Managers beating QQQ over 5Y | 3 of 22 |
 
@@ -174,8 +179,9 @@ estimates. They are not actual fund or account returns.
   exposure.
 - Holding duration is observed at quarter ends and does not prove continuous
   ownership.
-- The current turnover metric removes routine changes using share and weight
-  deadbands but still lacks complete universe-wide price-drift adjustment.
+- Estimated turnover remains a diagnostic and still lacks complete
+  universe-wide price-drift adjustment; it is not a default eligibility
+  filter.
 - ETF and pooled-product classification currently uses issuer/title heuristics
   pending a maintained point-in-time security-type reference.
 - `RAW_ONLY` legacy filings require future document-specific extraction if

@@ -1,7 +1,6 @@
 # Long-Term Best-Bet Screening Plan
 
-**Status:** Draft criteria for review; backend implementation is intentionally
-deferred.
+**Status:** Implemented dynamic baseline.
 
 ## Objective
 
@@ -15,7 +14,7 @@ question:
 The model is not intended to infer patience from estimated total portfolio
 turnover or from merely retaining a small residual position.
 
-## Proposed position rule
+## Implemented position rule
 
 For each direct-company stock in each quarterly filing:
 
@@ -37,9 +36,9 @@ Falling below the threshold, disappearing from a filing, or being completely
 closed breaks the streak. Share increases and reductions do not break the
 streak when the position remains above the selected weight.
 
-## Proposed filters
+## Current filters
 
-| Filter | Draft choices | Draft default |
+| Filter | Choices | Default |
 |---|---|---:|
 | Minimum best-bet weight | 1%-10%, in 0.5-point increments | 3% |
 | Time continuously held as a best bet | 6, 12, 18, or 24 months | 12 months |
@@ -59,70 +58,68 @@ duration selected, each stock is evaluated across the latest five quarterly
 snapshots. If three stayed at or above 3% in all five snapshots, the manager
 has three 12-month best bets.
 
-## Institutional position limits
+## Future institutional position-limit support
 
 An absolute portfolio-weight threshold can understate commitment at
-institutions with formal position limits. The cap-aware rule is not finalized.
-Before backend implementation, choose whether a position below the absolute
-threshold may qualify based on manager-relative evidence such as:
+institutions with formal position limits. The current baseline intentionally
+uses only the explicit absolute threshold. A future cap-aware mode may allow a
+position below that threshold to qualify based on manager-relative evidence:
 
 - rank among the manager's largest positions;
 - percentage of the manager's historically observed maximum position size; or
 - active weight above an appropriate benchmark.
 
-This decision must remain explicit. The backend must not silently infer that a
-small position is a best bet.
+The position-quarter cube already retains direct-sleeve weight and rank so this
+can be added without rebuilding the historical 13F foundation. Any cap-aware
+rule must remain explicit; the backend must not silently infer that a small
+position is a best bet.
 
-## UI transition
+## Current UI
 
-During criteria review, the Investor Screening page may show a disabled design
-preview of the three proposed controls. It must be labeled as a draft and must
-not change screening results. The legacy turnover and durable-position controls
-are hidden from the sidebar while their existing backend defaults remain
-unchanged until the replacement criteria are approved.
+The Investor Screening page exposes all three controls. Estimated turnover is
+retained as a diagnostic result column but is no longer a default eligibility
+filter. Results show the qualifying best-bet count and up to three matching
+position chips.
 
-After criteria approval:
-
-1. Replace the annual-turnover filter and one-position durable checkbox.
-2. Keep estimated turnover as a diagnostic table column only.
-3. Show the qualifying best-bet count and matching positions in results.
-4. Update presets and documentation to use the approved defaults.
-
-## Data-layer plan
+## Data-layer implementation
 
 Screening criteria must query reusable facts rather than trigger full rebuilds.
 
 ### Base facts
 
-Store one row per manager, report period, and security with:
+`manager_position_quarters` stores one row per manager, report period, and
+security with:
 
 - effective accession and report period;
 - reported position value;
 - total reported non-option 13F value;
 - reported portfolio weight;
-- direct-stock classification; and
-- normalized security identifier.
+- normalized security identifier;
+- direct-sleeve weight and position rank for future cap-aware rules.
+
+The compact snapshot stores direct-stock rows with overall non-option weight of
+at least 1%, plus each quarter's top ten positions regardless of weight, across
+the latest nine snapshots. The floor matches the minimum selectable best-bet
+threshold, while rank retention preserves evidence needed for a future
+institution-relative position-limit rule.
 
 ### Dynamic best-bet query
 
-Compute consecutive threshold-qualified streaks from the base position-quarter
-facts. Weight, duration, and required-count changes should be SQL filters over
-the same data, not new ingestion or performance runs.
+Consecutive threshold-qualified streaks are computed from the position-quarter
+facts at query time. Weight, duration, and required-count changes are SQL
+filters over the same 829,856-row cube, not new ingestion or performance runs.
 
 ### Independent performance facts
 
-Manager performance must be keyed to the underlying filing and price-data
-version, not to a screening preset or filter fingerprint. Criteria changes
-must reuse existing manager performance and calculate only genuinely missing
-or stale manager records.
+Manager performance remains keyed to the underlying filing and price-data
+version, not to the best-bet thresholds. Criteria changes reuse existing
+manager performance. Future performance refreshes use a broad size/history
+universe rather than the currently selected screening style.
 
-## Work intentionally deferred
+## Future enhancements
 
-- No production snapshot schema change.
-- No best-bet fact-table build.
-- No manager-performance refresh.
-- No replacement of current API parameters.
-- No final default calibration.
-
-These steps begin only after the cap-aware commitment rule and final filter
-defaults are approved.
+- Optional institution-relative position-limit logic.
+- Longer durations if the cube's nine-snapshot bound is expanded.
+- Security-identity continuity through mergers and identifier changes.
+- A lower selectable weight only after rebuilding the cube with a lower
+  pruning floor.

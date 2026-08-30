@@ -122,17 +122,20 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 ### 4. Investor Screening (`/screening`)
 - **Mega High-Conviction Default**: Starts at a $10B four-quarter median
   reported 13F value, 80% direct-company-stock sleeve, 40% top-10
-  concentration, six-of-eight-quarter persistence, and estimated turnover no
-  greater than 100%.
+  concentration, six-of-eight-quarter persistence, and at least one stock held
+  continuously above 3% of reported non-option 13F value for 12 months.
 - **Dynamic Presets and Controls**: Relaxed Scale, Mega High-Conviction, and
-  Patient Tilt presets with editable size, direct-stock, concentration, persistence,
-  turnover, durable-position, roster-only, and manager-search filters.
+  Patient Tilt presets with editable size, stock-count, direct-stock,
+  concentration, long-term-best-bet, performance, roster-only, and
+  manager-search filters.
 - **Precomputed Read-Only Snapshot**: Queries a compact DuckDB snapshot rather
-  than rescanning the full historical 13F foundation on every request.
+  than rescanning the full historical 13F foundation on every request. A
+  reusable 829,856-row position-quarter cube supports dynamic best-bet weight,
+  duration, and count filters without rebuilding data.
 - **Disclosure-Lagged Performance Comparison**: Shows hypothetical 3Y/5Y
   annualized sleeve returns, excess CAGR versus SPY and QQQ, drawdown, and
-  price coverage. Benchmark filters can require a manager to beat SPY, QQQ, or
-  both.
+  price coverage. Filters support SPY/QQQ hurdles, minimum excess CAGR,
+  quarterly beat consistency, and maximum drawdown.
 - **Transparent Research Caveats**: Clearly distinguishes reported 13F value
   from AUM, observed duration from continuous ownership, and estimated turnover
   from actual manager trading. Performance is a current-cohort reported-sleeve

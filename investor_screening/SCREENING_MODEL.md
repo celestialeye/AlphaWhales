@@ -1,20 +1,17 @@
 # Investor Screening Model
 
-**Status:** Implemented baseline, version 1
+**Status:** Implemented dynamic baseline, version 2
 
 **Last updated:** August 29, 2026
 
 **Primary use:** Dynamic institutional-investor and high-conviction holding
 screening from point-in-time SEC data
 
-> The proposed replacement for the current turnover and durable-position
-> filters is documented in
+> The long-term best-bet model is documented in
 > [`docs/LONG_TERM_BEST_BET_SCREENING_PLAN.md`](../docs/LONG_TERM_BEST_BET_SCREENING_PLAN.md).
-> It remains a design draft and is not implemented in the production data
-> layer.
 >
-> Research and proposed additions for the Performance & Benchmarking filters
-> are documented in
+> Research and definitions for the Performance & Benchmarking filters are
+> documented in
 > [`docs/PERFORMANCE_BENCHMARKING_FILTER_PLAN.md`](../docs/PERFORMANCE_BENCHMARKING_FILTER_PLAN.md).
 
 ## Purpose
@@ -73,22 +70,20 @@ Do not combine these dimensions into one opaque quality score.
 | Direct-company-stock percentage | >=80% of the non-option 13F sleeve | 60%, 70%, 80%, 90%, custom |
 | Latest top-10 concentration | >=40% of the direct-stock sleeve | 20%-100% |
 | Concentration persistence | Top-10 concentration >=40% in at least 6 of the last 8 quarters | Configurable X-of-Y |
-| Estimated annualized turnover | <=100% after routine changes are removed | 25%, 50%, 75%, 100%, 150%, 200% |
-| Conviction position | >=3% of direct-stock sleeve and top 10 | 1%-15%; top 1/3/5/10/20 |
-| Benchmark-aware conviction | >=2% absolute weight and >=+2 percentage points active weight, top 10 | Optional when benchmark confidence is high |
-| Observed holding duration | 5 consecutive snapshots spanning at least 12 months | 3, 6, 12, 18, 24+ months |
-| Position persistence | Conviction threshold in at least 3 of the last 4 filings, including latest | Configurable X-of-Y |
-| Performance filter | Disabled | Optional estimated-performance filter |
+| Minimum best-bet weight | >=3% of total reported non-option 13F value in every required snapshot | 1%-10% |
+| Time continuously held as a best bet | 12 months / 5 snapshots | 6, 12, 18, or 24 months |
+| Minimum long-term best bets | >=1 qualifying current stock | 1-10+ |
+| Benchmark hurdle | Disabled | Beat SPY, QQQ, or both |
+| Minimum excess CAGR | Any positive benchmark margin | +1, +2, +5 percentage points, custom |
+| Benchmark beat consistency | Disabled | 50%, 60%, or 70% of measured quarters |
+| Maximum drawdown | No limit | 15%, 20%, 30%, or 40% |
 
 ### Manager eligibility versus position results
 
-Manager eligibility and position eligibility are separate:
-
-- A manager may pass without currently having a 12-month conviction position.
-- A position may appear in shorter-duration discovery results without changing
-  the manager's long-term classification.
-- Position duration and conviction are result columns and optional filters, not
-  mandatory manager-quality judgments.
+The default manager screen requires at least one current stock that remained at
+or above 3% of total reported non-option 13F value in each of the latest five
+quarterly snapshots. Weight, duration, and required count remain independently
+configurable.
 
 ## Required evidence-quality gates
 
@@ -254,19 +249,10 @@ annualized turnover =
 The factor of 0.5 prevents a sale and corresponding purchase from being
 double-counted.
 
-The Established High-Conviction preset allows annualized turnover up to 100%.
-Alternative strategy defaults:
-
-| Strategy preset | Turnover ceiling |
-|---|---:|
-| Patient/value | 50% |
-| Established active | 100% |
-| Growth/active | 150% |
-| Quantitative/systematic | No universal ceiling; assess factor stability instead |
-
-Turnover is a patience and replicability measure, not a universal manager-skill
-measure. A high-turnover manager may be skilled but difficult to follow through
-a filing that can arrive 45 days after quarter-end.
+Turnover remains a diagnostic result column. It is no longer a manager
+eligibility filter because the long-term-investor screen now directly measures
+how many current best bets stayed above the selected portfolio-weight threshold
+for the full selected duration.
 
 ## Concentration
 
@@ -358,6 +344,17 @@ full-fetched-window summaries. Monthly Sharpe explicitly assumes a 0% risk-free
 rate. Information
 ratios and quarterly beat rates are reported separately for SPY and QQQ.
 Unavailable intervals and windows retain a reason rather than a zero return.
+
+Performance filters are evaluated directly against these stored per-manager,
+per-window facts:
+
+- Benchmark hurdle selects SPY, QQQ, or both.
+- Minimum excess CAGR sets the required annualized winning margin.
+- Beat consistency sets the minimum quarterly benchmark beat rate.
+- Maximum drawdown rejects sleeves with a deeper peak-to-trough loss.
+
+Changing any performance threshold executes a read-only snapshot query. It does
+not recalculate returns or refresh market prices.
 
 Generated prices and calculations are refreshed only through:
 
@@ -451,8 +448,7 @@ Cross-form signals supplement the 13F screen:
 - Direct-company-stock percentage >=60%.
 - Top-10 concentration >=30%.
 - Concentration threshold met in at least 4 of 8 quarters.
-- Turnover <=150%.
-- Durable position not required.
+- At least one stock held above 2% for 6 months.
 
 ### Established High-Conviction
 
@@ -464,9 +460,7 @@ Uses the defaults specified in this document.
 - At least 12 filings.
 - Direct-company-stock percentage >=90%.
 - Top-10 concentration >=50%.
-- Turnover <=50%.
-- Position conviction >=3% and top 10.
-- Observed duration >=12 months.
+- At least two stocks held above 3% for 24 months.
 - Manager concentration persistent in all 8 measured quarters.
 
 Presets populate controls; they do not lock them.
@@ -475,27 +469,27 @@ Presets populate controls; they do not lock them.
 
 The revised Established High-Conviction rules were tested against the latest
 complete reporting period, March 31, 2026. Before applying the size threshold,
-748 managers passed the direct-stock, concentration, persistence, and turnover
-rules.
+1,726 managers passed the direct-stock, concentration, persistence, and
+long-term-best-bet rules.
 
 Size sensitivity:
 
 | Minimum four-quarter median reported value | Managers | Current roster overlap |
 |---|---:|---:|
-| $500M | 748 | 21 of 26 |
-| $1B | 515 | 19 of 26 |
-| $3.5B | 206 | 14 of 26 |
-| **$10B — default** | **70** | **9 of 26** |
+| $500M | 838 | 22 of 26 |
+| $1B | 569 | 20 of 26 |
+| $3.5B | 223 | 15 of 26 |
+| **$10B — default** | **71** | **9 of 26** |
 | $50B | 13 | 2 of 26 |
 
 The nine configured managers passing the $10 billion default were Berkshire
 Hathaway, TCI Fund Management, Baupost, Pershing Square, Durable Capital,
 Fundsmith, Polen Capital, Coatue, and Lone Pine.
 
-The calibration turnover values apply the agreed 0.25-percentage-point and 10%
-share-change routine-operation deadbands. Full historical price-drift
-adjustment remains pending, so the counts are still calibration results rather
-than frozen production claims.
+The long-term-best-bet calibration uses a 3% overall non-option 13F weight, five
+consecutive quarterly snapshots, and at least one qualifying current stock.
+Changing weight, duration, or count executes dynamic SQL over the same compact
+position-quarter cube.
 
 The direct-company-stock calibration used provisional issuer-name and
 security-title heuristics to identify ETFs and pooled products. Production
