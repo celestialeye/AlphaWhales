@@ -77,7 +77,9 @@ small position is a best bet.
 
 During criteria review, the Investor Screening page may show a disabled design
 preview of the three proposed controls. It must be labeled as a draft and must
-not change screening results.
+not change screening results. The legacy turnover and durable-position controls
+are hidden from the sidebar while their existing backend defaults remain
+unchanged until the replacement criteria are approved.
 
 After criteria approval:
 

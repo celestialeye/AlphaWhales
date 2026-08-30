@@ -2807,8 +2807,6 @@ const screeningPresets = {
         directStock: 60,
         top10: 30,
         persistence: 4,
-        turnover: 150,
-        durable: false,
         performanceWindow: '3Y'
     },
     mega: {
@@ -2817,8 +2815,6 @@ const screeningPresets = {
         directStock: 80,
         top10: 40,
         persistence: 6,
-        turnover: 100,
-        durable: false,
         performanceWindow: '3Y'
     },
     patient: {
@@ -2827,8 +2823,6 @@ const screeningPresets = {
         directStock: 90,
         top10: 50,
         persistence: 8,
-        turnover: 50,
-        durable: true,
         performanceWindow: '3Y'
     }
 };
@@ -2871,15 +2865,12 @@ function applyScreeningPreset(name) {
     setScreeningControl('screen-direct-stock', preset.directStock);
     setScreeningControl('screen-top10', preset.top10);
     setScreeningControl('screen-persistence', preset.persistence);
-    setScreeningControl('screen-turnover', preset.turnover);
-    setScreeningControl('screen-durable', preset.durable);
     setScreeningControl('screen-performance-window', preset.performanceWindow);
     setScreeningControl('screen-benchmark-filter', 'none');
     setScreeningControl('screen-performance-required', false);
     updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
-    updateScreeningRange('screen-turnover', 'screen-turnover-value', '%');
     updateScreeningMinimumStocks();
     document.querySelectorAll('.screening-preset').forEach(button => {
         button.classList.toggle('active', button.dataset.preset === name);
@@ -2907,7 +2898,6 @@ async function initializeInvestorScreening() {
     updateScreeningRange('screen-direct-stock', 'screen-direct-stock-value', '%');
     updateScreeningRange('screen-top10', 'screen-top10-value', '%');
     updateScreeningRange('screen-persistence', 'screen-persistence-value', '/8');
-    updateScreeningRange('screen-turnover', 'screen-turnover-value', '%');
     await loadInvestorScreening();
 }
 
@@ -2922,8 +2912,6 @@ async function loadInvestorScreening() {
         minimum_direct_stock_pct: document.getElementById('screen-direct-stock')?.value || '80',
         minimum_top10_pct: document.getElementById('screen-top10')?.value || '40',
         minimum_concentration_quarters: document.getElementById('screen-persistence')?.value || '6',
-        maximum_turnover_pct: document.getElementById('screen-turnover')?.value || '100',
-        require_durable_position: document.getElementById('screen-durable')?.checked || false,
         roster_only: document.getElementById('screen-roster-only')?.checked || false,
         performance_window: document.getElementById('screen-performance-window')?.value || '3Y'
     });

@@ -177,33 +177,6 @@
             </label>
         </fieldset>
 
-        <div class="screening-control-divider">
-            <span>Current active long-term proxy</span>
-        </div>
-
-        <label class="screening-field">
-            {{ screening_filter_label(
-                "Maximum annual portfolio turnover",
-                "100% means the model estimates that roughly one direct-stock portfolio's worth of material positions changed during a year. Lower the limit to find managers that trade less. Routine small adjustments are ignored.",
-                "Maximum annual portfolio turnover explanation"
-            ) }}
-            <div class="range-line">
-                <input id="screen-turnover" type="range" min="25" max="200" step="25" value="100"
-                       oninput="updateScreeningRange('screen-turnover', 'screen-turnover-value', '%')"
-                       onchange="scheduleScreeningLoad()">
-                <output id="screen-turnover-value">100%</output>
-            </div>
-        </label>
-
-        <label class="screening-check">
-            <input id="screen-durable" type="checkbox" onchange="scheduleScreeningLoad()">
-            {{ screening_filter_label(
-                "Require at least one long-held top position",
-                "Keeps managers with a stock held in all 5 latest filings, spanning about 12 months. The stock must currently rank in the top 10 at 3% or more and meet those conviction thresholds in at least 3 of the latest 4 filings.",
-                "Long-held top position explanation"
-            ) }}
-        </label>
-
         <label class="screening-check">
             <input id="screen-roster-only" type="checkbox" onchange="scheduleScreeningLoad()">
             {{ screening_filter_label(
