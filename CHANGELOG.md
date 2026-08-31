@@ -11,6 +11,11 @@
   quarterly benchmark beat consistency, and maximum drawdown.
 - A Strict Best-Bet preset applies the reviewed $10B, five-stock, persistent
   5%-weight, and beat-SPY/QQQ settings.
+- A Persistent Best-Bet preset applies the reviewed $500M, three-stock,
+  persistent 3%-weight, full-history, beat-SPY/QQQ settings.
+- Qualified-manager rows now support mouse and keyboard navigation into
+  investor detail pages. Non-roster managers receive a snapshot-backed,
+  explicitly material-position-scoped view.
 
 ### Changed
 

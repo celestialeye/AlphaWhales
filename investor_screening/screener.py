@@ -1482,3 +1482,201 @@ class ScreeningService:
             }
         finally:
             connection.close()
+
+    def get_investor_detail(self, cik: str) -> dict | None:
+        if not self.snapshot_path.exists():
+            return None
+        connection = duckdb.connect(
+            str(resolve_snapshot_path(self.snapshot_path)),
+            read_only=True,
+        )
+        try:
+            manager = connection.execute(
+                """
+                SELECT
+                    cik, manager_name, report_period, latest_nonoption_value,
+                    latest_stock_count, roster_name, is_current_roster
+                FROM manager_metrics
+                WHERE cik = ?
+                """,
+                [cik],
+            ).fetchone()
+            if manager is None:
+                return None
+            positions = connection.execute(
+                """
+                SELECT
+                    cusip, ticker, issuer, title_of_class, reported_value,
+                    weight_nonoption_pct, position_rank
+                FROM manager_position_quarters
+                WHERE cik = ? AND quarter_index = 1
+                ORDER BY weight_nonoption_pct DESC, reported_value DESC
+                """,
+                [cik],
+            ).fetchall()
+            holdings = [
+                {
+                    "ticker": str(ticker or "").strip().upper(),
+                    "issuer": str(issuer or ticker or "Unknown security").title(),
+                    "cusip": str(cusip or ""),
+                    "portfolio_weight": round(float(weight), 2),
+                    "value": round(float(value) / 1_000_000, 2),
+                    "shares": 0,
+                    "status": "UNCHANGED",
+                    "value_change": 0.0,
+                    "value_change_pct": 0.0,
+                    "shares_change": 0.0,
+                    "shares_change_pct": 0.0,
+                    "prev_value": 0.0,
+                    "prev_shares": 0,
+                    "reported_price": None,
+                    "current_price": None,
+                    "current_vs_reported_pct": None,
+                    "low_52_week": None,
+                    "pct_above_low": None,
+                    "market_price_as_of": None,
+                }
+                for cusip, ticker, issuer, title, value, weight, rank in positions
+            ]
+            top5_weight = round(
+                sum(item["portfolio_weight"] for item in holdings[:5]),
+                2,
+            )
+            top10_weight = round(
+                sum(item["portfolio_weight"] for item in holdings[:10]),
+                2,
+            )
+            total_value = float(manager[3])
+            display_name = str(manager[5] or manager[1])
+            return {
+                "fund_info": {
+                    "cik": str(manager[0]),
+                    "name": display_name,
+                    "manager": str(manager[1]),
+                    "group": "13F Screening",
+                    "annotation": (
+                        "Screening-universe manager. Positions shown are the "
+                        "material 1%+ holdings and quarter top-ten positions "
+                        "retained in the compact screening snapshot."
+                    ),
+                },
+                "status": "loaded",
+                "metadata": {
+                    "report_period": manager[2],
+                    "total_value": total_value,
+                    "total_value_m": round(total_value / 1_000_000, 2),
+                    "total_value_b": round(total_value / 1_000_000_000, 2),
+                    "total_holdings": int(manager[4]),
+                    "filing_date": "",
+                },
+                "stats": {
+                    "top5_weight": top5_weight,
+                    "top10_weight": top10_weight,
+                    "status_counts": {
+                        "NEW": 0,
+                        "INCREASED": 0,
+                        "DECREASED": 0,
+                        "UNCHANGED": len(holdings),
+                        "CLOSED": 0,
+                    },
+                    "active_holdings_count": len(holdings),
+                    "closed_holdings_count": 0,
+                    "market_price_as_of": None,
+                },
+                "holdings_list": holdings,
+                "closed_list": [],
+                "last_updated": None,
+                "screening_snapshot_only": True,
+            }
+        finally:
+            connection.close()
+
+    def get_investor_history(self, cik: str) -> dict | None:
+        if not self.snapshot_path.exists():
+            return None
+        connection = duckdb.connect(
+            str(resolve_snapshot_path(self.snapshot_path)),
+            read_only=True,
+        )
+        try:
+            manager = connection.execute(
+                """
+                SELECT manager_name, roster_name
+                FROM manager_metrics
+                WHERE cik = ?
+                """,
+                [cik],
+            ).fetchone()
+            if manager is None:
+                return None
+            periods = connection.execute(
+                """
+                SELECT
+                    report_period,
+                    count(*)::INTEGER AS tracked_position_count,
+                    max(
+                        reported_value / nullif(weight_nonoption_pct / 100, 0)
+                    ) AS portfolio_value
+                FROM manager_position_quarters
+                WHERE cik = ?
+                GROUP BY report_period
+                ORDER BY report_period DESC
+                """,
+                [cik],
+            ).fetchall()
+            top_rows = connection.execute(
+                """
+                SELECT
+                    report_period, ticker, issuer, weight_nonoption_pct,
+                    reported_value
+                FROM manager_position_quarters
+                WHERE cik = ?
+                QUALIFY row_number() OVER (
+                    PARTITION BY report_period
+                    ORDER BY weight_nonoption_pct DESC, reported_value DESC
+                ) <= 20
+                ORDER BY report_period DESC, weight_nonoption_pct DESC
+                """,
+                [cik],
+            ).fetchall()
+            top_by_period: dict[date, list[dict]] = {}
+            for period, ticker, issuer, weight, value in top_rows:
+                top_by_period.setdefault(period, []).append(
+                    {
+                        "ticker": str(ticker or "").strip().upper(),
+                        "issuer": str(
+                            issuer or ticker or "Unknown security"
+                        ).title(),
+                        "portfolio_weight": round(float(weight), 2),
+                        "value": round(float(value) / 1_000_000, 2),
+                    }
+                )
+            return {
+                "fund_info": {
+                    "cik": cik,
+                    "name": str(manager[1] or manager[0]),
+                    "manager": str(manager[0]),
+                    "group": "13F Screening",
+                },
+                "activity": [],
+                "portfolio_history": [
+                    {
+                        "period": period,
+                        "filing_date": "",
+                        "portfolio_value_m": round(
+                            float(portfolio_value or 0) / 1_000_000,
+                            2,
+                        ),
+                        "portfolio_value_b": round(
+                            float(portfolio_value or 0) / 1_000_000_000,
+                            2,
+                        ),
+                        "position_count": int(position_count),
+                        "top_holdings": top_by_period.get(period, []),
+                    }
+                    for period, position_count, portfolio_value in periods
+                ],
+                "screening_snapshot_only": True,
+            }
+        finally:
+            connection.close()

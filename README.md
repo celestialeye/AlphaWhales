@@ -136,6 +136,10 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   annualized sleeve returns, excess CAGR versus SPY and QQQ, drawdown, and
   price coverage. Filters support SPY/QQQ hurdles, minimum excess CAGR,
   quarterly beat consistency, and maximum drawdown.
+- **Manager Detail Navigation**: Every screening result row opens an investor
+  detail page. Configured managers retain their full cached dashboard; other
+  13F managers use the compact snapshot's material 1%+ and quarterly top-ten
+  positions across up to 20 periods.
 - **Transparent Research Caveats**: Clearly distinguishes reported 13F value
   from AUM, observed duration from continuous ownership, and estimated turnover
   from actual manager trading. Performance is a current-cohort reported-sleeve

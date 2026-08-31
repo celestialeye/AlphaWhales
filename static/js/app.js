@@ -25,6 +25,7 @@ let currentInvestorCik = null;
 let investorHistoryData = null;
 let investorHistoryLoading = false;
 let investorActivityFilter = 'ALL';
+let investorSnapshotOnly = false;
 
 let screeningData = [];
 let screeningSortColumn = 'median_reported_value_4q';
@@ -2382,6 +2383,7 @@ async function loadInvestorDetail(cik) {
         const r = await fetch(`/api/investor/${cik}`);
         if (r.status === 404) return;
         const {data} = await r.json();
+        investorSnapshotOnly = Boolean(data.screening_snapshot_only);
 
         // Populate Investor Header
         document.getElementById('inv-name').textContent = data.fund_info.name;
@@ -2401,11 +2403,39 @@ async function loadInvestorDetail(cik) {
                 ? `Market data through ${formatCalendarDate(data.stats.market_price_as_of)}`
                 : 'Market data unavailable';
         }
-
-        // Populate Tab Counts
         globalInvestorHoldings = data.holdings_list || [];
         globalInvestorClosed = data.closed_list || [];
+        const detailDescription = document.getElementById('investor-detail-description');
+        const holdingsTitle = document.getElementById('investor-holdings-title');
+        const holdingsDescription = document.getElementById('investor-holdings-description');
+        const activityTab = document.getElementById('investor-view-activity-tab');
+        const historyTab = document.getElementById('investor-view-history-tab');
+        const backLink = document.getElementById('investor-back-link');
+        if (investorSnapshotOnly) {
+            if (detailDescription) {
+                detailDescription.textContent = 'Screening-focused view of material reported positions retained in the compact 20-quarter snapshot.';
+            }
+            if (holdingsTitle) holdingsTitle.textContent = 'Material Screening Positions';
+            if (holdingsDescription) {
+                holdingsDescription.textContent = 'Direct-stock positions at or above 1% of reported non-option 13F value, plus the quarter’s top ten positions.';
+            }
+            if (activityTab) activityTab.hidden = true;
+            if (historyTab) historyTab.textContent = 'Material Position History';
+            if (backLink) {
+                backLink.href = '/screening';
+                backLink.textContent = '◀ Investor Screening';
+            }
+            document.getElementById('inv-active-closed-count').textContent = `${globalInvestorHoldings.length} material positions shown`;
+        } else {
+            if (activityTab) activityTab.hidden = false;
+            if (historyTab) historyTab.textContent = 'Portfolio History';
+            if (backLink) {
+                backLink.href = '/investor';
+                backLink.textContent = '◀ All 26 Fund Managers';
+            }
+        }
 
+        // Populate Tab Counts
         const statusCounts = data.stats.status_counts || {};
         if (document.getElementById('tab-cnt-all')) document.getElementById('tab-cnt-all').textContent = globalInvestorHoldings.length;
         if (document.getElementById('tab-cnt-new')) document.getElementById('tab-cnt-new').textContent = statusCounts['NEW'] || 0;
@@ -2419,11 +2449,19 @@ async function loadInvestorDetail(cik) {
         // Render Portfolio Allocation Donut Chart
         let top10 = globalInvestorHoldings.slice(0, 10);
         let otherWeight = globalInvestorHoldings.slice(10).reduce((sum, h) => sum + h.portfolio_weight, 0);
-        let labels = top10.map(h => h.ticker);
+        const trackedWeight = globalInvestorHoldings.reduce(
+            (sum, holding) => sum + Number(holding.portfolio_weight || 0),
+            0
+        );
+        let labels = top10.map(h => h.ticker || h.issuer);
         let vals = top10.map(h => h.portfolio_weight);
         if (otherWeight > 0.01) {
-            labels.push('Other');
+            labels.push(investorSnapshotOnly ? 'Other material positions' : 'Other');
             vals.push(Number(otherWeight.toFixed(2)));
+        }
+        if (investorSnapshotOnly && trackedWeight < 99.99) {
+            labels.push('Not retained in screening snapshot');
+            vals.push(Number(Math.max(0, 100 - trackedWeight).toFixed(2)));
         }
 
         const pieData = [{
@@ -2606,13 +2644,23 @@ function renderInvestorPortfolioHistory() {
     }
 
     body.innerHTML = rows.map(period => {
-        const holdings = (period.top_holdings || []).map(holding => `
-            <a class="investor-history-holding" href="/ticker/${encodeURIComponent(holding.ticker)}"
-               title="${escapeInvestorHtml(holding.issuer)} · ${formatPct(holding.portfolio_weight)} · $${formatNum(holding.value)}M">
-                <span class="font-mono">${escapeInvestorHtml(holding.ticker)}</span>
-                <b>${formatPct(holding.portfolio_weight)}</b>
-            </a>
-        `).join('');
+        const holdings = (period.top_holdings || []).map(holding => {
+            const title = `${escapeInvestorHtml(holding.issuer)} · ${formatPct(holding.portfolio_weight)} · $${formatNum(holding.value)}M`;
+            const label = escapeInvestorHtml(holding.ticker || holding.issuer);
+            if (!holding.ticker) {
+                return `
+                    <span class="investor-history-holding" title="${title}">
+                        <span>${label}</span>
+                        <b>${formatPct(holding.portfolio_weight)}</b>
+                    </span>`;
+            }
+            return `
+                <a class="investor-history-holding" href="/ticker/${encodeURIComponent(holding.ticker)}"
+                   title="${title}">
+                    <span class="font-mono">${label}</span>
+                    <b>${formatPct(holding.portfolio_weight)}</b>
+                </a>`;
+        }).join('');
         return `
             <tr>
                 <td>
@@ -2721,23 +2769,39 @@ function sortAndRenderInvestorTable(rows) {
         const marketPriceTitle = h.market_price_as_of
             ? `Latest cached close as of ${formatCalendarDate(h.market_price_as_of)}`
             : 'Latest cached close unavailable';
+        const tickerCell = h.ticker
+            ? `<a href="/ticker/${encodeURIComponent(h.ticker)}"><strong class="font-mono">${escapeInvestorHtml(h.ticker)}</strong></a>`
+            : '<span class="text-muted">—</span>';
+        const sharesCell = investorSnapshotOnly ? '—' : formatInt(h.shares);
+        const actionCell = investorSnapshotOnly
+            ? '<span class="text-muted">—</span>'
+            : `<span class="badge ${getStatusClass(h.status)}">${h.status}</span>`;
+        const valueChangeCell = investorSnapshotOnly
+            ? '—'
+            : `<strong>${valChangeSign}${formatNum(h.value_change)}</strong>`;
+        const valuePctCell = investorSnapshotOnly
+            ? '—'
+            : formatPct(h.value_change_pct);
+        const sharesPctCell = investorSnapshotOnly
+            ? '—'
+            : formatPct(h.shares_change_pct);
 
         html += `
             <tr>
-                <td><a href="/ticker/${h.ticker}"><strong class="font-mono">${h.ticker}</strong></a></td>
-                <td>${h.issuer}</td>
+                <td>${tickerCell}</td>
+                <td>${escapeInvestorHtml(h.issuer)}</td>
                 <td class="font-mono">${renderSparkline(h.portfolio_weight)}</td>
                 <td class="font-mono"><strong>$${formatNum(h.value)}</strong></td>
-                <td class="font-mono">${formatInt(h.shares)}</td>
+                <td class="font-mono">${sharesCell}</td>
                 <td class="font-mono investor-market-cell">${reportedPrice}</td>
                 <td class="font-mono investor-market-cell" title="${marketPriceTitle}"><strong>${currentPrice}</strong></td>
                 <td class="font-mono investor-market-cell ${marketMoveClass}"><strong>${currentVsReported}</strong></td>
                 <td class="font-mono investor-market-cell">${low52Week}</td>
                 <td class="font-mono investor-market-cell ${lowDistanceClass}">${pctAboveLow}</td>
-                <td><span class="badge ${getStatusClass(h.status)}">${h.status}</span></td>
-                <td class="font-mono ${valChangeClass}"><strong>${valChangeSign}${formatNum(h.value_change)}</strong></td>
-                <td class="font-mono ${pctChangeClass}">${formatPct(h.value_change_pct)}</td>
-                <td class="font-mono">${formatPct(h.shares_change_pct)}</td>
+                <td>${actionCell}</td>
+                <td class="font-mono ${valChangeClass}">${valueChangeCell}</td>
+                <td class="font-mono ${pctChangeClass}">${valuePctCell}</td>
+                <td class="font-mono">${sharesPctCell}</td>
             </tr>
         `;
     });
@@ -2841,6 +2905,22 @@ const screeningPresets = {
         top10: 40,
         persistence: 8,
         bestBetWeight: 5,
+        bestBetDuration: 12,
+        bestBetCount: 3,
+        performanceWindow: 'FULL',
+        benchmarkFilter: 'both',
+        requirePerformance: false,
+        minimumExcessCagr: '0',
+        beatConsistency: '',
+        maximumDrawdown: ''
+    },
+    persistent: {
+        size: 0.5,
+        minimumStocks: 3,
+        directStock: 50,
+        top10: 50,
+        persistence: 8,
+        bestBetWeight: 3,
         bestBetDuration: 12,
         bestBetCount: 3,
         performanceWindow: 'FULL',
@@ -3146,6 +3226,20 @@ function formatBeatRate(value) {
     return `${(Number(value) * 100).toFixed(1)}%`;
 }
 
+function openScreeningManager(event, cik) {
+    if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) {
+        return;
+    }
+    if (
+        event.type === 'click'
+        && event.target.closest('a, button, input, select, textarea')
+    ) {
+        return;
+    }
+    event.preventDefault();
+    window.location.assign(`/investor/${encodeURIComponent(cik)}`);
+}
+
 function renderScreeningTable() {
     const tbody = document.getElementById('screening-table-body');
     const summary = document.getElementById('screening-page-summary');
@@ -3192,7 +3286,12 @@ function renderScreeningTable() {
             const spyClass = Number(manager.spy_excess_cagr) > 0 ? 'text-green' : 'text-red';
             const qqqClass = Number(manager.qqq_excess_cagr) > 0 ? 'text-green' : 'text-red';
             return `
-                <tr>
+                <tr class="screening-manager-row"
+                    tabindex="0"
+                    role="link"
+                    aria-label="Open detailed investor view for ${escapeScreeningHtml(manager.manager_name)}"
+                    onclick="openScreeningManager(event, '${escapeScreeningHtml(manager.cik)}')"
+                    onkeydown="openScreeningManager(event, '${escapeScreeningHtml(manager.cik)}')">
                     <td>
                         <div class="screening-manager-cell">
                             <div>

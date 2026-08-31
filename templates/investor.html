@@ -6,11 +6,11 @@
 <div class="dashboard-header">
     <div>
         <h1>Investor Portfolio Intelligence</h1>
-        <p class="text-muted">Deep dive into portfolio weights, high-conviction bets, sector concentration, and quarterly positioning.</p>
+        <p class="text-muted" id="investor-detail-description">Deep dive into portfolio weights, high-conviction bets, sector concentration, and quarterly positioning.</p>
     </div>
     {% if cik %}
     <div>
-        <a href="/investor" class="btn btn-outline">◀ All 26 Fund Managers</a>
+        <a href="/investor" class="btn btn-outline" id="investor-back-link">◀ All 26 Fund Managers</a>
     </div>
     {% endif %}
 </div>
@@ -60,7 +60,7 @@
 
         <div class="investor-kpi-grid">
             <div class="inv-kpi">
-                <div class="metric-label">TOTAL AUM</div>
+                <div class="metric-label">REPORTED 13F VALUE</div>
                 <div class="metric-val font-mono text-cyan" id="inv-aum">$0.00 M</div>
                 <div class="metric-sub" id="inv-aum-b">$0.00 B</div>
             </div>
@@ -117,8 +117,8 @@
     <div class="card table-card mt-4">
         <div class="card-header">
             <div>
-                <h3>Complete Portfolio Holdings</h3>
-                <p class="section-sub">Detailed breakdown of all equities, position weights, share counts, and QoQ changes.</p>
+                <h3 id="investor-holdings-title">Complete Portfolio Holdings</h3>
+                <p class="section-sub" id="investor-holdings-description">Detailed breakdown of all equities, position weights, share counts, and QoQ changes.</p>
             </div>
             <div class="section-actions">
                 <span class="card-badge" id="inv-market-as-of">Market data unavailable</span>

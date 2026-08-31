@@ -178,6 +178,12 @@ async def api_investor_all():
 async def api_investor_specific(cik: str):
     data = data_service.get_investor_view(cik)
     if not data:
+        loop = asyncio.get_running_loop()
+        data = await loop.run_in_executor(
+            None,
+            lambda: screening_service.get_investor_detail(cik),
+        )
+    if not data:
         return JSONResponse(status_code=404, content={"error": "Investor not found"})
     return {"data": data}
 
@@ -185,6 +191,12 @@ async def api_investor_specific(cik: str):
 async def api_investor_history(cik: str):
     try:
         data = await data_service.get_investor_history(cik)
+        if not data:
+            loop = asyncio.get_running_loop()
+            data = await loop.run_in_executor(
+                None,
+                lambda: screening_service.get_investor_history(cik),
+            )
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
     except Exception as e:

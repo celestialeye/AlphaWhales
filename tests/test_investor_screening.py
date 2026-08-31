@@ -800,6 +800,15 @@ class InvestorScreeningTests(unittest.TestCase):
             )["summary"]["candidate_count"],
             0,
         )
+        detail = service.get_investor_detail("0000000001")
+        self.assertIsNotNone(detail)
+        self.assertTrue(detail["screening_snapshot_only"])
+        self.assertEqual(detail["fund_info"]["manager"], "Test Manager")
+        self.assertEqual(detail["holdings_list"][0]["ticker"], "AAA")
+        history = service.get_investor_history("0000000001")
+        self.assertIsNotNone(history)
+        self.assertTrue(history["screening_snapshot_only"])
+        self.assertEqual(len(history["portfolio_history"]), 1)
 
 
 if __name__ == "__main__":
