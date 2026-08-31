@@ -390,12 +390,13 @@ as separate, versioned methods.
 The research-backed user-facing filter roadmap is maintained separately in
 [`PERFORMANCE_BENCHMARKING_FILTER_PLAN.md`](PERFORMANCE_BENCHMARKING_FILTER_PLAN.md).
 
-## All-filer expansion readiness
+## All-filer expansion result
 
-The current embedded performance facts cover 70 managers from the original
-production cohort. A relaxed structural screen can return substantially more
-managers, but missing performance rows must not be interpreted as failures to
-beat a benchmark.
+The reusable performance campaign now evaluates all 5,574 eligible managers
+over a five-year/20-quarter fetch window. It completed every manager checkpoint
+and published 16,722 window summaries plus 199,269 monthly return rows. Window
+availability remains conditional on continuous eligible history and the 95%
+mapping and fully priced value gates.
 
 The current CAGR and drawdown are defensible descriptive estimates of the
 fully priced, disclosure-lagged reported long-equity sleeve. They are not
@@ -417,8 +418,9 @@ managers by performance, address:
 8. Multiple-testing controls before identifying top managers across thousands
    of filers.
 
-Engineering safeguards now verify that the selected source database matches
-the screening snapshot fingerprint, mark ordinary refresh failures as FAILED,
+Engineering safeguards verify that the selected source database matches the
+screening snapshot fingerprint, checkpoint managers transactionally, freeze
+run-specific mappings and content-addressed price inputs, bound retry attempts,
 and group filing events by manager rather than repeatedly scanning the complete
-event list. Full-universe execution should still be incremental and resumable
-per manager rather than one monolithic run.
+event list. Future campaigns resume by run ID and publish only after all
+manager checkpoints reach a terminal state.

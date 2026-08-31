@@ -25,6 +25,9 @@
 - Performance refreshes now checkpoint each manager transactionally, process
   bounded chronology/price batches, and resume matching incomplete campaigns
   without repeating completed managers.
+- The first all-manager campaign completed 5,574 checkpoints over the
+  five-year/20-quarter window, publishing 16,722 window summaries with no
+  failed or exhausted managers.
 
 ## 2026-08-29 - Ticker sentiment and market context
 

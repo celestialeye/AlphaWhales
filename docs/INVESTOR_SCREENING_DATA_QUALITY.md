@@ -149,15 +149,28 @@ overall-versus-direct-sleeve weights.
 
 ## Hypothetical performance coverage
 
-The published snapshot contains performance facts for the existing 70-manager
-production run. The dynamic 3%/12-month best-bet default currently returns 71
-managers, 45 of whom have available 3Y estimates. Criteria changes reuse these
-facts and never trigger performance recalculation.
+The published snapshot contains five-year/20-quarter performance evaluations
+for all 5,574 eligible managers. Every manager completed with either available
+window metrics or an explicit unavailable reason; no manager checkpoint failed
+or exhausted its retry budget. Criteria changes reuse these facts and never
+trigger performance recalculation.
 
 | Metric | Result |
 |---|---:|
-| Cached adjusted-price symbols | 4,043 |
-| Confirmed no-data/delisted symbols | 2,149 |
+| Managers evaluated | 5,574 |
+| Completed manager checkpoints | 5,574 |
+| Failed or exhausted checkpoints | 0 |
+| Cached adjusted-price symbols | 13,056 |
+| Confirmed no-data/delisted symbols | 7,374 |
+| Managers with available 3Y estimates | 3,095 of 5,574 |
+| Managers beating SPY over 3Y | 836 of 3,095 |
+| Managers beating QQQ over 3Y | 286 of 3,095 |
+| Managers with available 5Y estimates | 1,318 of 5,574 |
+| Managers beating SPY over 5Y | 383 of 1,318 |
+| Managers beating QQQ over 5Y | 177 of 1,318 |
+| Managers with available full-window estimates | 2,008 of 5,574 |
+| Managers beating SPY over the full window | 627 of 2,008 |
+| Managers beating QQQ over the full window | 254 of 2,008 |
 | Managers with available 3Y estimates | 45 of 71 |
 | Managers beating SPY over 3Y | 15 of 45 |
 | Managers beating QQQ over 3Y | 8 of 45 |
@@ -165,9 +178,10 @@ facts and never trigger performance recalculation.
 | Managers beating SPY over 5Y | 6 of 22 |
 | Managers beating QQQ over 5Y | 3 of 22 |
 
-The difference between 3Y and 5Y coverage is primarily continuous-history
-availability, not a relaxed price-coverage threshold. Three years is the UI
-default; five years remains the higher-confidence comparison.
+The final six rows describe the default 71-manager screen; the earlier rows
+describe the complete reusable performance universe. The difference between
+3Y and 5Y availability is primarily continuous-history coverage, not a relaxed
+price-coverage threshold. Three years remains the UI default.
 
 These values are hypothetical disclosure-lagged reported 13F long-sleeve
 estimates. They are not actual fund or account returns.
