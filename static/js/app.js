@@ -143,6 +143,86 @@ function getStatusClass(s) {
     const sl = s.toLowerCase();
     return `badge-status-${sl}`;
 }
+
+const QOQ_ACTION_CHART_STYLES = [
+    { status: 'NEW', label: 'New position', color: '#60a5fa' },
+    { status: 'INCREASED', label: 'Increased shares', color: '#34d399' },
+    { status: 'DECREASED', label: 'Decreased shares', color: '#fb7185' },
+    { status: 'CLOSED', label: 'Closed / exited', color: '#f43f5e' }
+];
+
+function renderQoQActionBarChart(elementId, moves, options = {}) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    const actionStatuses = new Set(QOQ_ACTION_CHART_STYLES.map(action => action.status));
+    const rankedMoves = (moves || [])
+        .filter(move => actionStatuses.has(move.status) && Number.isFinite(Number(move.value_change)))
+        .sort((a, b) => Math.abs(Number(b.value_change)) - Math.abs(Number(a.value_change)))
+        .slice(0, options.maxItems || 15)
+        .reverse();
+    const labels = rankedMoves.map(options.getLabel || (move => move.ticker));
+    const hoverDetails = rankedMoves.map(
+        options.getHoverDetail || (move => move.issuer || move.fund_name || '')
+    );
+    const traces = QOQ_ACTION_CHART_STYLES.map(action => ({
+        name: action.label,
+        x: rankedMoves.map(move => move.status === action.status ? Number(move.value_change) : null),
+        y: labels,
+        customdata: hoverDetails,
+        type: 'bar',
+        orientation: 'h',
+        marker: { color: action.color },
+        hovertemplate: (
+            '<b>%{y}</b><br>%{customdata}<br>'
+            + `${action.label}<br>Reported value change: $%{x:,.2f}M<extra></extra>`
+        )
+    })).filter(trace => trace.x.some(value => value !== null));
+
+    const rowHeight = options.rowHeight || 27;
+    const chartHeight = Math.max(options.minHeight || 360, rankedMoves.length * rowHeight + 125);
+    element.style.height = `${chartHeight}px`;
+    const layout = {
+        barmode: 'overlay',
+        height: chartHeight,
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#cbd5e1', family: 'Inter, sans-serif' },
+        margin: { t: 62, b: 46, l: options.leftMargin || 120, r: 24 },
+        legend: {
+            orientation: 'h',
+            x: 0,
+            y: 1.16,
+            xanchor: 'left',
+            yanchor: 'bottom',
+            font: { size: 12 }
+        },
+        xaxis: {
+            title: options.xAxisTitle || 'Reported Value Change ($M)',
+            gridcolor: '#1e293b',
+            zeroline: true,
+            zerolinecolor: '#64748b',
+            zerolinewidth: 1.5
+        },
+        yaxis: {
+            gridcolor: '#1e293b',
+            automargin: true
+        },
+        showlegend: traces.length > 0,
+        annotations: traces.length === 0 ? [{
+            text: options.emptyMessage || 'No directional share actions are available for this quarter.',
+            x: 0.5,
+            y: 0.5,
+            xref: 'paper',
+            yref: 'paper',
+            showarrow: false,
+            font: { color: '#94a3b8' }
+        }] : []
+    };
+
+    Plotly.newPlot(elementId, traces, layout, {displayModeBar: false, responsive: true});
+}
+
 function renderSparkline(pct) {
     const safePct = Math.max(0, Math.min(Number(pct) || 0, 100));
     return `<div class="sparkline-container"><div class="sparkline-bar" style="width: ${safePct}%"></div></div>${(Number(pct)||0).toFixed(2)}%`;
@@ -1046,28 +1126,13 @@ function renderOverviewCharts(data) {
         Plotly.newPlot('summary-chart', plotData1, layout1, {displayModeBar: false, responsive: true});
     }
 
-    // Chart 2: Top 10 Dollar moves ($M)
-    const top10 = [...data].sort((a, b) => Math.abs(b.value_change) - Math.abs(a.value_change)).slice(0, 10).reverse();
-    const plotData2 = [{
-        x: top10.map(d => d.value_change),
-        y: top10.map(d => `${d.ticker} (${d.manager})`),
-        type: 'bar',
-        orientation: 'h',
-        marker: {
-            color: top10.map(d => d.value_change >= 0 ? '#06b6d4' : '#f97316')
-        }
-    }];
-    const layout2 = {
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: 'rgba(0,0,0,0)',
-        font: { color: '#cbd5e1', family: 'Inter, sans-serif' },
-        margin: { t: 20, b: 40, l: 140, r: 20 },
-        xaxis: { title: 'Value Change ($M)', gridcolor: '#1e293b' },
-        yaxis: { gridcolor: '#1e293b' }
-    };
-    if (document.getElementById('top-moves-chart')) {
-        Plotly.newPlot('top-moves-chart', plotData2, layout2, {displayModeBar: false, responsive: true});
-    }
+    renderQoQActionBarChart('top-moves-chart', data, {
+        maxItems: 10,
+        minHeight: 400,
+        leftMargin: 155,
+        getLabel: move => `${move.ticker} (${move.manager})`,
+        getHoverDetail: move => `${move.issuer} · ${move.fund_name}`
+    });
 }
 
 function exportQoQToCSV() {
@@ -2274,24 +2339,13 @@ async function loadTickerDetail(ticker) {
             showlegend: false
         }, {displayModeBar: false, responsive: true});
 
-        // Render Bar Chart (QoQ Value changes)
-        const barData = [{
-            x: data.holders.map(h => h.value_change),
-            y: data.holders.map(h => h.manager),
-            type: 'bar',
-            orientation: 'h',
-            marker: {
-                color: data.holders.map(h => h.value_change >= 0 ? '#06b6d4' : '#f97316')
-            }
-        }];
-        Plotly.newPlot('ticker-bar-chart', barData, {
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)',
-            font: { color: '#cbd5e1', family: 'Inter, sans-serif' },
-            margin: { t: 20, b: 40, l: 120, r: 20 },
-            xaxis: { title: 'QoQ Value Change ($M)', gridcolor: '#1e293b' },
-            yaxis: { gridcolor: '#1e293b' }
-        }, {displayModeBar: false, responsive: true});
+        renderQoQActionBarChart('ticker-bar-chart', data.qoq_moves || data.holders, {
+            maxItems: 26,
+            minHeight: 400,
+            leftMargin: 145,
+            getLabel: move => move.manager,
+            getHoverDetail: move => move.fund_name
+        });
 
     } catch(err) {
         console.error('Error loading ticker detail:', err);
@@ -2481,31 +2535,13 @@ async function loadInvestorDetail(cik) {
 
         // Render QoQ Position Moves Bar Chart
         const allMoves = [...globalInvestorHoldings, ...globalInvestorClosed].filter(h => h.status !== 'UNCHANGED');
-        allMoves.sort((a,b) => Math.abs(b.value_change) - Math.abs(a.value_change));
-        const topMoves = allMoves.slice(0, 15).reverse();
-
-        const barData = [{
-            x: topMoves.map(h => h.value_change),
-            y: topMoves.map(h => h.ticker),
-            type: 'bar',
-            orientation: 'h',
-            marker: {
-                color: topMoves.map(h => {
-                    if (h.status === 'NEW') return '#22c55e';
-                    if (h.status === 'INCREASED') return '#06b6d4';
-                    if (h.status === 'DECREASED') return '#f97316';
-                    return '#ef4444';
-                })
-            }
-        }];
-        Plotly.newPlot('bar-chart', barData, {
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)',
-            font: { color: '#cbd5e1', family: 'Inter, sans-serif' },
-            margin: { t: 20, b: 40, l: 70, r: 20 },
-            xaxis: { title: 'Dollar Shift ($M)', gridcolor: '#1e293b' },
-            yaxis: { gridcolor: '#1e293b' }
-        }, {displayModeBar: false, responsive: true});
+        renderQoQActionBarChart('bar-chart', allMoves, {
+            maxItems: 15,
+            minHeight: 380,
+            leftMargin: 80,
+            getLabel: move => move.ticker,
+            getHoverDetail: move => move.issuer
+        });
 
     } catch(err) {
         console.error('Error loading investor detail:', err);

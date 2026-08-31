@@ -99,3 +99,104 @@ def test_holding_market_context_compares_latest_and_reported_prices():
         "pct_above_low": 22.67,
         "market_price_as_of": "2026-08-28",
     }
+
+
+def test_ticker_detail_qoq_moves_include_current_and_exited_investors():
+    service = DataService.__new__(DataService)
+    service.market_insights = {}
+    service.cache = {
+        "current": {
+            "status": "loaded",
+            "fund_info": {
+                "cik": "current",
+                "name": "Current Fund",
+                "manager": "Current Investor",
+                "group": "Value",
+            },
+            "metadata": {
+                "report_period": "2026-06-30",
+                "total_value": 90_000_000,
+            },
+            "holdings": pd.DataFrame([{
+                "Cusip": "AAA1",
+                "Ticker": "AAA",
+                "Issuer": "Alpha Inc",
+                "Value": 90_000_000,
+                "SharesPrnAmount": 80,
+                "PortfolioWeight": 100.0,
+            }]),
+            "comparison": pd.DataFrame([{
+                "Cusip": "AAA1",
+                "Ticker": "AAA",
+                "Issuer": "Alpha Inc",
+                "Status": "DECREASED",
+                "Value": 90_000_000,
+                "PrevValue": 100_000_000,
+                "ValueChange": -10_000_000,
+                "ValueChangePct": -10.0,
+                "Shares": 80,
+                "PrevShares": 100,
+                "ShareChange": -20,
+                "ShareChangePct": -20.0,
+            }]),
+        },
+        "exited": {
+            "status": "loaded",
+            "fund_info": {
+                "cik": "exited",
+                "name": "Exited Fund",
+                "manager": "Exited Investor",
+                "group": "Quality compounder",
+            },
+            "metadata": {
+                "report_period": "2026-06-30",
+                "total_value": 50_000_000,
+            },
+            "holdings": pd.DataFrame([{
+                "Cusip": "BBB1",
+                "Ticker": "BBB",
+                "Issuer": "Beta Inc",
+                "Value": 50_000_000,
+                "SharesPrnAmount": 50,
+                "PortfolioWeight": 100.0,
+            }]),
+            "comparison": pd.DataFrame([
+                {
+                    "Cusip": "AAA2",
+                    "Ticker": "AAA",
+                    "Issuer": "Alpha Inc",
+                    "Status": "CLOSED",
+                    "Value": 0,
+                    "PrevValue": 25_000_000,
+                    "ValueChange": None,
+                    "ValueChangePct": None,
+                    "Shares": 0,
+                    "PrevShares": 25,
+                    "ShareChange": None,
+                    "ShareChangePct": None,
+                },
+                {
+                    "Cusip": "BBB1",
+                    "Ticker": "BBB",
+                    "Issuer": "Beta Inc",
+                    "Status": "UNCHANGED",
+                    "Value": 50_000_000,
+                    "PrevValue": 50_000_000,
+                    "ValueChange": 0,
+                    "ValueChangePct": 0,
+                    "Shares": 50,
+                    "PrevShares": 50,
+                    "ShareChange": 0,
+                    "ShareChangePct": 0,
+                },
+            ]),
+        },
+    }
+
+    result = service.get_ticker_view("AAA")
+
+    assert result is not None
+    assert [(move["manager"], move["status"], move["value_change"]) for move in result["qoq_moves"]] == [
+        ("Exited Investor", "CLOSED", -25.0),
+        ("Current Investor", "DECREASED", -10.0),
+    ]
