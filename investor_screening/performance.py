@@ -30,16 +30,28 @@ from .screener import (
 
 DEFAULT_PERFORMANCE_PATH = DEFAULT_DATA_DIR / "performance.duckdb"
 DEFAULT_PRICE_DIR = DEFAULT_DATA_DIR / "performance" / "prices"
+DEFAULT_SYMBOL_REFERENCE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "reference"
+    / "full_universe.csv"
+)
 PERFORMANCE_LABEL = (
     "Hypothetical disclosure-lagged reported 13F long-sleeve estimate"
 )
 PERFORMANCE_DISCLAIMER = "Not a fund or account return."
-MAPPING_SOURCE = "edgar.reference.tickers.cusip_ticker_mapping"
+MAPPING_SOURCE = (
+    "edgar.reference.tickers.cusip_ticker_mapping+local-overrides-v1"
+)
 METHODOLOGY_VERSION = "13f-disclosure-lag-v1"
 MINIMUM_COVERAGE = 0.95
 MAX_PRICE_BATCH_SIZE = 30
 MAX_FORWARD_FILL_SESSIONS = 5
 MAX_MANAGER_ATTEMPTS = 3
+CUSIP_MARKET_SYMBOL_OVERRIDES = {
+    "13645T100": "CP",
+    "44267D107": "HHH",
+}
 NON_COMMON_INSTRUMENT_PATTERN = re.compile(
     r"\b(WARRANTS?|RIGHTS?|UNITS?|PREFERRED|PFD|NOTES?|BONDS?|"
     r"DEBENTURES?|DEBT|CONVERTIBLE)\b",
@@ -339,6 +351,63 @@ def _mapping_rows(raw: object) -> list[tuple[str, str]]:
     return sorted(set(rows))
 
 
+def _reference_market_symbols(
+    connection: duckdb.DuckDBPyConnection,
+    reference_path: str | Path = DEFAULT_SYMBOL_REFERENCE_PATH,
+) -> set[str]:
+    symbols = {
+        str(symbol).strip().upper()
+        for (symbol,) in connection.execute(
+            """
+            SELECT symbol
+            FROM price_manifest
+            WHERE status = 'READY'
+            """
+        ).fetchall()
+        if symbol
+    }
+    path = Path(reference_path)
+    if path.is_file():
+        frame = pd.read_csv(path, usecols=["ticker"])
+        symbols.update(
+            str(symbol).strip().upper()
+            for symbol in frame["ticker"].dropna()
+            if str(symbol).strip()
+        )
+    try:
+        from edgar.reference.tickers import get_company_tickers
+
+        companies = get_company_tickers(
+            clean_name=False,
+            clean_suffix=False,
+        )
+        symbols.update(
+            str(symbol).strip().upper()
+            for symbol in companies["ticker"].dropna()
+            if str(symbol).strip()
+        )
+    except (KeyError, TypeError, ValueError):
+        pass
+    return symbols
+
+
+def resolve_market_symbol(
+    cusip: str,
+    ticker: str,
+    reference_symbols: set[str],
+) -> str | None:
+    if cusip in CUSIP_MARKET_SYMBOL_OVERRIDES:
+        return CUSIP_MARKET_SYMBOL_OVERRIDES[cusip]
+    normalized = normalize_yfinance_symbol(ticker)
+    if normalized is None:
+        return None
+    if normalized.endswith("XXXX"):
+        candidate = normalized[:-4]
+        if candidate in reference_symbols:
+            return candidate
+    return normalized
+
+
 def refresh_cusip_ticker_mapping(
     connection: duckdb.DuckDBPyConnection,
     *,
@@ -356,10 +425,22 @@ def refresh_cusip_ticker_mapping(
             f"{len(rows)} usable rows; expected at least {minimum_rows}"
         )
     retrieved_at = datetime.now(timezone.utc)
+    reference_symbols = _reference_market_symbols(connection)
+    resolved_rows = [
+        (
+            cusip,
+            ticker,
+            resolve_market_symbol(cusip, ticker, reference_symbols),
+        )
+        for cusip, ticker in rows
+    ]
+    resolved_rows = [
+        row for row in resolved_rows if row[2] is not None
+    ]
     connection.execute("BEGIN TRANSACTION")
     try:
         connection.execute("DELETE FROM cusip_ticker_mapping")
-        if rows:
+        if resolved_rows:
             connection.executemany(
                 """
                 INSERT INTO cusip_ticker_mapping
@@ -369,11 +450,11 @@ def refresh_cusip_ticker_mapping(
                     (
                         cusip,
                         ticker,
-                        normalize_yfinance_symbol(ticker),
+                        market_symbol,
                         MAPPING_SOURCE,
                         retrieved_at,
                     )
-                    for cusip, ticker in rows
+                    for cusip, ticker, market_symbol in resolved_rows
                 ],
             )
         connection.execute("COMMIT")
@@ -381,10 +462,8 @@ def refresh_cusip_ticker_mapping(
         connection.execute("ROLLBACK")
         raise
     result: dict[str, str] = {}
-    for cusip, ticker in rows:
-        market_symbol = normalize_yfinance_symbol(ticker)
-        if market_symbol is not None:
-            result[cusip] = market_symbol
+    for cusip, _, market_symbol in resolved_rows:
+        result[cusip] = market_symbol
     return result
 
 
@@ -402,22 +481,40 @@ def load_manager_universe(
     snapshot_path: str | Path = DEFAULT_SNAPSHOT_POINTER,
     *,
     minimum_size_billions: float = 10.0,
+    manager_ciks: Sequence[str] | None = None,
 ) -> tuple[list[ManagerUniverseItem], str, Path]:
     generation = resolve_snapshot_path(snapshot_path)
     connection = duckdb.connect(str(generation), read_only=True)
     try:
         if minimum_size_billions < 0:
             raise ValueError("minimum_size_billions cannot be negative")
+        cik_condition = ""
+        params: list[object] = [minimum_size_billions * 1_000_000_000]
+        if manager_ciks:
+            normalized_ciks = sorted(
+                {
+                    str(cik).strip().zfill(10)
+                    for cik in manager_ciks
+                    if str(cik).strip()
+                }
+            )
+            cik_condition = (
+                "AND m.cik IN ("
+                + ",".join("?" for _ in normalized_ciks)
+                + ")"
+            )
+            params.extend(normalized_ciks)
         rows = connection.execute(
-            """
+            f"""
             SELECT m.cik, m.manager_name, m.median_reported_value_4q
             FROM manager_metrics m
             WHERE m.median_reported_value_4q >= ?
               AND m.filing_quarters >= 12
               AND m.latest_direct_stock_value > 0
+              {cik_condition}
             ORDER BY median_reported_value_4q DESC, cik
             """,
-            [minimum_size_billions * 1_000_000_000],
+            params,
         ).fetchall()
         metadata = connection.execute(
             "SELECT source_fingerprint FROM snapshot_metadata LIMIT 1"
@@ -1934,6 +2031,7 @@ def refresh_performance(
     performance_path: str | Path = DEFAULT_PERFORMANCE_PATH,
     price_dir: str | Path = DEFAULT_PRICE_DIR,
     minimum_size_billions: float = 0.0,
+    manager_ciks: Sequence[str] | None = None,
     as_of: date | None = None,
     window_years: int = 5,
     batch_size: int = 10,
@@ -1960,6 +2058,7 @@ def refresh_performance(
     managers, fingerprint, generation = load_manager_universe(
         snapshot_path,
         minimum_size_billions=minimum_size_billions,
+        manager_ciks=manager_ciks,
     )
     store = connect_performance_store(performance_path)
     source = duckdb.connect(str(Path(source_path).resolve()), read_only=True)

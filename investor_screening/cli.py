@@ -173,6 +173,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     performance_parser.add_argument(
+        "--cik",
+        action="append",
+        default=[],
+        help="Restrict the campaign to one CIK; repeat for multiple managers",
+    )
+    performance_parser.add_argument(
+        "--cik-file",
+        type=Path,
+        help="Text file containing one manager CIK per line",
+    )
+    performance_parser.add_argument(
         "--as-of",
         type=date.fromisoformat,
         help="Requested calculation end date (default: today)",
@@ -434,6 +445,15 @@ def main() -> int:
         elif args.command == "refresh-performance":
             connection.close()
             connection = None
+            manager_ciks = list(args.cik)
+            if args.cik_file:
+                manager_ciks.extend(
+                    line.strip()
+                    for line in args.cik_file.read_text(
+                        encoding="utf-8"
+                    ).splitlines()
+                    if line.strip()
+                )
 
             def report_progress(progress: dict[str, object]) -> None:
                 print(json.dumps(progress, default=str), file=sys.stderr)
@@ -441,6 +461,7 @@ def main() -> int:
             result = refresh_performance(
                 source_path=args.database,
                 minimum_size_billions=args.minimum_size_billions,
+                manager_ciks=manager_ciks or None,
                 as_of=args.as_of,
                 window_years=args.window_years,
                 batch_size=args.batch_size,
@@ -459,7 +480,6 @@ def main() -> int:
             ):
                 result["screening_snapshot"] = build_screening_snapshot(
                     args.database,
-                    performance_run_id=result["run_id"],
                 )
             _print(result)
         elif args.command == "performance-status":

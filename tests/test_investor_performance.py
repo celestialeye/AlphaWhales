@@ -29,6 +29,7 @@ from investor_screening.performance import (
     refresh_performance,
     refresh_cusip_ticker_mapping,
     refresh_price_cache,
+    resolve_market_symbol,
 )
 from investor_screening.screener import (
     SNAPSHOT_SCHEMA,
@@ -225,6 +226,27 @@ def test_mapping_provenance_symbol_normalization_and_bounded_price_fallback(
         }
         assert normalize_yfinance_symbol("BRKB") == "BRK-B"
         assert normalize_yfinance_symbol("HEIA") == "HEI-A"
+        reference_symbols = {"CP", "LRCX", "TEAM"}
+        assert resolve_market_symbol(
+            "13645T100",
+            "CPXXXX",
+            reference_symbols,
+        ) == "CP"
+        assert resolve_market_symbol(
+            "512807108",
+            "LRCXXXXX",
+            reference_symbols,
+        ) == "LRCX"
+        assert resolve_market_symbol(
+            "G06242104",
+            "TEAMXXXX",
+            reference_symbols,
+        ) == "TEAM"
+        assert resolve_market_symbol(
+            "44267D107",
+            "HHC",
+            reference_symbols,
+        ) == "HHH"
         provenance = store.execute(
             """
             SELECT DISTINCT source, retrieved_at IS NOT NULL
