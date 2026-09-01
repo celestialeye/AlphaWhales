@@ -3434,7 +3434,13 @@ class DataService:
 
         if ticker:
             t_upper = ticker.strip().upper()
-            return tickers_data.get(t_upper, None)
+            ticker_detail = tickers_data.get(t_upper)
+            if ticker_detail is not None:
+                ticker_detail["qoq_moves"] = self.get_qoq_changes(
+                    fund_cache=cache,
+                    ticker=t_upper
+                )
+            return ticker_detail
 
         result_list = list(tickers_data.values())
         result_list.sort(key=lambda x: (x["num_holders"], x["total_value_across_funds"]), reverse=True)
