@@ -5,16 +5,25 @@
 ```text
 Name: Alpha Whale Forward Index
 Abbreviation: AWFI
-Version: Research v1
-Research run: eb0e09f716a66c832ad4
-Status: Paper-trading candidate; not deployable with real capital
+Version: Research v2
+Predictive protocol: alpha-whale-predictive-v9.6
+Verified baseline run: ebc243d9decb46624a69
+Status: Research specification requiring walk-forward revalidation; not deployable with real capital
 Target horizons: 6, 12, 18, and 24 months
 ```
 
-AWFI is a forward-looking research index derived from Alpha Whale institutional
-activity, portfolio conviction, and point-in-time technical context. It is
-designed for medium- and long-term investors and is not optimized for daily,
-weekly, or one-to-three-month trading.
+AWFI Research v2 is a forward-looking research index derived from Alpha Whale
+institutional activity, portfolio conviction, and point-in-time technical
+context. It is designed for medium- and long-term investors and is not
+optimized for daily, weekly, or one-to-three-month trading.
+
+Research v2 corrects a model defect in Research v1: the 378- and 504-session
+scores used the same weights even though the 504-session score alone used a
+materially lower decision threshold. Research v2 retains the tested production
+profiles for 6, 12, and 18 months, then replaces the duplicate 24-month profile
+with the strongest distinct tested profile that the live application can
+compute without unavailable support features. Persisted Research v1 scores and
+historical results must not be relabeled as Research v2.
 
 AWFI does not replace the existing Alpha Whale Sentiment Index. The original
 index remains the pure measure of manager-relative 13F sentiment. AWFI uses
@@ -22,21 +31,23 @@ that sentiment as one component in a separate forward-price research score.
 
 ## Universe
 
-The AWFI Research v1 universe is frozen from the current roster:
+The AWFI Research v2 universe is frozen from the current roster:
 
-1. Load each canonical manager's latest effective 13F portfolio.
+1. Load each canonical manager's latest effective 13F portfolio, preferring
+   the application cache when it contains a newer report period than the
+   latest imported official quarterly SEC archive.
 2. Deduplicate filing rows by CUSIP.
 3. Rank direct common stocks by summed reported portfolio weight.
 4. Retain the top 10 stocks per manager.
 5. If a manager owns fewer than 10 qualifying stocks, retain all of them.
 6. Take the union across all current roster managers.
 
-The frozen research universe contains:
+The baseline verified on 2026-09-01 contains:
 
 ```text
 29 managers
-281 manager/top-holding rows
-142 unique stocks
+282 manager/top-holding rows
+135 unique CUSIPs
 ```
 
 Eligible instruments include common stock, ordinary shares, ADRs, and ADSs.
@@ -115,7 +126,7 @@ original Alpha =
   + 0.50 * conviction
 ```
 
-Research v1 retains indicative observations with at least one meaningful
+Research v2 retains indicative observations with at least one meaningful
 manager. These low-participation observations are explicitly marked and are
 not equivalent to the published three-manager Alpha index.
 
@@ -127,7 +138,7 @@ For each action, use capped absolute relative conviction as its strength:
 action strength = min(2, abs(relative conviction))
 ```
 
-Research v1 uses:
+Research v2 uses:
 
 | Action | Coefficient |
 |---|---:|
@@ -200,10 +211,27 @@ The regime votes are:
 2. SMA50 above SMA200;
 3. positive six-month momentum.
 
-Technical measurements are explanatory features only. AWFI remains optimized
+Technical measurements are explanatory features only. AWFI is evaluated
 exclusively against exact 126-, 252-, 378-, and 504-session outcomes.
 
 ## Horizon-specific AWFI definitions
+
+The weights are ordered as original Alpha, purchase-led action, portfolio
+conviction, and technical support. They come from the stored production
+candidate study rather than an imposed monotonic term structure:
+
+1. The 6-month production selection was `ACTION_HEAVY_T15`.
+2. The 12-month production selection was `BALANCED_T15`.
+3. The 18-month production selection was `BALANCED_T00`.
+4. Research v1 also selected `BALANCED_T00` at 24 months, producing a duplicate
+   score. Research v2 instead uses the tested `ALPHA_ONLY` candidate, the
+   strongest distinct candidate supported by the existing live inputs.
+
+The tested 24-month `CROWDING` candidate had slightly higher production-screen
+BUY precision, but it requires acceleration and crowding inputs that the live
+application cannot yet reproduce without conflating unavailable history with
+neutral values. Research v2 therefore uses the operationally valid
+`ALPHA_ONLY` profile rather than inventing missing components.
 
 ### AWFI-6M
 
@@ -247,17 +275,52 @@ SELL threshold = -75
 
 ```text
 AWFI-24M =
-    0.50 * original Alpha
-  + 0.25 * purchase-led action score
-  + 0.25 * portfolio conviction
+    1.00 * original Alpha
 
 BUY threshold  = +25
 SELL threshold = -25
 ```
 
-The 24-month threshold is the final training-selected candidate, but outer
-folds more frequently selected `+75/-75` or `+75/-100`. AWFI-24M must
-therefore remain research-only until more prospective cohorts mature.
+These thresholds are the boundaries paired with the stored production
+candidates. The first three horizons use `+75/-75`. The distinct 24-month
+Alpha-only candidate was screened at `+25/-25`; its production-screen BUY
+precision was 82.4% across 564 BUY observations with 83.1% coverage. Those
+figures are production-training evidence, not an untouched prospective
+validation result. The threshold remains a research classification boundary,
+not an execution instruction.
+
+## Why decomposed support signals are not in Research v2
+
+The research pipeline can calculate acceleration, crowding, and persistence,
+but they are intentionally excluded from the Research v2 score:
+
+- decomposed selection was unstable at six months and sparse at 12 months;
+- no selectable decomposed walk-forward model was available at 18 or 24 months
+  under the leakage-safe maturity requirements;
+- the hypothesized long-run interaction between persistence and crowding has
+  not earned promotion; and
+- the current live scoring contract supplies original Alpha, action,
+  portfolio, and technical components only.
+
+Adding those inputs would require a later model version and an explicit live
+contract for three separately normalized `[-100, +100]` values, including
+point-in-time missingness behavior. Until that contract and validation exist,
+silently treating missing values as zero would mix “neutral” with
+“unavailable” and is not acceptable.
+
+## Production candidate evidence used by Research v2
+
+| Horizon | Profile | BUY precision | BUY observations | Balanced accuracy | Coverage |
+|---|---|---:|---:|---:|---:|
+| 6 months | `ACTION_HEAVY_T15` | 80.0% | 40 | 67.3% | 15.8% |
+| 12 months | `BALANCED_T15` | 81.5% | 27 | 66.5% | 11.6% |
+| 18 months | `BALANCED_T00` | 83.6% | 55 | 60.7% | 28.3% |
+| 24 months | `ALPHA_ONLY` | 82.4% | 564 | 54.0% | 83.1% |
+
+The 6/12/18 figures are the selected production tuning candidates. The
+24-month row is a production screening candidate chosen to remove the duplicate
+18-month formula while preserving high observed BUY precision and live
+computability. These metrics must not be presented as proof of deployability.
 
 ## Signal interpretation
 
@@ -280,7 +343,11 @@ reduce confidence
 
 It should not automatically trigger a short position or forced liquidation.
 
-## Final historical results
+## Legacy Research v1 historical results
+
+The following results belong to the legacy Research v1 formula and run
+`eb0e09f716a66c832ad4`. They motivate continued research but do not validate
+the corrected Research v2 weights or threshold policy.
 
 ### AWFI decomposed score
 
@@ -309,7 +376,8 @@ be shown with headline accuracy.
 
 ## Paper-trading protocol
 
-AWFI Research v1 is suitable for frozen paper trading:
+AWFI Research v2 may enter a new frozen paper-trading cohort only after the
+historical pipeline has been rerun and reviewed:
 
 1. Rebuild the top-10 direct-stock universe after each quarterly filing cycle.
 2. Freeze all universe members, component definitions, weights, and thresholds
@@ -318,14 +386,14 @@ AWFI Research v1 is suitable for frozen paper trading:
 4. Record next-session open and close paper entries.
 5. Record outcomes at exactly 126, 252, 378, and 504 sessions.
 6. Preserve every BUY, HOLD, SELL/avoid, unavailable, and delisted observation.
-7. Do not retune Research v1 after paper trading begins.
+7. Do not retune Research v2 after paper trading begins.
 
 All deployable signals remain `HOLD` until the research trust gate passes.
 
 ## Further experiments
 
 Further work should use separate challenger versions rather than silently
-changing AWFI Research v1.
+changing AWFI Research v2.
 
 ### AWFI-F: value, quality, and safety
 
@@ -375,3 +443,7 @@ downside model demonstrates materially better SELL precision.
 
 These limitations are warnings in research reports and hard blockers for
 real-capital deployment.
+
+Data lineage, freshness detection, atomic publication, integrity gates, and
+the 2026-09-01 missing-history incident are documented in
+[`docs/AWFI_DATA_LINEAGE.md`](../docs/AWFI_DATA_LINEAGE.md).

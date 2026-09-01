@@ -16,10 +16,13 @@ charts.
 
 | Component | Responsibility |
 |---|---|
-| `config.py` | Manager catalog, CIK history, SEC identity, and cache settings |
+| `roster.json` | Persistent manager catalog, CIK history, display metadata, style, and exception status |
+| `config.py` | Loads the roster path and owns SEC identity and cache settings |
 | `data_service.py` | SEC access, persistence, aggregation, market enrichment, valuation, timing, and ticker history |
 | `pair_service.py` | Semantic peer selection and disciplined pair analysis |
 | `investor_screening/` | SEC bulk ingestion, DuckDB models, validation, and screening snapshot generation |
+| `predictive_sentiment/` | AWFI research protocol, horizon scoring, freshness detection, and atomic publication |
+| `awfi_service.py` | Current-period AWFI scoring and persisted ticker-history access |
 | `main.py` | FastAPI routes, templates, JSON APIs, and SSE |
 | `prefetch.py` | Latest, historical, and ticker-intelligence cache warming |
 | `templates/` | Server-rendered page structure |
@@ -30,7 +33,8 @@ charts.
 ## Primary data flow
 
 ```text
-FUND_MANAGERS
+roster.json
+  -> config.FUND_MANAGERS
   -> edgartools 13F-HR filing
   -> holdings and QoQ comparison DataFrames
   -> disk and in-memory snapshots
@@ -56,7 +60,7 @@ Local semantic universe
 
 ## Persistent storage
 
-The 26-manager dashboard uses JSON snapshots because its state is read-heavy,
+The 29-manager dashboard uses JSON snapshots because its state is read-heavy,
 naturally partitioned, and regenerated from upstream sources. Investor
 Screening uses DuckDB and Parquet because it spans a much larger institutional
 filing universe and historical row set.
@@ -64,6 +68,7 @@ filing universe and historical row set.
 | Path | Contents |
 |---|---|
 | `cache/<cik>.json` | Latest filing, holdings, and QoQ comparisons |
+| `roster_archive.json` | Removed-manager identity metadata retained for safe re-addition |
 | `cache/history/<period>.json` | All-manager snapshot for one quarter |
 | `cache/market_insights.json` | Batched high-conviction market context |
 | `cache/ticker_market/<ticker>.json` | Quote, fundamentals, valuation, timing, and six years of daily closes |
@@ -74,6 +79,8 @@ filing universe and historical row set.
 | `data/investor_screening/raw/` | Compressed accession-level source submissions and provenance |
 | `data/investor_screening/screening_snapshot.json` | Atomic pointer to the current immutable screening generation |
 | `data/investor_screening/screening_snapshot.<generation>.duckdb` | Compact read-only runtime screening generation |
+| `data/investor_screening/performance.duckdb` | AWFI CUSIP mappings, adjusted prices, and performance facts |
+| `data/investor_screening/predictive_sentiment.duckdb` | Versioned AWFI research runs, features, scores, and provenance |
 
 All listed cache and generated screening-data paths are excluded from Git.
 
@@ -109,6 +116,39 @@ snapshots.
 
 The application has no runtime dependency on the sibling `invest` repository.
 The relevant peer reference and calculation patterns are maintained locally.
+
+## AWFI data flow
+
+AWFI uses a newer-current/older-historical split when the application receives
+filings before the SEC publishes its next quarterly structured archive:
+
+```text
+validated cache/<cik>.json + official latest portfolio
+  -> choose newer top-ten direct-stock universe per manager
+  -> one frozen current universe and fingerprint
+
+official amendment-aware historical archive
+  -> manager snapshots and changes
+  -> point-in-time institutional and technical features
+  -> 6M, 12M, 18M, and 24M AWFI scores
+  -> checkpointed staging DuckDB
+  -> pre-publication integrity gates
+  -> atomic predictive_sentiment.duckdb replacement
+```
+
+The current application quarter can be newer than persisted historical scores.
+In that case, `AwfiService` computes one live score using the fixed filing
+inputs and the latest cached market session, then appends it to the latest 19
+compatible persisted quarters.
+
+Startup, periodic refresh, manual refresh, and roster mutations all run the
+same AWFI freshness check. A protocol, model, configuration, roster, source, or
+universe mismatch schedules one serialized rebuild. Successful publication
+emits `awfi_published` over SSE so ticker pages reload the complete score and
+history payload.
+
+See [`AWFI_DATA_LINEAGE.md`](AWFI_DATA_LINEAGE.md) for the complete lineage,
+publication, integrity, and incident-recovery design.
 
 ## Investor screening data flow
 

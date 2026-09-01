@@ -1,5 +1,10 @@
 # AWFI Challenger Experiments
 
+> Historical challenger report. Its decision to retain AWFI Research v1 applied
+> to the frozen experiment recorded here. Research v2 later corrected the
+> duplicate 18M/24M score profile without promoting the rejected macro,
+> sensitivity, or fundamental challengers.
+
 ## Status
 
 ```text
@@ -7,7 +12,7 @@ Final challenger run: 567c17990edbd453952d
 Frozen control: AWFI Research v1
 Universe: current-roster top-10 direct stocks
 Optimization horizons: 126, 252, 378, and 504 sessions only
-Decision: retain AWFI v1; do not add the macro-sector challenger
+Historical decision: retain the v1 control; do not add the macro-sector challenger
 ```
 
 This report records `AWFI-MSR`: Treasury, DXY, market regime, sector-relative
@@ -176,6 +181,8 @@ The experiments still produced useful constraints:
    retrospective ablation.
 5. Build downside prediction separately; SELL precision remains the dominant
    weakness across every experiment.
-6. Retain AWFI Research v1 as the frozen paper-trading control.
+6. Retain AWFI Research v1 as the frozen control for this historical experiment;
+   use the separately versioned Research v2 specification for current scoring.
 
-No challenger in this report is promoted into AWFI v1.
+No challenger in this report is promoted into either the historical v1 control
+or the current Research v2 score.

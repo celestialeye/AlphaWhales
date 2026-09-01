@@ -24,7 +24,7 @@ python prefetch.py --history-only
 python prefetch.py --ticker-intelligence-only
 
 # Fast, offline Python syntax/import smoke check
-python -m compileall -q config.py data_service.py main.py pair_service.py prefetch.py run.py
+python -m compileall -q config.py roster_store.py data_service.py awfi_service.py main.py pair_service.py prefetch.py run.py predictive_sentiment
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
 
 # Focused unit tests
@@ -43,6 +43,12 @@ python -m investor_screening.cli refresh-performance
 
 # Inspect performance runs and the adjusted-price cache
 python -m investor_screening.cli performance-status
+
+# Rebuild and atomically publish AWFI research history
+python -m predictive_sentiment.cli run
+
+# Check whether AWFI protocol, roster, source, or universe data is stale
+python -c "from predictive_sentiment.publication import research_snapshot_needs_refresh; print(research_snapshot_needs_refresh())"
 ```
 
 `prefetch.py` and `/api/refresh` make live SEC EDGAR requests. The repository
@@ -56,12 +62,14 @@ The shared `.github/mcp.json` configures Playwright MCP. Start the application f
 
 ## Architecture
 
-- `config.py` is the catalog and runtime configuration source. `FUND_MANAGERS` supplies the exact CIK, display metadata, and strategy group for every tracked fund. CIKs are zero-padded strings and also serve as cache keys and filenames.
+- `roster.json` is the persistent catalog source. `FUND_MANAGERS` loads its exact CIK, display metadata, investment style, and exception status for every tracked fund. CIKs are zero-padded strings and also serve as cache keys and filenames.
+- `roster_archive.json` retains removed-manager identity metadata, including historical CIK chains, so re-adding a manager does not break filing continuity.
 - `data_service.py` is the application core. The singleton `DataService` loads disk snapshots into pandas DataFrames at import time, fetches current 13F data through `edgartools`, compares quarters, persists snapshots, and converts DataFrames into JSON-ready dashboard models.
-- OpenBB's yfinance provider supplies one year of daily prices for holdings that reach at least 5% in any tracked portfolio. The derived 52-week-low metrics are persisted separately in `cache/market_insights.json`.
-- Ticker detail pages fetch OpenBB quote, fundamental metrics, company profile, and six years of prices on demand. Persist these six-hour responses, including serialized daily closes, in cache-version-5 `cache/ticker_market/<ticker>.json`; `/api/ticker/{ticker}/intelligence` combines them with all 20 filing-period snapshots.
+- OpenBB's yfinance provider fetches daily history from ten days before the oldest of the latest 20 quarter ends through the current date for holdings that reach at least 5% in any tracked portfolio. The service derives current 52-week-low context and quarter-specific market metrics and persists them in `cache/market_insights.json`.
+- Ticker detail pages fetch OpenBB quote, fundamental metrics, company profile, recent company news, and six years of prices on demand. Persist these six-hour responses, including up to five normalized direct-impact news links and serialized daily closes, in cache-version-5 `cache/ticker_market/<ticker>.json`; `/api/ticker/{ticker}/intelligence` combines them with all 20 filing-period snapshots. News must name the ticker or company in the headline and contain a material company-event signal; never pad the section with loosely related coverage.
 - Pair signals are implemented locally in `pair_service.py` using the copied `data/reference/full_universe.csv` semantic peer snapshot. Do not import from or runtime-couple to the sibling `invest` repository. Cache six-hour results under `cache/pair_signals/<ticker>.json`.
 - `investor_screening/` is an independent SEC ownership-research subsystem. It owns official flattened archive ingestion, accession-level detail ingestion, DuckDB/Parquet storage, quality checks, analytical views, and the compact snapshot consumed by `ScreeningService`.
+- `predictive_sentiment/` owns AWFI research protocols, horizon formulas, current-universe selection, walk-forward evidence, freshness detection, staging validation, and atomic publication. `awfi_service.py` owns runtime current-period scoring and ticker-history access.
 - Generated screening databases, archives, Parquet files, and snapshots live under `data/investor_screening/` and are excluded from Git. The `/api/screening` route must query the compact read-only snapshot rather than scanning the historical foundation per request.
 - The compact screening snapshot includes a pruned `manager_position_quarters` fact cube for direct stocks at or above 1% of total reported non-option 13F value, plus each quarter's top ten positions regardless of weight, across the latest 20 snapshots. Best-bet weight, duration, and count criteria must remain dynamic SQL filters over this cube; changing criteria must not trigger ingestion or performance refreshes.
 - Performance facts are reusable per manager and window, independent of screening thresholds. Future `refresh-performance` runs select managers by broad size/history eligibility rather than the active concentrated-investor preset; never rerun performance merely because UI screening criteria changed.
@@ -96,8 +104,8 @@ The primary data flow is:
 - `edgartools` calls are synchronous. Keep them behind `run_in_executor` rather than blocking FastAPI's event loop.
 - Preserve the controlled refresh cadence in `refresh_all`: funds are processed in groups of five with a delay between groups to stay within SEC request-rate guidance. `is_refreshing` prevents overlapping full refreshes.
 - Full refreshes also rebuild two consecutive QoQ comparisons and then refresh OpenBB market insights. Keep OpenBB calls batched and off the FastAPI event loop through `run_in_executor`.
-- Treat `config.py` as the source of truth for fund identity, but remember that the current fund count and group labels are repeated in README text, templates, runner messages, and browser copy. When changing the catalog, update those user-facing surfaces together.
-- Strategy group strings are contracts across `config.py`, HTML filter values, `getGroupClass()` in `app.js`, and CSS badge classes. Preserve the exact values `Value`, `High-performance concentrated`, `Quality compounder`, and `2026 expansion` unless all consumers are updated.
+- Treat `roster.json` as the persistent source of truth for fund identity. Use the screening roster workflow or `RosterStore`; do not add or remove managers in `config.py`. Remember that the current fund count and group labels are repeated in README text, templates, runner messages, and browser copy. When changing the catalog, update those user-facing surfaces together.
+- Investment-style group strings are contracts across `roster.json`, HTML filter values, `getGroupClass()` in `app.js`, and CSS badge classes. Preserve the exact values `Value & Contrarian`, `Quality Growth`, `Technology & Innovation`, `Opportunistic & Concentrated`, and `Diversified & Systematic` unless all consumers are updated. Style is independent of roster qualification and `is_exception`.
 - QoQ statuses are uppercase contract values: `NEW`, `INCREASED`, `DECREASED`, `CLOSED`, and `UNCHANGED`. Backend filtering, tab logic, badges, charts, and CSV exports depend on those spellings.
 - Retain the upstream DataFrame column names while processing SEC data (`Cusip`, `Ticker`, `Value`, `SharesPrnAmount`, `PortfolioWeight`, comparison fields). Convert to the existing snake_case API fields only when building response dictionaries.
 - Raw SEC/cache monetary values, including cached `metadata.total_value`, are dollars. Holdings fields such as `value`, `prev_value`, and `value_change`, ticker `total_value_across_funds`, and fund-status `total_value` are converted to millions. Investor metadata adds `total_value_m` and `total_value_b` while retaining the raw value. Keep conversions in `DataService` so templates and JavaScript remain presentation-only.
@@ -114,7 +122,7 @@ The primary data flow is:
 - Ticker `holder_count_change` must equal `qoq_actions.new - qoq_actions.closed`, using only comparable fund filings. Keep the total current holder count separate and expose `qoq_unavailable_holders` when a current holder has no usable QoQ comparison; never infer that missing prior data means a new position.
 - OpenBB market insights retain the filing-period close as `quarter_end_price` and calculate `price_return_since_quarter` against the latest close. The overview 52-week-low signal and ticker hero use the latest cached close and latest trailing low regardless of the selected 13F period. This is market-price context, not investor cost basis or gain/loss; keep that distinction explicit in labels and tooltips.
 - Normalize tickers with trim plus uppercase and omit empty, `NAN`, or `NONE` values from dashboard aggregates. Closed positions come from the comparison DataFrame and are returned separately from active holdings.
-- Do not hand-edit cache snapshots as application data. Change fetch/transformation logic or `config.py`, then regenerate snapshots with `python prefetch.py` when live SEC access is intended.
+- Do not hand-edit cache snapshots as application data. Change fetch/transformation logic or use the roster-management workflow, then regenerate snapshots with `python prefetch.py` when live SEC access is intended.
 - Frontend behavior is implemented with plain global JavaScript and inline Jinja page initializers; there is no bundler or component framework. Keep API property names synchronized with `app.js`, and guard shared DOM operations because the same script loads on every page.
 - The Investor Screening page is implemented in `templates/screening.html` with rendering/filter state in the shared `app.js` and screening-specific CSS in `styles.css`. Preserve its compact-snapshot boundary and visible distinctions between reported 13F value, estimated turnover, and observed persistence.
 - The overview KPI bar is signal-oriented rather than a database summary: consensus buy/sell use combined new/increased and closed/decreased investor counts, new consensus ranks initiations, conviction uses five-holder median weight, and the value signal uses OpenBB distance from the 52-week low. Keep cards linked to ticker detail pages.

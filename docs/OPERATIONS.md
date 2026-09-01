@@ -68,6 +68,41 @@ Ticker loading has three visible stages:
 
 Market and pair results use independent six-hour caches.
 
+## Roster management
+
+`roster.json` is the tracked persistent roster. Do not edit `config.py` to add
+or remove managers.
+
+On `/screening`:
+
+1. Select one or more managers.
+2. Choose **Add**, **Add + flag**, or **Remove**.
+3. Newly added managers refresh in the background.
+
+The API validates additions against the compact screening snapshot and writes
+the complete roster atomically. Changes update the running process immediately.
+Historical period caches contain a roster fingerprint and are regenerated when
+their membership no longer matches.
+
+After a major roster revamp:
+
+```powershell
+python -m investor_screening.cli refresh-screening
+python prefetch.py --history
+```
+
+Transient SEC timeouts receive one sequential retry by default. Use
+`--retry-attempts 0` to disable retries or up to `--retry-attempts 3` during a
+degraded network window. Periods where a manager had no filing are not retried.
+
+Do not rerun `refresh-performance` solely because roster membership changed.
+Performance facts are reusable per manager and window.
+
+The pre-revamp 26-manager data snapshot is preserved under
+`cache/roster_backups/2026-08-31-prior-roster/`. Its `manifest.json` records
+the source commit, file sizes, and SHA-256 hashes for the old roster
+configuration, 27 latest cache files, and 19 historical period snapshots.
+
 ## Cache maintenance
 
 Generated cache data is excluded from Git.
@@ -191,9 +226,10 @@ screening methodology.
 ## Smoke checks
 
 ```powershell
-python -m compileall -q config.py data_service.py main.py pair_service.py prefetch.py run.py
+python -m compileall -q config.py roster_store.py data_service.py main.py pair_service.py prefetch.py run.py
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
 python -m compileall -q investor_screening
+python -m compileall -q predictive_sentiment awfi_service.py
 node --check static\js\app.js
 ```
 
@@ -205,6 +241,7 @@ python -m pytest tests/test_market_insights.py -q
 python -m pytest tests/test_investor_history.py -q
 python -m pytest tests/test_sentiment_conviction.py -q
 python -m pytest tests/test_investor_screening.py -q
+python -m pytest tests/test_awfi.py tests/test_awfi_service.py tests/test_awfi_period_view.py tests/test_predictive_sentiment.py tests/test_predictive_sentiment_cli.py -q
 ```
 
 There is no configured linter, formatter, or frontend build step. Use the
@@ -236,3 +273,64 @@ direction because the security price changed.
 
 Correlation alone is insufficient. A pair can fail corrected cointegration,
 out-of-sample persistence, stability, hedge-ratio, or half-life gates.
+## AWFI Snapshot Publication
+
+AWFI research history is built in an isolated staging database and published
+through an atomic file replacement. Readers continue using the previous complete
+snapshot while a new run is building.
+
+Application startup and full SEC refreshes compare the published AWFI run
+against:
+
+- the current predictive protocol and configuration;
+- the roster file hash;
+- the latest per-manager top-10 universe, preferring a newer application cache
+  over the lagging official quarterly SEC archive;
+- the official 13F source signature; and
+- the published AWFI model version.
+
+Any mismatch schedules one serialized rebuild. An OS-backed interprocess lock
+prevents concurrent publishers, and ticker pages refresh through the
+`awfi_published` SSE event with polling as a fallback.
+
+Run a manual atomic refresh with:
+
+```powershell
+python -m predictive_sentiment.cli run
+```
+
+The completed run summary records current-universe mapping and scoring
+coverage. Investigate any material decline before treating missing ticker
+history as a legitimate eligibility gap.
+
+Detailed source lineage, publication gates, expected coverage gaps, and the
+freshness contract are documented in
+[`AWFI_DATA_LINEAGE.md`](AWFI_DATA_LINEAGE.md).
+
+Check freshness without starting a build:
+
+```powershell
+python -c "from predictive_sentiment.publication import research_snapshot_needs_refresh; print(research_snapshot_needs_refresh())"
+```
+
+The application performs the same check:
+
+- once after startup cache initialization;
+- after every scheduled full SEC refresh;
+- after `/api/refresh`; and
+- after roster mutations.
+
+`/api/ticker/{ticker}/awfi-history` exposes `refresh_state` and
+`snapshot_version`. Normal steady state is `current`.
+
+### AWFI source-period lag
+
+The application cache may advance before the official SEC quarterly archive.
+This is expected. The latest cache can define the frozen current universe while
+persisted historical signal inputs still end at the latest official archive
+period. The current application period is appended as a live score until the
+official source catches up.
+
+Do not copy scores or decomposed features from an older protocol run to fill
+this gap. AWFI cross-sectional components depend on the run universe and
+protocol.

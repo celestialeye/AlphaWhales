@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-09-01 - AWFI Research v2 and resilient history publication
+
+### Added
+
+- Distinct 6-, 12-, 18-, and 24-month AWFI Research v2 profiles based on the
+  stored production candidate study.
+- A latest-available roster universe that prefers validated current application
+  caches when they are newer than the official quarterly SEC archive.
+- Protocol, model, configuration, roster, source, and universe freshness
+  detection.
+- OS-backed single-writer publication, unique staging databases, DuckDB
+  checkpoint/reopen validation, and atomic snapshot replacement.
+- Pre-publication checks for duplicate keys, incomplete horizons, invalid
+  scores, signal mismatches, missing mappings, and residual WAL files.
+- Automatic AWFI rebuild checks after startup, full SEC refreshes, manual
+  refreshes, and roster changes.
+- `awfi_published` SSE updates plus snapshot-version polling fallback.
+- Current-universe mapping and score-coverage metrics in research summaries.
+- A dedicated AWFI data-lineage and publication runbook.
+
+### Fixed
+
+- 18- and 24-month AWFI no longer share the same score formula.
+- The 24-month signal uses its tested Alpha-only profile rather than changing
+  verdicts solely through a lower threshold on the 18-month score.
+- INTC history now displays the latest 20 filing periods across all four
+  horizons.
+- AWFI history no longer disappears while another process rebuilds the
+  predictive database.
+- Newer application filing caches can no longer be ignored by an older
+  official-archive universe.
+- Cache writes can no longer expose partially written JSON to the research
+  publisher.
+- Ticker pages reload the full AWFI payload after publication rather than
+  combining old current scores with new history.
+
 ## 2026-08-29 - Dynamic investor screening cube
 
 ### Added

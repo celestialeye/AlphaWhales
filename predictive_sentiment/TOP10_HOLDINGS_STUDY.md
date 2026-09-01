@@ -1,5 +1,11 @@
 # Current-Roster Top-10 Holdings Study
 
+> Historical Research v1 report. The measurements below describe run
+> `eb0e09f716a66c832ad4` and must not be treated as the current Research v2
+> universe or formula. The current lineage baseline is documented in
+> [`ALPHA_WHALE_FORWARD_INDEX.md`](ALPHA_WHALE_FORWARD_INDEX.md) and
+> [`../docs/AWFI_DATA_LINEAGE.md`](../docs/AWFI_DATA_LINEAGE.md).
+
 ## Universe
 
 Run `eb0e09f716a66c832ad4` freezes each canonical current roster manager's

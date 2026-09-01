@@ -1,6 +1,6 @@
 # Alpha Whales Intelligence ⚡
 
-An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB**, **Plotly.js**, and **Server-Sent Events (SSE)** to track and analyze 13F equity filings from 26 elite hedge fund and investment managers.
+An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB**, **Plotly.js**, and **Server-Sent Events (SSE)** to track and analyze 13F equity filings from a persistent, screening-managed roster.
 
 > **Important:** 13F filings are delayed and incomplete. Estimated flow,
 > valuation, basis, timing, sizing, and pair outputs are educational research
@@ -19,41 +19,40 @@ An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB*
 
 ---
 
-## 🎯 Tracked Fund Managers (26 Total)
+## 🎯 Tracked Fund Managers (29 Total)
 
-### 💎 Value (12 Managers)
-- **Valley Forge Capital** (Dev Kantesaria) — 5Y CAGR 32.6%; 9 holdings
-- **Semper Augustus** (Christopher Bloomstran) — 5Y CAGR 30.6%; 39 holdings
-- **Himalaya Capital** (Li Lu) — 5Y CAGR 14.5%; 9 holdings
-- **Dalal Street** (Mohnish Pabrai) — 5Y CAGR 14.3%; 4 holdings
-- **Giverny Capital** (François Rochon) — 5Y CAGR 18.1%; 50 holdings
-- **AltaRock Partners** (Mark Massey) — 5Y CAGR 16.4%; 8 holdings
-- **Harris Associates / Oakmark** (Bill Nygren) — 5Y CAGR 14.5%; 24 holdings
-- **TCI Fund Management** (Chris Hohn) — 5Y CAGR 12.0%; 9 holdings; $53B
-- **Akre Capital Management** (Chuck Akre) — Compounder; 18 holdings
-- **Baupost Group** (Seth Klarman) — Deep-value specialist; 22 holdings; $5B
-- **Dorsey Asset Management** (Pat Dorsey) — Moat-focused; 10 holdings
-- **Berkshire Hathaway** (Warren Buffett) — 42 holdings; $274B
+`roster.json` is the persistent roster source of truth. Investor Screening can
+add, flag, or remove managers without editing Python source.
 
-### 🚀 High-Performance Concentrated (4 Managers)
-- **CAS Investment Partners** (Clifford Sosin) — 3Y 102% annualized; 0% turnover; 5 holdings
-- **Atreides Management** (Gavin Baker) — 3Y 54% annualized; growth-at-value
-- **Whale Rock Capital** (Alex Sacerdote) — 3Y 54% annualized; concentrated technology
-- **Pershing Square** (Bill Ackman) — Concentrated activist; 15 holdings
+### Investment style groups
 
-### 🏰 Quality Compounder (4 Managers)
-- **Durable Capital Partners** (Henry Ellenbogen) — Quality growth; 40 holdings; $10B
-- **Brave Warrior Advisors** (Glenn Greenberg) — Deep value; 33 holdings; $4B
-- **Meritage Group** (Nat Simons) — Concentrated; 10 holdings; $3B
-- **ShawSpring Partners** (Dennis Hong) — Concentrated quality; 11 holdings
+Style describes how a manager invests; it does not indicate when the manager
+was added or whether the manager passed the roster performance rule.
 
-### 🌐 2026 Expansion (6 Managers)
-- **Fundsmith LLP** (Terry Smith) — UK quality compounder; tenure 8.0Q
-- **Eminence Capital** (Ricky Sandler) — Concentrated value; tenure 6.0Q
-- **Polen Capital** (Polen Focus Growth) — Growth-quality; tenure 3.0Q
-- **Coatue Management** (Philippe Laffont) — Technology crossover; tenure 2.5Q
-- **Viking Global Investors** (Andreas Halvorsen) — Quality-oriented; tenure 4.0Q
-- **Lone Pine Capital** (Stephen Mandel) — Long/short; tenure 2.0Q
+- **Value & Contrarian (5):** Sanders Capital, ARGA, Blackhill, Li Lu, and
+  Buffett.
+- **Quality Growth (4):** Yarbrough Capital, Silvant Capital, Blue Whale, and
+  Randolph Co.
+- **Technology & Innovation (9):** Newlands Management, Value Aligned,
+  Voyager Global, Analog Century, Kinetic Partners, Styrax, Keywise, Dock
+  Street, and Laffont.
+- **Opportunistic & Concentrated (5):** Lingotto, First Beijing, Crake, Sosin,
+  and Ackman.
+- **Diversified & Systematic (6):** Systematic Alpha, Y.D. More, Traynor
+  Capital, Petredis, Weatherly, and German American Bancorp.
+
+The 24 non-exception managers passed the approved persistent-best-bet structure
+and their full-window AlphaWhales 13F estimates beat both SPY and QQQ.
+
+### Approved exceptions (5)
+
+Exception status is displayed separately from investment style.
+
+- **Himalaya Capital / Li Lu** — strong recent followable performance.
+- **CAS Investment Partners / Clifford Sosin** — exceptional 3Y clone; full window unavailable.
+- **Coatue / Philippe Laffont** — 3Y clone beat both benchmarks; full window unavailable.
+- **Berkshire Hathaway / Warren Buffett** — exceptional official record beyond the disclosed 13F sleeve.
+- **Pershing Square / Bill Ackman** — strong official strategy record not reproduced by the delayed 13F clone.
 
 ---
 
@@ -63,6 +62,7 @@ An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB*
 - **Actionable Signal KPIs**: Leading consensus buy and sell with separate increased/new and decreased/exited counts, largest net aggregate reported value inflow and outflow, broadest new idea, highest median conviction with a five-holder floor, and the closest high-conviction holding to its latest OpenBB-derived 52-week low. Each card links directly to its ticker detail.
 - **Symmetric QoQ Trade Panels**: Current-quarter buy and sell rankings by reported value change, plus largest additions and reductions by portfolio/share percentage.
 - **Manager Activity Matrix**: One row per tracked manager with the five largest share buys and sells, each labeled with the change in portfolio weight in percentage points.
+- **Alpha Whale Forward Index (AWFI)**: Most Owned, Highest Median Portfolio, and forward-ranking views show distinct 6-, 12-, 18-, and 24-month AWFI Research v2 scores using profiles selected from the stored production candidate study. The 6-month profile is action-heavy with technical support, 12 months is balanced with technical support, 18 months is balanced without technical timing, and 24 months uses the tested Alpha-only profile rather than duplicating 18 months. Historical periods use exact persisted v2 research scores; a newer current filing period keeps filing inputs fixed while refreshing technical inputs through the latest cached market session. The selected thresholds are ±75 for 6/12/18 months and ±25 for the distinct 24-month Alpha-only profile. See the [model specification](predictive_sentiment/ALPHA_WHALE_FORWARD_INDEX.md) and [data-lineage runbook](docs/AWFI_DATA_LINEAGE.md).
 - **20-Quarter Filing History**: The QoQ dashboard defaults to the latest quarter and can switch among the latest 20 quarter-ends. Historical cross-fund snapshots are fetched lazily through edgartools and persisted under `cache/history/<period>.json`.
 
 Warm all selectable historical snapshots without re-fetching the latest quarter:
@@ -83,12 +83,13 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 - **Interactive Visualizations**:
   - Breakdown of New Buys, Increases, Decreases, Closed by Fund Group (Plotly).
   - Top 10 Dollar Value Shifts ($M) horizontal bar chart (Plotly).
-- **Master QoQ Table**: Multi-column sortable, real-time search, filter by Strategy Group, Action Status (NEW, INCREASED, DECREASED, CLOSED), Min $M move, pagination, and one-click CSV export.
+- **Master QoQ Table**: Multi-column sortable, real-time search, filter by investment style, Action Status (NEW, INCREASED, DECREASED, CLOSED), Min $M move, pagination, and one-click CSV export.
 
 ### 2. Ticker Level Intelligence (`/ticker` & `/ticker/{ticker}`)
 - **Market Snapshot**: OpenBB/yfinance current price, daily move, latest 52-week-low price and percentage above that low, market cap, trailing and forward P/E, 52-week range, beta, one-year return, sector, industry, and exchange.
 - **Estimated Alpha Whale Price**: A clearly labeled 20-quarter weighted-average basis model for currently tracked shares. This is an estimate, not reported investor cost basis.
-- **Purchase Decision Support**: Opens with Alpha Whale Sentiment, followed by fiscal-windowed historical median P/E, Graham Number, conservative bond-adjusted Graham value, normalized P/E value, composite fair value, a 20% margin-of-safety purchase price, technical timing, and educational risk sizing.
+- **Tabbed Ticker Workspace**: Keeps ticker identity and the latest 13F snapshot visible, then organizes the detail view into Decision, Market, Whale Activity, Ownership, and Pairs tabs. Decision opens with an all-horizon AWFI Research v2 breakdown, valuation, technical timing, and educational risk sizing. The complete Alpha Whale Sentiment model and history remain available under Whale Activity.
+- **Direct-Impact Ticker News**: Shows up to five recent OpenBB/yfinance headlines only when the company or ticker appears in the headline and the story contains a material event signal such as earnings, guidance, a product launch, a deal, regulation, leadership, or litigation. Fewer items are shown instead of padding the section with loosely related coverage.
 - **Technical Timing**: RSI(14), RSI(2), 50/200-day trend distance, six-month momentum, annualized volatility, trend regime, and entry-timing state.
 - **Illustrative Risk Budget**: A non-personalized position range combining valuation, long-term trend, whale flow, and volatility. It caps a stock at 5% of an assumed 30% All Weather-style equity sleeve.
 - **Pair Trading Research**: Same-industry economic peers are tested with five years of dividend-adjusted prices, bidirectional cointegration, multiple-testing correction, out-of-sample persistence, sub-window stability, and half-life gates. The view distinguishes READY, WAIT, and NO VALID PAIR and shows both stock/short-stock and stock/paired-put execution structures only when actionable.
@@ -104,12 +105,12 @@ When switching periods, the dashboard shows whether it is loading the latest cac
   - Ownership Distribution Donut Chart (Plotly).
   - QoQ Value Shift by Fund Bar Chart (Plotly).
 - **Holders Table**: Complete breakdown of which funds hold the stock, individual weights, dollar values, share counts, and QoQ actions.
-- **Search & Quick-Picks**: Auto-suggestions and instant filter chips (`AAPL`, `GOOGL`, `MSFT`, `AMZN`, `META`, `NVDA`, `FICO`, `SPGI`, `MCO`, etc.).
+- **Search & Quick-Picks**: The 12 highest-consensus tickers are derived dynamically from the current roster by holder count and tracked value; ticker-intelligence prefetch warms the same set.
 
 ### 3. Investor Portfolio View (`/investor` & `/investor/{cik}`)
-- **Investor Selector Gallery**: Filterable card gallery of all 26 funds.
+- **Investor Selector Gallery**: Filterable card gallery of the current roster.
 - **Fund Deep Dive**:
-  - Header with Manager name, Strategy group, Catalog annotation, CIK, and Filing Period.
+  - Header with Manager name, investment style, Catalog annotation, CIK, and Filing Period.
   - Concentration Stats: Top 5 Weight %, Top 10 Weight %, Active vs Closed counts.
   - Interactive Donut Chart of Top 10 Positions + Other.
   - QoQ Position Shifts Bar Chart ($M).
@@ -122,12 +123,13 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 ### 4. Investor Screening (`/screening`)
 - **Mega High-Conviction Default**: Starts at a $10B four-quarter median
   reported 13F value, 80% direct-company-stock sleeve, 40% top-10
-  concentration, six-of-eight-quarter persistence, and at least one stock held
-  continuously above 3% of reported non-option 13F value for 12 months.
+  concentration, six-of-eight-quarter persistence, and at least one current
+  stock observed at or above 3% of reported non-option 13F value in each of the
+  latest five quarterly snapshots, spanning approximately 12 months.
 - **Dynamic Presets and Controls**: Relaxed Scale, Mega High-Conviction,
-  Patient Tilt, and Strict Best-Bet presets with editable size, stock-count, direct-stock,
-  concentration, long-term-best-bet, performance, roster-only, and
-  manager-search filters.
+  Patient Tilt, Strict Best-Bet, and Persistent Best-Bet presets with editable
+  size, stock-count, direct-stock, concentration, long-term-best-bet,
+  performance, roster-only, and manager-search filters.
 - **Precomputed Read-Only Snapshot**: Queries a compact DuckDB snapshot rather
   than rescanning the full historical 13F foundation on every request. A
   reusable 1,809,508-row, 20-quarter position cube supports dynamic best-bet
@@ -150,6 +152,9 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 ## ⚡ Live Updates & Real-Time Sync
 
 - **Server-Sent Events (SSE)**: Uses `/events` stream to broadcast updates whenever SEC 13F data refreshes.
+- **AWFI Publication Events**: Completed research snapshots emit
+  `awfi_published`; ticker pages reload the complete current-score and history
+  payload.
 - **Manual Refresh**: Click **"Refresh Now"** in the top navigation bar to trigger a background re-fetch.
 - **Automated Caching**: In-memory + persistent disk cache (`cache/`) with a 6-hour TTL and fast cached startup.
 - **Market Context**: OpenBB's yfinance provider supplies daily price history for high-conviction holdings; results are persisted in `cache/market_insights.json`.
@@ -190,21 +195,24 @@ Open your browser at `http://localhost:8000`
 | `/api/period-view` | GET | Complete dashboard payload for one filing period |
 | `/api/ticker-view` | GET | All tickers aggregated with holders and total value |
 | `/api/ticker/{ticker}` | GET | Detailed consensus and holders for a specific ticker |
+| `/api/ticker/{ticker}/awfi-history` | GET | Persisted AWFI history plus publication state and snapshot version |
 | `/api/ticker/{ticker}/intelligence` | GET | OpenBB market snapshot, valuation, timing, estimated whale basis, flow, sizing, and 20-quarter history |
 | `/api/ticker/{ticker}/pair-signal` | GET | Local hypothesis-tier pair diagnostics and readiness |
-| `/api/investor-view` | GET | Summary status list for all 26 fund managers |
+| `/api/investor-view` | GET | Summary status list for the configured roster |
 | `/api/investor/{cik}` | GET | Detailed portfolio holdings, closed positions, and stats for a fund |
 | `/api/investor/{cik}/history` | GET | Lazy-loaded 20-quarter investor activity and portfolio history |
 | `/api/screening` | GET | Filtered universe-wide investor screening snapshot and summary |
+| `/api/roster` | GET | Current persistent roster and exception flags |
+| `/api/roster` | POST | Bulk include, include-and-flag, or exclude screening managers |
 | `/api/fund-status` | GET | Real-time loading status and KPI summary |
-| `/api/refresh` | GET | Trigger background refresh across all 26 funds |
+| `/api/refresh` | GET | Trigger background refresh across all configured funds |
 | `/events` | GET | Server-Sent Events (SSE) live data stream |
 
 ## Validation
 
 ```powershell
 # Application smoke checks
-python -m compileall -q config.py data_service.py main.py pair_service.py prefetch.py run.py
+python -m compileall -q config.py roster_store.py data_service.py awfi_service.py main.py pair_service.py prefetch.py run.py predictive_sentiment
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
 
 # Focused unit tests
@@ -212,5 +220,8 @@ python -m pip install pytest
 python -m pytest tests/test_market_insights.py -q
 python -m pytest tests/test_investor_history.py -q
 python -m pytest tests/test_sentiment_conviction.py -q
+python -m pytest tests/test_awfi_service.py -q
+python -m pytest tests/test_awfi.py tests/test_awfi_period_view.py tests/test_predictive_sentiment.py tests/test_predictive_sentiment_cli.py -q
 python -m pytest tests/test_investor_screening.py -q
+python -m pytest tests/test_roster_store.py -q
 ```

@@ -59,15 +59,15 @@ The UI must keep three dimensions separate:
 
 Do not combine these dimensions into one opaque quality score.
 
-## Default preset: Established High-Conviction
+## Default preset: Mega High-Conviction
 
 | Criterion | Default | UI range or alternatives |
 |---|---:|---|
-| Reporting period | Latest broadly complete quarter | Historical as-of selector |
-| Minimum reported size | Four-quarter median reported 13F value >= $10B | $100M-$5T; presets at $500M, $1B, $3.5B, $10B, $50B |
+| Reporting period | Latest broadly complete quarter | No historical as-of UI selector |
+| Minimum reported size | Four-quarter median reported 13F value >= $10B | $500M, $1B, $3.5B, $10B, or $50B |
 | Minimum current direct-stock positions | >=1 | 1-10+ |
-| Filing history | 12 consecutive quarterly filings | 4-40 quarters |
-| Direct-company-stock percentage | >=80% of the non-option 13F sleeve | 60%, 70%, 80%, 90%, custom |
+| Filing history | 12 consecutive quarterly filings | Fixed snapshot foundation |
+| Direct-company-stock percentage | >=80% of the non-option 13F sleeve | 50%-100% in 5-point increments |
 | Latest top-10 concentration | >=40% of the direct-stock sleeve | 20%-100% |
 | Concentration persistence | Top-10 concentration >=40% in at least 6 of the last 8 quarters | Configurable X-of-Y |
 | Minimum best-bet weight | >=3% of total reported non-option 13F value in every required snapshot | 1%-10% |
@@ -85,15 +85,22 @@ or above 3% of total reported non-option 13F value in each of the latest five
 quarterly snapshots. Weight, duration, and required count remain independently
 configurable.
 
-## Required evidence-quality gates
+## Current and target evidence-quality gates
 
-These are the appropriate hard exclusions:
+The current structural snapshot requires the latest broadly complete period
+and 12 available quarterly observations. The 95% identifier-mapping and
+priced-value gates apply to disclosure-lagged performance intervals, not to
+every structural screening result.
+
+The broader target evidence-quality requirements are:
 
 1. Manager identity is confirmed or mapped with high confidence.
 2. Latest expected filing is available.
 3. There is no unexplained filing gap.
-4. The point-in-time filing version is available for the selected as-of date.
-5. At least 95% of included reported value is mapped to a security and price.
+4. The point-in-time filing version is available for a future selected as-of
+   date.
+5. Performance intervals map and price at least 95% of included reported
+   value.
 6. There is no unresolved material reconciliation error.
 7. Original filings, restatements, and additive `NEW HOLDINGS` amendments are
    handled according to their actual meaning.
@@ -157,30 +164,16 @@ Security classification should ultimately use a maintained point-in-time
 security-type reference. Issuer-name and title heuristics are acceptable for
 initial calibration but must be labeled as provisional.
 
-## Conviction
+## Persistent best-bet eligibility
 
-### Without a reliable benchmark
+Current persistent-best-bet eligibility uses reported value as a percentage of
+total reported non-option 13F value. A current stock must remain at or above
+the selected 1%-10% threshold in every required quarterly snapshot.
 
-A default conviction position must:
-
-- Represent at least 3% of the direct-stock sleeve.
-- Rank among the manager's top 10 positions.
-
-### With a reliable benchmark
-
-Prefer active weight:
-
-```text
-active weight = manager portfolio weight - benchmark weight
-```
-
-Require:
-
-- Absolute weight >=2%.
-- Active weight >=+2 percentage points.
-- Top-10 portfolio rank.
-
-Broad ETFs and options are excluded from the default conviction denominator.
+The current rule does not require a top-ten rank. Direct-sleeve weight,
+position rank, and benchmark-relative active weight are retained or proposed
+for future institution-relative conviction modes; they do not determine the
+default screen.
 
 ## Observed holding duration
 
@@ -202,41 +195,29 @@ Routine additions and reductions do not reset duration.
 
 ## Routine versus material operations
 
-Portfolio actions are classified using split-adjusted shares and
-price-drift-adjusted portfolio weights.
-
-```text
-drift-adjusted previous weight =
-    previous shares * current-period price
-    / drifted previous portfolio value
-
-weight change =
-    current portfolio weight - drift-adjusted previous weight
-```
+Portfolio turnover currently compares quarter-to-quarter reported direct-stock
+sleeve weights and reported share counts. It does not yet price-drift prior
+weights or normalize corporate actions.
 
 ### Default action bands
 
 | Classification | Default rule |
 |---|---|
-| Unchanged | Split-adjusted shares unchanged |
+| Unchanged | Reported shares unchanged |
 | Routine rebalance | Absolute weight change <0.25 percentage points **or** absolute share change <10% |
 | Meaningful change | Absolute weight change >=0.25 pp **and** absolute share change >=10% |
 | Major conviction change | Absolute weight change >=1.0 pp **and** absolute share change >=20% |
 | New or closed | Always recorded; material for conviction analytics when position weight is at least 0.5% |
 
-Corporate actions and identifier changes must be normalized before action
-classification. Small routine changes:
+Small routine changes:
 
 - Contribute zero to meaningful-turnover calculations.
 - Do not reset holding duration.
 - Do not create a conviction-change alert.
 
-The four materiality thresholds are advanced UI controls.
-
 ## Estimated turnover
 
-Calculate one-way quarterly turnover from material drift-adjusted weight
-changes:
+Calculate one-way quarterly turnover from included reported-weight changes:
 
 ```text
 quarterly turnover =
@@ -247,7 +228,8 @@ annualized turnover =
 ```
 
 The factor of 0.5 prevents a sale and corresponding purchase from being
-double-counted.
+double-counted. This is an estimated material-operation proxy and remains a
+diagnostic rather than a default eligibility filter.
 
 Turnover remains a diagnostic result column. It is no longer a manager
 eligibility filter because the long-term-investor screen now directly measures
@@ -275,7 +257,7 @@ Also display:
 There is no default upper concentration limit. Top-10 weight above 80% and
 single positions above 20% are visible risk flags rather than exclusions.
 
-## Investor style
+## Planned multi-label investor-style enrichment
 
 Style is multi-label and confidence-scored:
 
@@ -292,7 +274,7 @@ Classifications use holdings characteristics, sector-relative valuation,
 profitability, growth, size, momentum, active share, turnover, concentration,
 and cross-form evidence.
 
-The UI must show:
+The target UI may show:
 
 - Style confidence.
 - Stated versus inferred style.
@@ -404,7 +386,7 @@ Performance output must be labeled:
 >
 > Not a fund or account return.
 
-## Liquidity and crowding
+## Planned liquidity and crowding controls
 
 Default liquidity stress assumptions:
 
@@ -426,7 +408,8 @@ These are stress assumptions, not universal market-impact thresholds.
 
 ## Cross-filing enrichment
 
-Cross-form signals supplement the 13F screen:
+The foundation ingests these filing families for future enrichment, but they
+do not currently enter `/api/screening` eligibility or ranking:
 
 - Forms 3/4/5: insider open-market purchases, sales, grants, and ownership.
 - Schedule 13D/G: initial large-holder stakes, activist intent, conversions,
@@ -450,7 +433,7 @@ Cross-form signals supplement the 13F screen:
 - Concentration threshold met in at least 4 of 8 quarters.
 - At least one stock held above 2% for 6 months.
 
-### Established High-Conviction
+### Mega High-Conviction
 
 Uses the defaults specified in this document.
 
@@ -476,9 +459,20 @@ Uses the defaults specified in this document.
 
 Presets populate controls; they do not lock them.
 
+### Persistent Best-Bet
+
+- Four-quarter median reported value >=$500M.
+- At least 3 current direct stocks.
+- Direct-company-stock percentage >=50%.
+- Top-10 concentration >=50% in all 8 measured quarters.
+- At least 3 stocks observed at or above 3% of total reported non-option 13F
+  value in each of 5 quarterly snapshots.
+- Full fetched performance history selected.
+- Estimated CAGR above both SPY and QQQ.
+
 ## Initial calibration
 
-The revised Established High-Conviction rules were tested against the latest
+The historical Mega High-Conviction calibration was tested against the latest
 complete reporting period, March 31, 2026. Before applying the size threshold,
 1,726 managers passed the direct-stock, concentration, persistence, and
 long-term-best-bet rules.
@@ -507,9 +501,10 @@ security-title heuristics to identify ETFs and pooled products. Production
 counts may change after the maintained security-type reference replaces those
 heuristics.
 
-## Required UI disclosures
+## Target UI disclosures
 
-Every result page must display:
+The following remain target disclosures unless they are already returned by
+the current compact snapshot and visible in the UI:
 
 - Holdings period.
 - Filing publication or acceptance date.

@@ -85,10 +85,10 @@ percentage above 52-week low =
   100 * (latest close / latest trailing 52-week low - 1)
 ```
 
-The ticker hero displays both the low price and the percentage above it.
-Proximity is colored green at 10% or less, yellow above 10% through 25%, and
-orange above 25%. This is current market context, not a manager return, cost
-basis, or valuation conclusion.
+The ticker hero displays the low price, the trading date on which that low was
+observed, and the percentage above it. Positive arithmetic differences are
+green and negative differences are red. This is current market context, not a
+manager return, cost basis, or valuation conclusion.
 
 Investor portfolio tables use the same cached market context without issuing
 one live request per holding:
@@ -340,6 +340,30 @@ The manager conviction heatmap displays reported share adjustment versus
 normal adjustment for continuing positions, and position size versus normal
 position size for new and closed positions. Contributor lists show the capped
 multiple used by the score plus the underlying reported percentage.
+
+## Alpha Whale Forward Index
+
+AWFI is a separate forward-price research model built from:
+
+- Alpha Whale manager-relative sentiment;
+- purchase-led action structure;
+- cross-sectional portfolio conviction; and
+- point-in-time technical support.
+
+It produces distinct 6-, 12-, 18-, and 24-month scores. The current Research
+v2 profiles and thresholds come from the stored production candidate study;
+they are not interchangeable with the Alpha Whale Sentiment regime.
+
+Historical scores use the standardized quarter-end-plus-45-day information
+cutoff and prices strictly before the following entry session. The current
+application period keeps filing inputs fixed while technical inputs advance
+through the latest cached market session.
+
+The complete formulas, evidence, interpretation limits, and trust blockers are
+documented in
+[`predictive_sentiment/ALPHA_WHALE_FORWARD_INDEX.md`](../predictive_sentiment/ALPHA_WHALE_FORWARD_INDEX.md).
+Data lineage and publication controls are documented in
+[`AWFI_DATA_LINEAGE.md`](AWFI_DATA_LINEAGE.md).
 
 ## Pair-trading research
 

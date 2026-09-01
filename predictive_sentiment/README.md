@@ -6,10 +6,14 @@ next 126, 252, 378, and 504 trading sessions, approximately 6, 12, 18, and 24
 months. SPY excess return remains a secondary diagnostic rather than the
 BUY/SELL target.
 
-The study is deliberately separate from the dashboard. It reads the
-accession-level Investor Screening DuckDB and the existing adjusted-price
-manifest in read-only mode. It never uses `cache/history/*.json`, current
-ticker intelligence, quarter-end prices as signal dates, or a network fallback.
+The study is deliberately separate from dashboard rendering. Historical
+signals read the accession-level Investor Screening DuckDB and adjusted-price
+manifest in read-only mode. Current `cache/<cik>.json` files may define the
+latest top-ten universe when they contain a newer filing period than the
+official quarterly archive. Historical signal values still come from the
+official archive; the pipeline never substitutes `cache/history/*.json`,
+current ticker intelligence, quarter-end prices as signal dates, or a network
+price fallback.
 
 ## Fixed protocol
 
@@ -19,9 +23,10 @@ ticker intelligence, quarter-end prices as signal dates, or a network fallback.
 - Compare exact consecutive quarters by CUSIP. A missing filing is unknown, not
   a portfolio liquidation.
 - Freeze the union of each current roster manager's latest top 10 direct common
-  stocks ranked by reported portfolio weight. Managers with fewer than 10
-  stocks retain all holdings. Exclude ETFs, funds, options, and non-common
-  instruments.
+  stocks ranked by reported portfolio weight. Select the newer valid source
+  separately for each manager: current application cache or official archive.
+  Managers with fewer than 10 stocks retain all holdings. Exclude ETFs, funds,
+  options, and non-common instruments.
 - Detect coordinated split-like share-count changes before measuring manager
   conviction.
 - Execute on the first cached SPY session strictly after the fixed as-of date.
@@ -50,16 +55,13 @@ The current CUSIP mapping is persisted for audit but is not effective-dated,
 so `CURRENT_CUSIP_MAPPING` remains a second mandatory trust blocker until a
 historical security master is available.
 
-Changing conviction math or component weights is explicitly deferred. The
-first phase tests
-whether point-in-time 52-week-low distance and the existing 50/200-session
-technical regime can improve the fixed sentiment signal. Price location only
-vetoes BUY entries that are too extended above their trailing low; it never
-creates direction. The tested trend gates require either non-bearish or
-strictly bullish conditions for BUY and bearish or stricter negative conditions
-for SELL. The active threshold study keeps the existing `alpha_v1_n3` formula fixed.
-Changing conviction math, component weights, or manager participation is
-reserved for a later experiment.
+The original threshold and technical-gate phases kept `alpha_v1_n3` fixed.
+Later decomposed experiments tested institutional component weights through a
+blocked two-stage selection process. AWFI Research v2 now publishes the
+evidence-backed 6-, 12-, 18-, and 24-month profiles documented in
+[`ALPHA_WHALE_FORWARD_INDEX.md`](ALPHA_WHALE_FORWARD_INDEX.md). Further changes
+to conviction math, support components, or manager participation require a new
+versioned experiment.
 
 The `signals` command exposes both `research_signal` and `decision_signal`.
 Research candidates may be BUY or SELL, but the deployable decision is forced
@@ -78,6 +80,10 @@ The current top-ten-universe results and backfill coverage are documented in
 
 The exact tested definition of the new forward index is documented in
 [`ALPHA_WHALE_FORWARD_INDEX.md`](ALPHA_WHALE_FORWARD_INDEX.md).
+
+Runtime data lineage, freshness detection, and atomic publication are
+documented in
+[`../docs/AWFI_DATA_LINEAGE.md`](../docs/AWFI_DATA_LINEAGE.md).
 
 Treasury, DXY, sector-relative, stock-sensitivity, and point-in-time
 fundamental challenger results are documented in
@@ -98,8 +104,9 @@ Git with the rest of the generated Investor Screening data.
 
 ## Interpretation limits
 
-- Cached adjusted prices begin around July 2020, so older filings improve
-  manager baselines but cannot produce forward-return labels.
+- Adjusted-price coverage varies by security and can extend to 2010. Newer
+  listings retain their actual market-history start, so older filings may
+  improve manager baselines without producing a usable forward-return label.
 - The persisted CUSIP mapping is not a historical security master.
 - Missing terminal prices can create delisting attrition and are reported.
 - Filing dates, rather than acceptance timestamps, force next-session

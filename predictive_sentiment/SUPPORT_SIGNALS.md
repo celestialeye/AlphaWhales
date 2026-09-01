@@ -1,5 +1,13 @@
 # Support-Signal Research Plan
 
+> Historical experiment record. Threshold selections, run IDs, and candidate
+> conclusions below describe the research phases that preceded AWFI Research
+> v2. Use
+> [`ALPHA_WHALE_FORWARD_INDEX.md`](ALPHA_WHALE_FORWARD_INDEX.md) for the current
+> score specification and
+> [`../docs/AWFI_DATA_LINEAGE.md`](../docs/AWFI_DATA_LINEAGE.md) for runtime
+> publication behavior.
+
 ## Expanded threshold study
 
 Run `532413ca5876b9d6b6f7` tests the unchanged `alpha_v1_n3` score on
