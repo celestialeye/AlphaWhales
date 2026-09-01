@@ -296,7 +296,7 @@
             <article class="screening-kpi">
                 <span>CURRENT ROSTER</span>
                 <strong id="screening-roster-count">--</strong>
-                <small>Of 26 configured managers</small>
+                <small id="screening-roster-total">Configured managers</small>
             </article>
             <article class="screening-kpi">
                 <span>MEDIAN REPORTED SIZE</span>
@@ -344,11 +344,46 @@
                     <h2>Qualified Managers</h2>
                 </div>
                 <div class="screening-table-actions">
+                    <div class="screening-roster-manager" aria-label="Roster management">
+                        <span>
+                            <strong id="screening-active-roster-count">--</strong>
+                            in roster
+                        </span>
+                        <span id="screening-selected-count">0 selected</span>
+                        <select id="screening-roster-group"
+                                aria-label="Investment style"
+                                onchange="updateScreeningRosterControls()">
+                            <option value="">Choose style...</option>
+                            <option value="Value &amp; Contrarian">Value &amp; Contrarian</option>
+                            <option value="Quality Growth">Quality Growth</option>
+                            <option value="Technology &amp; Innovation">Technology &amp; Innovation</option>
+                            <option value="Opportunistic &amp; Concentrated">Opportunistic &amp; Concentrated</option>
+                            <option value="Diversified &amp; Systematic">Diversified &amp; Systematic</option>
+                        </select>
+                        <button type="button" class="btn btn-sm btn-primary"
+                                id="screening-add-selected"
+                                onclick="updateSelectedScreeningRoster('include', false)"
+                                disabled>
+                            Add
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline screening-flag-action"
+                                id="screening-flag-selected"
+                                onclick="updateSelectedScreeningRoster('include', true)"
+                                disabled>
+                            Add + flag
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline screening-remove-action"
+                                id="screening-remove-selected"
+                                onclick="updateSelectedScreeningRoster('exclude', false)"
+                                disabled>
+                            Remove
+                        </button>
+                    </div>
                     <label class="screening-roster-toggle">
                         <input id="screen-roster-only" type="checkbox" onchange="scheduleScreeningLoad()">
                         {{ screening_filter_label(
                             "Roster only",
-                            "Restricts results to the 26 managers already configured elsewhere in the Alpha Whales dashboard.",
+                            "Restricts results to managers currently included in the persistent Alpha Whales roster.",
                             "Alpha Whales roster filter explanation"
                         ) }}
                     </label>
@@ -363,6 +398,11 @@
                 <table class="data-table screening-table">
                     <thead>
                         <tr>
+                            <th class="screening-select-column">
+                                <input id="screening-select-page" type="checkbox"
+                                       aria-label="Select all managers on this page"
+                                       onchange="toggleScreeningPageSelection(this.checked)">
+                            </th>
                             <th><button type="button" onclick="sortScreening('manager_name')">Manager</button></th>
                             <th>
                                 <span class="screening-header-label">
@@ -410,10 +450,11 @@
                             <th><button type="button" onclick="sortScreening('qqq_excess_cagr')">vs QQQ</button></th>
                             <th><button type="button" onclick="sortScreening('max_drawdown')">Max Drawdown</button></th>
                             <th><button type="button" onclick="sortScreening('performance_priced_coverage')">Price Coverage</button></th>
+                            <th class="screening-roster-column">Roster</th>
                         </tr>
                     </thead>
                     <tbody id="screening-table-body">
-                        <tr><td colspan="12" class="text-center py-4">Loading screening snapshot...</td></tr>
+                        <tr><td colspan="14" class="text-center py-4">Loading screening snapshot...</td></tr>
                     </tbody>
                 </table>
             </div>

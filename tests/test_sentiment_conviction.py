@@ -90,3 +90,57 @@ def test_missing_manager_baseline_is_unscored():
     )
 
     assert result == (None, "SHARE_CHANGE", 1.5, False)
+
+
+def test_overview_sentiment_summary_uses_shared_scoring_model():
+    service = DataService.__new__(DataService)
+    changes = [
+        {
+            "ticker": "AAA",
+            "cik": "1",
+            "manager": "One",
+            "fund_name": "One",
+            "status": "NEW",
+            "portfolio_weight": 4.0,
+            "previous_portfolio_weight": 0.0,
+            "portfolio_weight_change_raw": 4.0,
+            "shares_change_pct": None,
+            "manager_typical_position_weight": 2.0,
+            "manager_typical_share_change_pct": None,
+        },
+        {
+            "ticker": "AAA",
+            "cik": "2",
+            "manager": "Two",
+            "fund_name": "Two",
+            "status": "INCREASED",
+            "portfolio_weight": 3.0,
+            "previous_portfolio_weight": 2.0,
+            "portfolio_weight_change_raw": 1.0,
+            "shares_change_pct": 20.0,
+            "manager_typical_position_weight": 2.0,
+            "manager_typical_share_change_pct": 10.0,
+        },
+        {
+            "ticker": "AAA",
+            "cik": "3",
+            "manager": "Three",
+            "fund_name": "Three",
+            "status": "DECREASED",
+            "portfolio_weight": 2.0,
+            "previous_portfolio_weight": 3.0,
+            "portfolio_weight_change_raw": -1.0,
+            "shares_change_pct": -20.0,
+            "manager_typical_position_weight": 2.0,
+            "manager_typical_share_change_pct": 10.0,
+        },
+    ]
+
+    sentiment = service.get_ticker_sentiment_summaries(
+        ["AAA"],
+        changes,
+    )["AAA"]
+
+    assert sentiment["meaningful_count"] == 3
+    assert sentiment["score"] == 33.33
+    assert sentiment["regime"] == "BULLISH"

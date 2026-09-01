@@ -15,13 +15,20 @@ import numpy as np
 import pandas as pd
 
 from roster_store import load_roster
+from roster_store import fund_fingerprint
 
+from .awfi import (
+    HORIZON_THRESHOLDS,
+    HORIZON_WEIGHTS,
+    awfi_signal,
+)
 from .config import (
     EXPERIMENT_DECOMPOSED_SWEEP,
     EXPERIMENT_FUNDAMENTAL,
     EXPERIMENT_GROUPS,
     EXPERIMENT_MACRO_SECTOR,
     EXPERIMENT_TECHNICAL_COMBINED,
+    AWFI_VERSION,
     PROTOCOL_VERSION,
     ResearchConfig,
 )
@@ -63,6 +70,7 @@ DEFAULT_SOURCE_DB = Path("data/investor_screening/investor_screening.duckdb")
 DEFAULT_PERFORMANCE_DB = Path("data/investor_screening/performance.duckdb")
 DEFAULT_OUTPUT_DB = Path("data/investor_screening/predictive_sentiment.duckdb")
 DEFAULT_ROSTER = Path("roster.json")
+DEFAULT_APPLICATION_CACHE_DIR = Path("cache")
 
 
 RESEARCH_SCHEMA = """
@@ -273,6 +281,23 @@ CREATE TABLE IF NOT EXISTS macro_sector_features (
     cusip VARCHAR NOT NULL,
     horizon INTEGER NOT NULL,
     features_json JSON NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS awfi_scores (
+    run_id VARCHAR NOT NULL,
+    awfi_version VARCHAR NOT NULL,
+    report_period DATE NOT NULL,
+    as_of_date DATE NOT NULL,
+    feature_date DATE NOT NULL,
+    cusip VARCHAR NOT NULL,
+    ticker VARCHAR,
+    market_symbol VARCHAR,
+    horizon INTEGER NOT NULL,
+    score DOUBLE NOT NULL,
+    positive_threshold DOUBLE NOT NULL,
+    negative_threshold DOUBLE NOT NULL,
+    signal VARCHAR NOT NULL,
+    source_status VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS evaluation_metrics (
@@ -815,10 +840,208 @@ def _load_current_top_holdings(
                     "manager_name": fund["manager"],
                     "report_period": report_period,
                     "holding_rank": holding_rank,
+                    "universe_source": "SEC_ARCHIVE",
                     **item,
                 }
             )
     return result
+
+
+def _load_cached_top_holdings(
+    roster: list[dict],
+    cache_dir: Path,
+    *,
+    top_n: int,
+) -> list[dict]:
+    result = []
+    for fund in roster:
+        path = cache_dir / f"{fund['cik']}.json"
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        metadata = payload.get("metadata") or {}
+        report_period = metadata.get("report_period")
+        if (
+            payload.get("cik") != fund["cik"]
+            or payload.get("fund_fingerprint") != fund_fingerprint(fund)
+            or payload.get("status") != "loaded"
+            or not report_period
+            or not isinstance(payload.get("holdings"), list)
+        ):
+            continue
+        try:
+            period = date.fromisoformat(str(report_period))
+        except ValueError:
+            continue
+        aggregated: dict[str, dict] = {}
+        for row in payload.get("holdings") or []:
+            if not isinstance(row, dict):
+                continue
+            cusip = normalize_cusip(row.get("Cusip"))
+            if (
+                cusip is None
+                or not is_direct_common_stock(
+                    issuer=row.get("Issuer"),
+                    title=row.get("Class"),
+                    shares_type=row.get("Type"),
+                    put_call=row.get("PutCall"),
+                )
+            ):
+                continue
+            item = aggregated.setdefault(
+                cusip,
+                {
+                    "cusip": cusip,
+                    "issuer": str(row.get("Issuer") or ""),
+                    "title": str(row.get("Class") or ""),
+                    "portfolio_weight": 0.0,
+                    "reported_value": 0.0,
+                },
+            )
+            item["portfolio_weight"] += float(
+                row.get("PortfolioWeight") or 0.0
+            )
+            item["reported_value"] += float(row.get("Value") or 0.0)
+        ranked = sorted(
+            aggregated.values(),
+            key=lambda item: (
+                -item["portfolio_weight"],
+                -item["reported_value"],
+                item["cusip"],
+            ),
+        )[:top_n]
+        for holding_rank, item in enumerate(ranked, start=1):
+            result.append(
+                {
+                    "canonical_cik": fund["cik"],
+                    "manager_name": fund["manager"],
+                    "report_period": period,
+                    "holding_rank": holding_rank,
+                    "universe_source": "APPLICATION_CACHE",
+                    **item,
+                }
+            )
+    return result
+
+
+def _select_latest_top_holdings(
+    archive_rows: list[dict],
+    cache_rows: list[dict],
+) -> list[dict]:
+    archive_by_cik: dict[str, list[dict]] = {}
+    cache_by_cik: dict[str, list[dict]] = {}
+    for row in archive_rows:
+        archive_by_cik.setdefault(row["canonical_cik"], []).append(row)
+    for row in cache_rows:
+        cache_by_cik.setdefault(row["canonical_cik"], []).append(row)
+
+    result = []
+    for cik in dict.fromkeys([*archive_by_cik, *cache_by_cik]):
+        archive = archive_by_cik.get(cik, [])
+        cached = cache_by_cik.get(cik, [])
+        archive_period = max(
+            (row["report_period"] for row in archive),
+            default=None,
+        )
+        cache_period = max(
+            (row["report_period"] for row in cached),
+            default=None,
+        )
+        result.extend(
+            cached
+            if cache_period is not None
+            and (archive_period is None or cache_period > archive_period)
+            else archive
+        )
+    return result
+
+
+def top_holdings_fingerprint(rows: list[dict]) -> str:
+    return hashlib.sha256(_json(rows).encode("utf-8")).hexdigest()
+
+
+def source_13f_signature(
+    connection: duckdb.DuckDBPyConnection,
+) -> dict[str, object]:
+    filing_count, latest_filing_date, latest_report_period = (
+        connection.execute(
+            """
+            SELECT
+                count(*),
+                max(filing_date),
+                max(period_of_report)
+            FROM sec_filings
+            WHERE filing_family = 'institutional_holdings'
+            """
+        ).fetchone()
+    )
+    holding_count = connection.execute(
+        "SELECT count(*) FROM holdings"
+    ).fetchone()[0]
+    return {
+        "filing_count": int(filing_count),
+        "holding_count": int(holding_count),
+        "latest_filing_date": (
+            latest_filing_date.isoformat()
+            if latest_filing_date
+            else None
+        ),
+        "latest_report_period": (
+            latest_report_period.isoformat()
+            if latest_report_period
+            else None
+        ),
+    }
+
+
+def performance_database_signature(
+    path: Path,
+    connection: duckdb.DuckDBPyConnection,
+) -> dict[str, object]:
+    mapping_count, latest_mapping = connection.execute(
+        """
+        SELECT count(*), max(retrieved_at)
+        FROM cusip_ticker_mapping
+        """
+    ).fetchone()
+    manifest_rows = connection.execute(
+        """
+        SELECT
+            status,
+            count(*),
+            sum(row_count),
+            max(updated_at)
+        FROM price_manifest
+        GROUP BY status
+        ORDER BY status
+        """
+    ).fetchall()
+    return {
+        "file_size": path.stat().st_size,
+        "file_mtime_ns": path.stat().st_mtime_ns,
+        "mapping_count": int(mapping_count),
+        "latest_mapping": (
+            latest_mapping.isoformat()
+            if latest_mapping
+            else None
+        ),
+        "manifest": [
+            {
+                "status": str(status),
+                "symbols": int(symbols),
+                "price_rows": int(price_rows or 0),
+                "latest_update": (
+                    latest_update.isoformat()
+                    if latest_update
+                    else None
+                ),
+            }
+            for status, symbols, price_rows, latest_update in manifest_rows
+        ],
+    }
 
 
 def _load_mapping(
@@ -1257,13 +1480,7 @@ def _awfi_base_scores(frame: pd.DataFrame) -> pd.Series:
         dtype=float,
     )
     result = pd.Series(0.0, index=frame.index, dtype=float)
-    weights = {
-        126: (0.34, 0.34, 0.17, 0.15),
-        252: (0.425, 0.2125, 0.2125, 0.15),
-        378: (0.50, 0.25, 0.25, 0.0),
-        504: (0.50, 0.25, 0.25, 0.0),
-    }
-    for horizon, values in weights.items():
+    for horizon, values in HORIZON_WEIGHTS.items():
         selected = frame["horizon"] == horizon
         result.loc[selected] = (
             values[0] * frame.loc[selected, "alpha_score"]
@@ -1401,6 +1618,39 @@ def _macro_sector_observation_frame(
     frame["formula_id"] = "awfi_msr_v1"
     frame["score"] = frame["base_awfi_score"]
     return frame[frame["status"] == "READY"].copy()
+
+
+def _build_awfi_scores(
+    decomposed_current: pd.DataFrame,
+) -> list[dict]:
+    if decomposed_current.empty:
+        return []
+    frame = decomposed_current.copy()
+    frame["score"] = _awfi_base_scores(frame)
+    rows = []
+    for _, row in frame.iterrows():
+        horizon = int(row["horizon"])
+        threshold = HORIZON_THRESHOLDS[horizon]
+        score = float(row["score"])
+        signal = awfi_signal(horizon, score)
+        rows.append(
+            {
+                "awfi_version": AWFI_VERSION,
+                "report_period": row["report_period"],
+                "as_of_date": row["as_of_date"],
+                "feature_date": row["feature_date"],
+                "cusip": row["cusip"],
+                "ticker": row["ticker"],
+                "market_symbol": row["market_symbol"],
+                "horizon": horizon,
+                "score": score,
+                "positive_threshold": threshold,
+                "negative_threshold": threshold,
+                "signal": signal,
+                "source_status": row["status"],
+            }
+        )
+    return rows
 
 
 def _build_current_signals(
@@ -1807,6 +2057,7 @@ def _delete_run(connection: duckdb.DuckDBPyConnection, run_id: str) -> None:
         "candidate_trials",
         "decomposed_features",
         "macro_sector_features",
+        "awfi_scores",
         "evaluation_metrics",
         "rank_ic_by_quarter",
         "trust_gate_results",
@@ -1838,6 +2089,7 @@ def _persist_research(
     decomposed_observations: pd.DataFrame,
     macro_sector_observations: pd.DataFrame,
     artifact_provenance: dict[str, dict],
+    awfi_scores: list[dict],
 ) -> None:
     connection.executemany(
         "INSERT INTO manager_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -2290,6 +2542,32 @@ def _persist_research(
                 for _, row in macro_sector_observations.iterrows()
             ],
         )
+    if awfi_scores:
+        connection.executemany(
+            """
+            INSERT INTO awfi_scores
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    run_id,
+                    item["awfi_version"],
+                    item["report_period"],
+                    item["as_of_date"],
+                    item["feature_date"],
+                    item["cusip"],
+                    item["ticker"],
+                    item["market_symbol"],
+                    item["horizon"],
+                    item["score"],
+                    item["positive_threshold"],
+                    item["negative_threshold"],
+                    item["signal"],
+                    item["source_status"],
+                )
+                for item in awfi_scores
+            ],
+        )
 
 
 def run_research(
@@ -2298,6 +2576,7 @@ def run_research(
     performance_db: Path = DEFAULT_PERFORMANCE_DB,
     output_db: Path = DEFAULT_OUTPUT_DB,
     roster_path: Path = DEFAULT_ROSTER,
+    application_cache_dir: Path = DEFAULT_APPLICATION_CACHE_DIR,
     config: ResearchConfig = ResearchConfig(),
     replace: bool = False,
 ) -> RunSummary:
@@ -2314,19 +2593,33 @@ def run_research(
             DEFAULT_MACRO_DIR
         )
         filings, holdings, managers = _load_source_data(source, roster)
-        top_holdings = _load_current_top_holdings(
+        archive_top_holdings = _load_current_top_holdings(
             source,
             roster,
             top_n=config.top_holdings_per_manager,
         )
+        cache_top_holdings = _load_cached_top_holdings(
+            roster,
+            application_cache_dir.resolve(),
+            top_n=config.top_holdings_per_manager,
+        )
+        top_holdings = _select_latest_top_holdings(
+            archive_top_holdings,
+            cache_top_holdings,
+        )
         top_cusips = {item["cusip"] for item in top_holdings}
         source_digest = source_fingerprint(filings, holdings)
+        source_signature = source_13f_signature(source)
+        source_signature["roster_source_fingerprint"] = source_digest
+        performance_signature = performance_database_signature(
+            performance_path,
+            performance,
+        )
         roster_digest = _sha256_file(roster_file)
-        universe_fingerprint = hashlib.sha256(
-            _json(top_holdings).encode("utf-8")
-        ).hexdigest()
+        universe_fingerprint = top_holdings_fingerprint(top_holdings)
         run_payload = {
             "protocol": PROTOCOL_VERSION,
+            "awfi_version": AWFI_VERSION,
             "config": config.as_dict(),
             "source_fingerprint": source_digest,
             "roster_sha256": roster_digest,
@@ -2417,6 +2710,29 @@ def run_research(
                 performance,
                 macro_bundle,
             )
+            awfi_scores = _build_awfi_scores(decomposed_current)
+            scored_cusips = {
+                item["cusip"]
+                for item in awfi_scores
+            }
+            quality.update({
+                "current_universe_cusips": len(top_cusips),
+                "current_universe_mapped_cusips": len(
+                    top_cusips.intersection(mapping)
+                ),
+                "current_universe_scored_cusips": len(scored_cusips),
+                "current_universe_mapping_coverage": (
+                    len(top_cusips.intersection(mapping))
+                    / len(top_cusips)
+                    if top_cusips
+                    else 0.0
+                ),
+                "current_universe_score_coverage": (
+                    len(scored_cusips) / len(top_cusips)
+                    if top_cusips
+                    else 0.0
+                ),
+            })
             evaluations = [
                 evaluate_walk_forward(
                     (
@@ -2541,8 +2857,38 @@ def run_research(
                         "fingerprint": universe_fingerprint,
                         "rows": len(top_holdings),
                         "cusips": len(top_cusips),
+                        "sources": {
+                            source_name: sum(
+                                item["universe_source"] == source_name
+                                for item in top_holdings
+                            )
+                            for source_name in (
+                                "SEC_ARCHIVE",
+                                "APPLICATION_CACHE",
+                            )
+                        },
+                        "latest_period": max(
+                            (
+                                item["report_period"].isoformat()
+                                for item in top_holdings
+                            ),
+                            default=None,
+                        ),
+                    },
+                    "source_13f": {
+                        "fingerprint": hashlib.sha256(
+                            _json(source_signature).encode("utf-8")
+                        ).hexdigest(),
+                        "signature": source_signature,
+                    },
+                    "performance_database": {
+                        "fingerprint": hashlib.sha256(
+                            _json(performance_signature).encode("utf-8")
+                        ).hexdigest(),
+                        "signature": performance_signature,
                     },
                 },
+                awfi_scores=awfi_scores,
             )
             output.execute(
                 """

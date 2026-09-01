@@ -1,13 +1,19 @@
 import asyncio
+import hashlib
 import json
 import logging
 import math
 import os
+import re
 import statistics
+import tempfile
+from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
+from urllib.parse import urlparse
 import pandas as pd
 from edgar import set_identity, Company
 from config import FUND_MANAGERS, SEC_IDENTITY, CACHE_DIR, CACHE_TTL_HOURS
+from roster_store import fund_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +32,9 @@ class DataService:
         self.period_cache_locks = {}
         self.period_cache_progress = {}
         self.manager_adjustment_cache = {}
+        self.pending_roster_refresh_ciks = set()
+        self._refresh_lock = asyncio.Lock()
+        self._full_refresh_pending = False
 
         # Ensure identity is set for SEC EDGAR access
         try:
@@ -38,19 +47,40 @@ class DataService:
 
         # Initialize in-memory cache structure
         for fund in FUND_MANAGERS:
-            self.cache[fund["cik"]] = {
-                "fund_info": fund,
-                "status": "loading",
-                "metadata": {},
-                "holdings": None,
-                "comparison": None,
-                "previous_comparison": None,
-                "last_updated": None
-            }
+            self.cache[fund["cik"]] = self._new_fund_cache(fund)
 
         # Try loading from local disk cache on startup for instant availability
         self._load_all_from_disk_cache()
         self._load_market_insights_from_disk()
+
+    @staticmethod
+    def _new_fund_cache(fund):
+        return {
+            "fund_info": fund,
+            "status": "loading",
+            "metadata": {},
+            "holdings": None,
+            "comparison": None,
+            "previous_comparison": None,
+            "last_updated": None,
+        }
+
+    @staticmethod
+    def _roster_fingerprint(funds=None):
+        payload = [
+            {
+                "cik": fund["cik"],
+                "historical_ciks": fund.get("historical_ciks", []),
+            }
+            for fund in (funds or FUND_MANAGERS)
+        ]
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True).encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def _fund_fingerprint(fund):
+        return fund_fingerprint(fund)
 
     def _get_disk_cache_path(self, cik: str) -> str:
         return os.path.join(CACHE_DIR, f"{cik}.json")
@@ -150,6 +180,9 @@ class DataService:
 
             payload = {
                 "cik": cik,
+                "fund_fingerprint": self._fund_fingerprint(
+                    fund_data["fund_info"]
+                ),
                 "status": fund_data["status"],
                 "metadata": fund_data["metadata"],
                 "last_updated": fund_data["last_updated"],
@@ -157,8 +190,26 @@ class DataService:
                 "comparison": fund_data["comparison"].to_dict(orient="records") if fund_data["comparison"] is not None else [],
                 "previous_comparison": fund_data["previous_comparison"].to_dict(orient="records") if fund_data["previous_comparison"] is not None else []
             }
-            with open(self._get_disk_cache_path(cik), "w", encoding="utf-8") as f:
-                json.dump(payload, f, default=str)
+            cache_path = self._get_disk_cache_path(cik)
+            temp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    dir=os.path.dirname(cache_path),
+                    prefix=f".{cik}.",
+                    suffix=".json.tmp",
+                    delete=False,
+                ) as stream:
+                    temp_path = stream.name
+                    json.dump(payload, stream, default=str)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temp_path, cache_path)
+                temp_path = None
+            finally:
+                if temp_path and os.path.exists(temp_path):
+                    os.unlink(temp_path)
         except Exception as e:
             logger.error(f"Error saving disk cache for {cik}: {e}")
 
@@ -172,6 +223,17 @@ class DataService:
                 try:
                     with open(path, "r", encoding="utf-8") as f:
                         data = json.load(f)
+                    if (
+                        data.get("cik") != cik
+                        or data.get("fund_fingerprint") != self._fund_fingerprint(
+                        fund
+                        )
+                    ):
+                        logger.info(
+                            "Ignoring incompatible fund cache for %s",
+                            cik,
+                        )
+                        continue
 
                     holdings_df = pd.DataFrame(data.get("holdings", [])) if data.get("holdings") else None
                     comparison_df = pd.DataFrame(data.get("comparison", [])) if data.get("comparison") else None
@@ -255,6 +317,11 @@ class DataService:
                 payload = json.load(f)
             if payload.get("cache_version") != 5:
                 return None
+            quote = payload.get("quote", {})
+            if quote.get("year_low") is not None and not quote.get("year_low_date"):
+                return None
+            if payload.get("news_filter_version") != 1:
+                return None
             updated_at = datetime.fromisoformat(payload["last_updated"])
             if datetime.now(timezone.utc) - updated_at > timedelta(hours=CACHE_TTL_HOURS):
                 return None
@@ -305,6 +372,139 @@ class DataService:
             }
             for _, row in history.iterrows()
         ]
+
+    @staticmethod
+    def _serialize_company_news(
+        results,
+        ticker,
+        company_name,
+        limit=5,
+    ):
+        ticker_token = str(ticker or "").strip().casefold()
+        company_tokens = re.findall(
+            r"[a-z0-9]+",
+            str(company_name or "").casefold(),
+        )
+        legal_suffixes = {
+            "ag", "co", "corp", "corporation", "inc", "incorporated",
+            "limited", "llc", "lp", "ltd", "nv", "plc", "sa",
+        }
+        while company_tokens and company_tokens[-1] in legal_suffixes:
+            company_tokens.pop()
+
+        company_aliases = set()
+        if company_tokens:
+            company_aliases.add(" ".join(company_tokens))
+            first_token = company_tokens[0]
+            if (
+                len(first_token) >= 4
+                and first_token not in {
+                    "american", "global", "international", "taiwan", "the",
+                    "united",
+                }
+            ):
+                company_aliases.add(first_token)
+            acronym = "".join(
+                token[0]
+                for token in company_tokens
+                if token not in {"the"}
+            )
+            if len(acronym) >= 2:
+                company_aliases.add(acronym)
+
+        impact_terms = {
+            "acquisition", "acquire", "antitrust", "appoint", "approval",
+            "ban", "buyback", "capex", "ceo", "cfo", "chip", "contract",
+            "customer", "deal", "demand", "dividend", "downgrade", "earnings",
+            "executive", "export", "factory", "forecast", "guidance",
+            "investigation", "investment", "launch", "lawsuit", "layoff",
+            "leadership", "manufacturing", "margin", "merger", "order",
+            "outlook", "partnership", "plant", "pricing", "production",
+            "product", "profit", "rating", "recall", "regulator", "repurchase",
+            "resign", "results", "revenue", "sales", "sanction",
+            "security breach", "shipment", "sued", "sues", "supply", "tariff",
+            "unveil", "upgrade",
+        }
+        articles = []
+        seen = set()
+        for item in results or []:
+            raw = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            title = " ".join(str(raw.get("title") or "").split())
+            normalized_title = " ".join(re.findall(
+                r"[a-z0-9]+",
+                title.casefold(),
+            ))
+            summary = " ".join(str(
+                raw.get("summary")
+                or raw.get("excerpt")
+                or raw.get("text")
+                or ""
+            ).split())
+            normalized_context = " ".join(re.findall(
+                r"[a-z0-9]+",
+                f"{title} {summary}".casefold(),
+            ))
+            ticker_match = (
+                len(ticker_token) >= 2
+                and re.search(
+                    rf"\b{re.escape(ticker_token)}\b",
+                    normalized_title,
+                )
+            )
+            company_match = any(
+                re.search(
+                    rf"\b{re.escape(alias)}\b",
+                    normalized_title,
+                )
+                for alias in company_aliases
+            )
+            has_impact_signal = any(
+                re.search(
+                    rf"\b{re.escape(term)}\w*\b",
+                    normalized_context,
+                )
+                for term in impact_terms
+            )
+            if not (ticker_match or company_match) or not has_impact_signal:
+                continue
+
+            url = str(raw.get("url") or "").strip()
+            parsed_url = urlparse(url)
+            if (
+                not title
+                or parsed_url.scheme not in {"http", "https"}
+                or not parsed_url.netloc
+            ):
+                continue
+            key = (title.casefold(), url)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            published = pd.to_datetime(
+                raw.get("date"), errors="coerce", utc=True
+            )
+            if len(summary) > 320:
+                summary = f"{summary[:317].rstrip()}..."
+            articles.append({
+                "published_at": (
+                    published.isoformat().replace("+00:00", "Z")
+                    if pd.notna(published)
+                    else None
+                ),
+                "title": title,
+                "source": " ".join(
+                    str(raw.get("source") or "News source").split()
+                ),
+                "url": url,
+                "summary": summary,
+            })
+
+        articles.sort(
+            key=lambda article: article["published_at"] or "",
+            reverse=True,
+        )
+        return articles[:limit]
 
     @staticmethod
     def _rsi(close: pd.Series, period: int):
@@ -559,6 +759,7 @@ class DataService:
         quote = {}
         metrics = {}
         profile = {}
+        news = []
         income_statement = None
         for name, fetcher in (
             ("quote", lambda: obb.equity.price.quote(
@@ -599,6 +800,22 @@ class DataService:
             errors["income"] = str(e)
             logger.warning(f"OpenBB income statement fetch failed for {ticker}: {e}")
 
+        try:
+            news_result = obb.news.company(
+                symbol=market_symbol,
+                limit=50,
+                provider="yfinance",
+            )
+            news = self._serialize_company_news(
+                news_result.results,
+                ticker=ticker,
+                company_name=profile.get("name"),
+                limit=5,
+            )
+        except Exception as e:
+            errors["news"] = str(e)
+            logger.warning(f"OpenBB company news failed for {ticker}: {e}")
+
         quarter_end_prices = {}
         quarter_average_prices = {}
         for period in periods:
@@ -619,6 +836,17 @@ class DataService:
         ]
         recent_lows = pd.to_numeric(recent_rows["low"], errors="coerce").dropna()
         recent_highs = pd.to_numeric(recent_rows["high"], errors="coerce").dropna()
+        recent_low_rows = recent_rows[["date", "low"]].copy()
+        recent_low_rows["low"] = pd.to_numeric(
+            recent_low_rows["low"], errors="coerce"
+        )
+        recent_low_rows = recent_low_rows.dropna(subset=["date", "low"])
+        year_low = None
+        year_low_date = None
+        if not recent_low_rows.empty:
+            low_row = recent_low_rows.loc[recent_low_rows["low"].idxmin()]
+            year_low = round(float(low_row["low"]), 2)
+            year_low_date = low_row["date"].date().isoformat()
         closes = pd.to_numeric(prices["close"], errors="coerce").dropna()
         current_price = quote.get("last_price") or (
             float(closes.iloc[-1]) if not closes.empty else None
@@ -736,14 +964,15 @@ class DataService:
             "last_updated": datetime.now(timezone.utc).isoformat(),
             "price_as_of": price_as_of,
             "price_history": price_history,
+            "news_filter_version": 1,
+            "news": news,
             "quote": {
                 **quote,
                 "last_price": round(float(current_price), 2) if current_price is not None else None,
                 "day_change": round(float(day_change), 2) if day_change is not None else None,
                 "day_change_pct": round(float(day_change_pct), 2) if day_change_pct is not None else None,
-                "year_low": quote.get("year_low") or (
-                    round(float(recent_lows.min()), 2) if not recent_lows.empty else None
-                ),
+                "year_low": year_low or quote.get("year_low"),
+                "year_low_date": year_low_date,
                 "year_high": quote.get("year_high") or (
                     round(float(recent_highs.max()), 2) if not recent_highs.empty else None
                 )
@@ -822,6 +1051,8 @@ class DataService:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
+            if payload.get("roster_fingerprint") != self._roster_fingerprint():
+                return None
 
             period_cache = {}
             fund_payloads = payload.get("funds", {})
@@ -857,10 +1088,19 @@ class DataService:
             logger.warning(f"Failed to load historical cache for {report_period}: {e}")
             return None
 
-    def _save_period_cache_to_disk(self, report_period: str, period_cache):
+    def _save_period_cache_to_disk(
+        self,
+        report_period: str,
+        period_cache,
+        roster_fingerprint=None,
+    ):
         payload = {
             "report_period": report_period,
             "last_updated": datetime.now(timezone.utc).isoformat(),
+            "roster_fingerprint": (
+                roster_fingerprint
+                or self._roster_fingerprint()
+            ),
             "funds": {}
         }
         for cik, fund_data in period_cache.items():
@@ -882,8 +1122,26 @@ class DataService:
             }
 
         try:
-            with open(self._get_period_cache_path(report_period), "w", encoding="utf-8") as f:
-                json.dump(payload, f, default=str)
+            cache_path = self._get_period_cache_path(report_period)
+            temporary_path = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    dir=os.path.dirname(cache_path),
+                    prefix=f".{report_period}.",
+                    suffix=".json.tmp",
+                    delete=False,
+                ) as stream:
+                    temporary_path = stream.name
+                    json.dump(payload, stream, default=str)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary_path, cache_path)
+                temporary_path = None
+            finally:
+                if temporary_path and os.path.exists(temporary_path):
+                    os.unlink(temporary_path)
         except Exception as e:
             logger.error(f"Failed to save historical cache for {report_period}: {e}")
 
@@ -912,17 +1170,21 @@ class DataService:
             if report_period in self.period_caches:
                 return self.period_caches[report_period]
 
+            roster_snapshot = deepcopy(FUND_MANAGERS)
+            roster_fingerprint = self._roster_fingerprint(
+                roster_snapshot
+            )
             period_cache = {}
             loop = asyncio.get_event_loop()
             self.period_cache_progress[report_period] = {
                 "state": "fetching",
                 "source": "sec",
                 "completed_funds": 0,
-                "total_funds": len(FUND_MANAGERS)
+                "total_funds": len(roster_snapshot)
             }
             try:
-                for chunk_start in range(0, len(FUND_MANAGERS), 5):
-                    funds = FUND_MANAGERS[chunk_start:chunk_start + 5]
+                for chunk_start in range(0, len(roster_snapshot), 5):
+                    funds = roster_snapshot[chunk_start:chunk_start + 5]
                     results = await asyncio.gather(*[
                         loop.run_in_executor(
                             None,
@@ -947,16 +1209,25 @@ class DataService:
                     self.period_cache_progress[report_period]["completed_funds"] = len(
                         period_cache
                     )
-                    if chunk_start + 5 < len(FUND_MANAGERS):
+                    if chunk_start + 5 < len(roster_snapshot):
                         await asyncio.sleep(0.5)
 
-                self._save_period_cache_to_disk(report_period, period_cache)
+                if self._roster_fingerprint() != roster_fingerprint:
+                    raise RuntimeError(
+                        "Roster changed while the historical period was "
+                        "building; discarded the mixed snapshot"
+                    )
+                self._save_period_cache_to_disk(
+                    report_period,
+                    period_cache,
+                    roster_fingerprint,
+                )
                 self.period_caches[report_period] = period_cache
                 self.period_cache_progress[report_period] = {
                     "state": "ready",
                     "source": "sec",
                     "completed_funds": len(period_cache),
-                    "total_funds": len(FUND_MANAGERS)
+                    "total_funds": len(roster_snapshot)
                 }
                 return period_cache
             except Exception as e:
@@ -1253,6 +1524,337 @@ class DataService:
 
         return changes
 
+    def _build_sentiment_investor_changes(self, changes):
+        action_counts = {
+            "new": 0,
+            "increased": 0,
+            "decreased": 0,
+            "closed": 0,
+            "unchanged": 0,
+        }
+        investor_changes = []
+        for move in changes:
+            status_key = move["status"].lower()
+            if status_key in action_counts:
+                action_counts[status_key] += 1
+            raw_weight_change = float(
+                move.get(
+                    "portfolio_weight_change_raw",
+                    move.get("portfolio_weight_change", 0.0),
+                )
+            )
+            typical_position_weight = move.get(
+                "manager_typical_position_weight"
+            )
+            typical_share_change_pct = move.get(
+                "manager_typical_share_change_pct"
+            )
+            share_change_pct = move.get("shares_change_pct")
+            (
+                relative_conviction,
+                conviction_basis,
+                position_significance,
+                force_routine,
+            ) = self._calculate_relative_conviction(
+                move["status"],
+                share_change_pct,
+                typical_share_change_pct,
+                move.get("previous_portfolio_weight", 0.0),
+                move.get("portfolio_weight", 0.0),
+                typical_position_weight,
+            )
+            relative_conviction_valid = (
+                relative_conviction is not None
+                and math.isfinite(relative_conviction)
+            )
+            relative_magnitude = (
+                abs(relative_conviction)
+                if relative_conviction_valid
+                else 0.0
+            )
+            conviction_class = (
+                "UNAVAILABLE"
+                if not relative_conviction_valid
+                else "ROUTINE"
+                if force_routine or relative_magnitude < 0.25
+                else "MEANINGFUL"
+                if relative_magnitude < 0.75
+                else "HIGH"
+                if relative_magnitude < 1.50
+                else "EXCEPTIONAL"
+            )
+            investor_changes.append({
+                "cik": move["cik"],
+                "manager": move["manager"],
+                "fund_name": move["fund_name"],
+                "status": move["status"],
+                "previous_weight": move.get(
+                    "previous_portfolio_weight",
+                    0.0,
+                ),
+                "current_weight": move.get("portfolio_weight", 0.0),
+                "weight_change": round(raw_weight_change, 2),
+                "share_change_pct": (
+                    round(float(share_change_pct), 2)
+                    if share_change_pct is not None
+                    else None
+                ),
+                "typical_share_change_pct": (
+                    round(float(typical_share_change_pct), 2)
+                    if typical_share_change_pct is not None
+                    else None
+                ),
+                "typical_position_weight": typical_position_weight,
+                "position_significance": (
+                    round(position_significance, 4)
+                    if position_significance is not None
+                    else None
+                ),
+                "conviction_basis": conviction_basis,
+                "position_size_gate_applied": force_routine,
+                "relative_conviction": (
+                    round(relative_conviction, 4)
+                    if relative_conviction_valid
+                    else None
+                ),
+                "conviction_class": conviction_class,
+            })
+        return action_counts, investor_changes
+
+    @staticmethod
+    def _score_sentiment_period(
+        item,
+        previous_score=None,
+        previous_regime_bucket=None,
+        regime_streak=0,
+    ):
+        materiality_threshold = 0.25
+        conviction_cap = 2.0
+        actions = item["actions"]
+        activity_bullish_count = actions["new"] + actions["increased"]
+        activity_bearish_count = actions["decreased"] + actions["closed"]
+        activity_directional_count = (
+            activity_bullish_count + activity_bearish_count
+        )
+        activity_breadth_score = (
+            100.0
+            * (activity_bullish_count - activity_bearish_count)
+            / activity_directional_count
+            if activity_directional_count > 0
+            else None
+        )
+
+        positive_conviction = 0.0
+        negative_conviction = 0.0
+        meaningful_bullish_count = 0
+        meaningful_bearish_count = 0
+        routine_count = 0
+        unscored_count = 0
+        for change in item["investor_changes"]:
+            relative_conviction = change["relative_conviction"]
+            if change["status"] == "UNCHANGED":
+                change["scored_relative_conviction"] = None
+                continue
+            if relative_conviction is None:
+                unscored_count += 1
+                change["scored_relative_conviction"] = None
+                continue
+            if (
+                change.get("position_size_gate_applied")
+                or abs(relative_conviction) < materiality_threshold
+            ):
+                routine_count += 1
+                change["scored_relative_conviction"] = 0.0
+                continue
+
+            scored_conviction = max(
+                -conviction_cap,
+                min(conviction_cap, relative_conviction),
+            )
+            change["scored_relative_conviction"] = round(
+                scored_conviction,
+                4,
+            )
+            if scored_conviction > 0:
+                meaningful_bullish_count += 1
+                positive_conviction += scored_conviction
+            else:
+                meaningful_bearish_count += 1
+                negative_conviction += abs(scored_conviction)
+
+        meaningful_count = (
+            meaningful_bullish_count + meaningful_bearish_count
+        )
+        meaningful_breadth_score = (
+            100.0
+            * (meaningful_bullish_count - meaningful_bearish_count)
+            / meaningful_count
+            if meaningful_count > 0
+            else None
+        )
+        conviction_total = positive_conviction + negative_conviction
+        conviction_score = (
+            100.0
+            * (positive_conviction - negative_conviction)
+            / conviction_total
+            if conviction_total > 0
+            else None
+        )
+        sentiment_score = (
+            (meaningful_breadth_score + conviction_score) / 2.0
+            if meaningful_breadth_score is not None
+            and conviction_score is not None
+            else None
+        )
+
+        published_score = (
+            sentiment_score
+            if meaningful_count >= 3
+            else None
+        )
+        if meaningful_count < 3 and activity_directional_count > 0:
+            regime = "LOW PARTICIPATION"
+            regime_bucket = "NO SIGNAL"
+        elif sentiment_score is None:
+            regime = "NO SIGNAL"
+            regime_bucket = "NO SIGNAL"
+        elif sentiment_score >= 60:
+            regime = "STRONGLY BULLISH"
+            regime_bucket = "BULLISH"
+        elif sentiment_score >= 25:
+            regime = "BULLISH"
+            regime_bucket = "BULLISH"
+        elif sentiment_score <= -60:
+            regime = "STRONGLY BEARISH"
+            regime_bucket = "BEARISH"
+        elif sentiment_score <= -25:
+            regime = "BEARISH"
+            regime_bucket = "BEARISH"
+        else:
+            regime = "NEUTRAL"
+            regime_bucket = "NEUTRAL"
+
+        flow_total = (
+            item["gross_inflow"] + item["gross_outflow"]
+            if item.get("gross_inflow") is not None
+            and item.get("gross_outflow") is not None
+            else None
+        )
+        flow_balance_score = (
+            100.0 * item["net_flow"] / flow_total
+            if flow_total is not None and flow_total > 0
+            else None
+        )
+        if (
+            published_score is None
+            or abs(published_score) < 25
+            or flow_balance_score is None
+            or abs(flow_balance_score) < 10
+        ):
+            flow_confirmation = "NEUTRAL"
+        elif (
+            published_score > 0 and flow_balance_score > 0
+        ) or (
+            published_score < 0 and flow_balance_score < 0
+        ):
+            flow_confirmation = "CONFIRMS"
+        else:
+            flow_confirmation = "DIVERGES"
+
+        if regime_bucket == "NO SIGNAL":
+            next_regime_streak = 0
+        elif regime_bucket == previous_regime_bucket:
+            next_regime_streak = regime_streak + 1
+        else:
+            next_regime_streak = 1
+
+        item["sentiment"] = {
+            "activity_bullish_count": activity_bullish_count,
+            "activity_bearish_count": activity_bearish_count,
+            "activity_breadth_score": (
+                round(activity_breadth_score, 2)
+                if activity_breadth_score is not None
+                else None
+            ),
+            "bullish_count": meaningful_bullish_count,
+            "bearish_count": meaningful_bearish_count,
+            "meaningful_count": meaningful_count,
+            "unchanged_count": actions["unchanged"],
+            "routine_count": routine_count,
+            "unscored_count": unscored_count,
+            "breadth_score": (
+                round(meaningful_breadth_score, 2)
+                if meaningful_breadth_score is not None
+                else None
+            ),
+            "positive_conviction_x": round(positive_conviction, 2),
+            "negative_conviction_x": round(negative_conviction, 2),
+            "conviction_score": (
+                round(conviction_score, 2)
+                if conviction_score is not None
+                else None
+            ),
+            "materiality_threshold_x": materiality_threshold,
+            "conviction_cap_x": conviction_cap,
+            "indicative_score": (
+                round(sentiment_score, 2)
+                if sentiment_score is not None
+                else None
+            ),
+            "score": (
+                round(published_score, 2)
+                if published_score is not None
+                else None
+            ),
+            "score_change": (
+                round(published_score - previous_score, 2)
+                if published_score is not None
+                and previous_score is not None
+                else None
+            ),
+            "regime": regime,
+            "regime_streak": next_regime_streak,
+            "flow_balance_score": (
+                round(flow_balance_score, 2)
+                if flow_balance_score is not None
+                else None
+            ),
+            "flow_confirmation": flow_confirmation,
+        }
+        return published_score, regime_bucket, next_regime_streak
+
+    def get_ticker_sentiment_summaries(self, tickers, changes):
+        normalized_tickers = {
+            str(ticker).strip().upper()
+            for ticker in tickers
+            if str(ticker).strip()
+        }
+        changes_by_ticker = {
+            ticker: []
+            for ticker in normalized_tickers
+        }
+        for change in changes:
+            ticker = str(change.get("ticker") or "").strip().upper()
+            if ticker in changes_by_ticker:
+                changes_by_ticker[ticker].append(change)
+
+        summaries = {}
+        for ticker, ticker_changes in changes_by_ticker.items():
+            actions, investor_changes = self._build_sentiment_investor_changes(
+                ticker_changes
+            )
+            item = {
+                "actions": actions,
+                "investor_changes": investor_changes,
+                "gross_inflow": None,
+                "gross_outflow": None,
+                "net_flow": None,
+            }
+            self._score_sentiment_period(item)
+            item["sentiment"]["investor_changes"] = investor_changes
+            summaries[ticker] = item["sentiment"]
+        return summaries
+
     async def get_ticker_intelligence(self, ticker: str):
         normalized = ticker.strip().upper()
         market = await self.get_ticker_market_data(normalized)
@@ -1294,102 +1896,15 @@ class DataService:
                     ticker=normalized
                 )
             )
-            action_counts = {
-                "new": 0,
-                "increased": 0,
-                "decreased": 0,
-                "closed": 0,
-                "unchanged": 0
-            }
+            action_counts, investor_changes = (
+                self._build_sentiment_investor_changes(changes)
+            )
             gross_inflow = 0.0
             gross_outflow = 0.0
             quarter_price = quarter_end_prices.get(period)
             flow_available = quarter_price is not None
-            investor_changes = []
 
             for move in changes:
-                status_key = move["status"].lower()
-                if status_key in action_counts:
-                    action_counts[status_key] += 1
-                raw_weight_change = float(
-                    move.get(
-                        "portfolio_weight_change_raw",
-                        move.get("portfolio_weight_change", 0.0)
-                    )
-                )
-                typical_position_weight = move.get(
-                    "manager_typical_position_weight"
-                )
-                typical_share_change_pct = move.get(
-                    "manager_typical_share_change_pct"
-                )
-                share_change_pct = move.get("shares_change_pct")
-                (
-                    relative_conviction,
-                    conviction_basis,
-                    position_significance,
-                    force_routine
-                ) = self._calculate_relative_conviction(
-                    move["status"],
-                    share_change_pct,
-                    typical_share_change_pct,
-                    move.get("previous_portfolio_weight", 0.0),
-                    move.get("portfolio_weight", 0.0),
-                    typical_position_weight
-                )
-                relative_conviction_valid = (
-                    relative_conviction is not None
-                    and math.isfinite(relative_conviction)
-                )
-                relative_magnitude = (
-                    abs(relative_conviction)
-                    if relative_conviction_valid
-                    else 0.0
-                )
-                conviction_class = (
-                    "UNAVAILABLE"
-                    if not relative_conviction_valid
-                    else "ROUTINE"
-                    if force_routine or relative_magnitude < 0.25
-                    else "MEANINGFUL"
-                    if relative_magnitude < 0.75
-                    else "HIGH"
-                    if relative_magnitude < 1.50
-                    else "EXCEPTIONAL"
-                )
-                investor_changes.append({
-                    "cik": move["cik"],
-                    "manager": move["manager"],
-                    "fund_name": move["fund_name"],
-                    "status": move["status"],
-                    "previous_weight": move.get("previous_portfolio_weight", 0.0),
-                    "current_weight": move.get("portfolio_weight", 0.0),
-                    "weight_change": round(raw_weight_change, 2),
-                    "share_change_pct": (
-                        round(float(share_change_pct), 2)
-                        if share_change_pct is not None
-                        else None
-                    ),
-                    "typical_share_change_pct": (
-                        round(float(typical_share_change_pct), 2)
-                        if typical_share_change_pct is not None
-                        else None
-                    ),
-                    "typical_position_weight": typical_position_weight,
-                    "position_significance": (
-                        round(position_significance, 4)
-                        if position_significance is not None
-                        else None
-                    ),
-                    "conviction_basis": conviction_basis,
-                    "position_size_gate_applied": force_routine,
-                    "relative_conviction": (
-                        round(relative_conviction, 4)
-                        if relative_conviction_valid
-                        else None
-                    ),
-                    "conviction_class": conviction_class
-                })
                 if quarter_price is not None:
                     estimated_flow = (
                         float(move["shares_change"]) * float(quarter_price)
@@ -1436,199 +1951,19 @@ class DataService:
         regime_streak = 0
 
         for item in history:
-            actions = item["actions"]
-            activity_bullish_count = actions["new"] + actions["increased"]
-            activity_bearish_count = actions["decreased"] + actions["closed"]
-            activity_directional_count = (
-                activity_bullish_count + activity_bearish_count
+            (
+                previous_score,
+                previous_regime_bucket,
+                regime_streak,
+            ) = self._score_sentiment_period(
+                item,
+                previous_score,
+                previous_regime_bucket,
+                regime_streak,
             )
-            activity_breadth_score = (
-                100.0
-                * (activity_bullish_count - activity_bearish_count)
-                / activity_directional_count
-                if activity_directional_count > 0
-                else None
-            )
-
-            positive_conviction = 0.0
-            negative_conviction = 0.0
-            meaningful_bullish_count = 0
-            meaningful_bearish_count = 0
-            routine_count = 0
-            unscored_count = 0
-            for change in item["investor_changes"]:
-                relative_conviction = change["relative_conviction"]
-                if change["status"] == "UNCHANGED":
-                    change["scored_relative_conviction"] = None
-                    continue
-                if relative_conviction is None:
-                    unscored_count += 1
-                    change["scored_relative_conviction"] = None
-                    continue
-                if (
-                    change.get("position_size_gate_applied")
-                    or abs(relative_conviction) < materiality_threshold
-                ):
-                    routine_count += 1
-                    change["scored_relative_conviction"] = 0.0
-                    continue
-
-                scored_conviction = max(
-                    -conviction_cap,
-                    min(conviction_cap, relative_conviction)
-                )
-                change["scored_relative_conviction"] = round(
-                    scored_conviction,
-                    4
-                )
-                if scored_conviction > 0:
-                    meaningful_bullish_count += 1
-                    positive_conviction += scored_conviction
-                else:
-                    meaningful_bearish_count += 1
-                    negative_conviction += abs(scored_conviction)
-
-            meaningful_count = (
-                meaningful_bullish_count + meaningful_bearish_count
-            )
-            meaningful_breadth_score = (
-                100.0
-                * (meaningful_bullish_count - meaningful_bearish_count)
-                / meaningful_count
-                if meaningful_count > 0
-                else None
-            )
-            conviction_total = positive_conviction + negative_conviction
-            conviction_score = (
-                100.0
-                * (positive_conviction - negative_conviction)
-                / conviction_total
-                if conviction_total > 0
-                else None
-            )
-            sentiment_score = (
-                (meaningful_breadth_score + conviction_score) / 2.0
-                if meaningful_breadth_score is not None
-                and conviction_score is not None
-                else None
-            )
-
-            published_score = (
-                sentiment_score
-                if meaningful_count >= 3
-                else None
-            )
-            if meaningful_count < 3 and activity_directional_count > 0:
-                regime = "LOW PARTICIPATION"
-                regime_bucket = "NO SIGNAL"
-            elif sentiment_score is None:
-                regime = "NO SIGNAL"
-                regime_bucket = "NO SIGNAL"
-            elif sentiment_score >= 60:
-                regime = "STRONGLY BULLISH"
-                regime_bucket = "BULLISH"
-            elif sentiment_score >= 25:
-                regime = "BULLISH"
-                regime_bucket = "BULLISH"
-            elif sentiment_score <= -60:
-                regime = "STRONGLY BEARISH"
-                regime_bucket = "BEARISH"
-            elif sentiment_score <= -25:
-                regime = "BEARISH"
-                regime_bucket = "BEARISH"
-            else:
-                regime = "NEUTRAL"
-                regime_bucket = "NEUTRAL"
-
-            flow_total = (
-                item["gross_inflow"] + item["gross_outflow"]
-                if item["gross_inflow"] is not None
-                and item["gross_outflow"] is not None
-                else None
-            )
-            flow_balance_score = (
-                100.0 * item["net_flow"] / flow_total
-                if flow_total is not None and flow_total > 0
-                else None
-            )
-            if (
-                published_score is None
-                or abs(published_score) < 25
-                or flow_balance_score is None
-                or abs(flow_balance_score) < 10
-            ):
-                flow_confirmation = "NEUTRAL"
-            elif (
-                published_score > 0 and flow_balance_score > 0
-            ) or (
-                published_score < 0 and flow_balance_score < 0
-            ):
-                flow_confirmation = "CONFIRMS"
-            else:
-                flow_confirmation = "DIVERGES"
-
-            if regime_bucket == "NO SIGNAL":
-                regime_streak = 0
-            elif regime_bucket == previous_regime_bucket:
-                regime_streak += 1
-            else:
-                regime_streak = 1
-
-            item["sentiment"] = {
-                "activity_bullish_count": activity_bullish_count,
-                "activity_bearish_count": activity_bearish_count,
-                "activity_breadth_score": (
-                    round(activity_breadth_score, 2)
-                    if activity_breadth_score is not None
-                    else None
-                ),
-                "bullish_count": meaningful_bullish_count,
-                "bearish_count": meaningful_bearish_count,
-                "unchanged_count": actions["unchanged"],
-                "routine_count": routine_count,
-                "unscored_count": unscored_count,
-                "breadth_score": (
-                    round(meaningful_breadth_score, 2)
-                    if meaningful_breadth_score is not None
-                    else None
-                ),
-                "positive_conviction_x": round(positive_conviction, 2),
-                "negative_conviction_x": round(negative_conviction, 2),
-                "conviction_score": (
-                    round(conviction_score, 2)
-                    if conviction_score is not None
-                    else None
-                ),
-                "materiality_threshold_x": materiality_threshold,
-                "conviction_cap_x": conviction_cap,
-                "indicative_score": (
-                    round(sentiment_score, 2)
-                    if sentiment_score is not None
-                    else None
-                ),
-                "score": (
-                    round(published_score, 2)
-                    if published_score is not None
-                    else None
-                ),
-                "score_change": (
-                    round(published_score - previous_score, 2)
-                    if published_score is not None and previous_score is not None
-                    else None
-                ),
-                "regime": regime,
-                "regime_streak": regime_streak,
-                "flow_balance_score": (
-                    round(flow_balance_score, 2)
-                    if flow_balance_score is not None
-                    else None
-                ),
-                "flow_confirmation": flow_confirmation
-            }
-            previous_score = published_score
             previous_regime_bucket = (
-                regime_bucket
-                if regime_bucket != "NO SIGNAL"
+                previous_regime_bucket
+                if previous_regime_bucket != "NO SIGNAL"
                 else None
             )
 
@@ -2159,6 +2494,8 @@ class DataService:
 
     async def refresh_fund(self, cik: str):
         loop = asyncio.get_event_loop()
+        if cik not in self.cache:
+            raise ValueError(f"CIK {cik} is not in the configured roster")
         self.cache[cik]["status"] = "loading"
         await self.broadcast_event({"type": "fund_status", "cik": cik, "status": "loading"})
 
@@ -2177,44 +2514,152 @@ class DataService:
             "status": result["status"]
         })
 
-    async def refresh_all(self):
-        if self.is_refreshing:
-            return
-        self.is_refreshing = True
-        logger.info("Starting refresh of all 13F funds...")
-        try:
-            tasks = [self.refresh_fund(fund["cik"]) for fund in FUND_MANAGERS]
-            # Process with controlled concurrency to respect SEC rate limit guidelines (10 req/s)
-            for chunk_start in range(0, len(tasks), 5):
-                chunk = tasks[chunk_start:chunk_start + 5]
-                await asyncio.gather(*chunk)
-                await asyncio.sleep(0.5)
+    def sync_roster(self):
+        active_by_cik = {fund["cik"]: fund for fund in FUND_MANAGERS}
+        previous_ciks = set(self.cache)
+        active_ciks = set(active_by_cik)
+        removed = sorted(previous_ciks - active_ciks)
+        added = sorted(active_ciks - previous_ciks)
 
-            await self.refresh_market_insights()
+        for cik in removed:
+            self.cache.pop(cik, None)
+            self.pending_roster_refresh_ciks.discard(cik)
+        for cik, fund in active_by_cik.items():
+            if cik not in self.cache:
+                self.cache[cik] = self._new_fund_cache(fund)
+            else:
+                self.cache[cik]["fund_info"] = fund
+
+        self.cache = {
+            fund["cik"]: self.cache[fund["cik"]]
+            for fund in FUND_MANAGERS
+        }
+        self.period_caches.clear()
+        self.period_cache_progress.clear()
+        self.manager_adjustment_cache.clear()
+        if added:
+            self._load_all_from_disk_cache()
+        return {"added": added, "removed": removed}
+
+    async def refresh_funds(self, ciks):
+        self.pending_roster_refresh_ciks.update(
+            cik for cik in ciks
+            if cik in self.cache
+        )
+        if not self.pending_roster_refresh_ciks:
+            return
+        refresh_lock = getattr(self, "_refresh_lock", None)
+        if refresh_lock is None:
+            if self.is_refreshing:
+                return
+            refresh_lock = asyncio.Lock()
+            self._refresh_lock = refresh_lock
+
+        async with refresh_lock:
+            self.is_refreshing = True
+            try:
+                while self.pending_roster_refresh_ciks:
+                    selected = [
+                        cik for cik in self.pending_roster_refresh_ciks
+                        if cik in self.cache
+                    ]
+                    self.pending_roster_refresh_ciks.difference_update(
+                        selected
+                    )
+                    for chunk_start in range(0, len(selected), 5):
+                        chunk = selected[chunk_start:chunk_start + 5]
+                        await asyncio.gather(*[
+                            self.refresh_fund(cik)
+                            for cik in chunk
+                        ])
+                        if chunk_start + 5 < len(selected):
+                            await asyncio.sleep(0.5)
+                await self.refresh_market_insights()
+                self.last_updated = datetime.now(timezone.utc).isoformat()
+                await self.broadcast_event({
+                    "type": "data_refresh",
+                    "timestamp": self.last_updated,
+                })
+            finally:
+                self.is_refreshing = False
+
+    async def refresh_roster_market_context(self):
+        refresh_lock = getattr(self, "_refresh_lock", None)
+        if refresh_lock is None:
+            refresh_lock = asyncio.Lock()
+            self._refresh_lock = refresh_lock
+        async with refresh_lock:
+            refreshed = await self.refresh_market_insights()
+            if not refreshed:
+                return
             self.last_updated = datetime.now(timezone.utc).isoformat()
             await self.broadcast_event({
                 "type": "data_refresh",
-                "timestamp": self.last_updated
+                "timestamp": self.last_updated,
             })
-            logger.info("Completed refreshing all 13F funds.")
-        finally:
-            self.is_refreshing = False
 
-    async def auto_refresh_loop(self):
+    async def refresh_all(self):
+        if self.is_refreshing or getattr(
+            self,
+            "_full_refresh_pending",
+            False,
+        ):
+            return False
+        self._full_refresh_pending = True
+        refresh_lock = getattr(self, "_refresh_lock", None)
+        if refresh_lock is None:
+            refresh_lock = asyncio.Lock()
+            self._refresh_lock = refresh_lock
+        try:
+            async with refresh_lock:
+                if self.is_refreshing:
+                    return False
+                self.is_refreshing = True
+                logger.info("Starting refresh of all 13F funds...")
+                try:
+                    tasks = [
+                        self.refresh_fund(fund["cik"])
+                        for fund in FUND_MANAGERS
+                    ]
+                    # Process with controlled concurrency to respect SEC rate limit guidelines (10 req/s)
+                    for chunk_start in range(0, len(tasks), 5):
+                        chunk = tasks[chunk_start:chunk_start + 5]
+                        await asyncio.gather(*chunk)
+                        await asyncio.sleep(0.5)
+
+                    await self.refresh_market_insights()
+                    self.last_updated = datetime.now(timezone.utc).isoformat()
+                    await self.broadcast_event({
+                        "type": "data_refresh",
+                        "timestamp": self.last_updated
+                    })
+                    logger.info("Completed refreshing all 13F funds.")
+                    return True
+                finally:
+                    self.is_refreshing = False
+        finally:
+            self._full_refresh_pending = False
+
+    async def auto_refresh_loop(self, after_refresh=None):
         # Initial refresh if cache is completely empty or stale
         loaded_count = sum(1 for c in self.cache.values() if c["status"] == "loaded")
+        cache_ready = True
         if loaded_count < len(FUND_MANAGERS):
             logger.info(f"{loaded_count}/{len(FUND_MANAGERS)} loaded from disk. Launching initial background fetch...")
-            asyncio.create_task(self.refresh_all())
+            cache_ready = bool(await self.refresh_all())
         elif not self.market_insights or any(
             "quarter_market_metrics" not in item
             for item in self.market_insights.values()
         ):
-            asyncio.create_task(self.refresh_market_insights())
+            await self.refresh_market_insights()
+        if after_refresh is not None and cache_ready:
+            await after_refresh()
 
         while True:
             await asyncio.sleep(CACHE_TTL_HOURS * 3600)
-            await self.refresh_all()
+            completed = await self.refresh_all()
+            if after_refresh is not None and completed:
+                await after_refresh()
 
     def _get_high_conviction_tickers(self):
         tickers = set()
@@ -2298,6 +2743,9 @@ class DataService:
                 continue
 
             low_52_week = float(lows.min())
+            low_52_week_date = (
+                recent_rows.loc[lows.idxmin(), "date"].date().isoformat()
+            )
             current_price = float(closes.iloc[-1])
             if low_52_week <= 0:
                 continue
@@ -2345,6 +2793,7 @@ class DataService:
                 "ticker": original_symbols.get(str(symbol).strip().upper(), str(symbol).strip().upper()),
                 "current_price": round(current_price, 2),
                 "low_52_week": round(low_52_week, 2),
+                "low_52_week_date": low_52_week_date,
                 "pct_above_low": round(((current_price / low_52_week) - 1) * 100, 2),
                 "price_as_of": rows.iloc[-1]["date"].date().isoformat(),
                 "quarter_end_price": round(quarter_end_price, 2) if quarter_end_price is not None else None,
@@ -2361,12 +2810,15 @@ class DataService:
 
     async def refresh_market_insights(self):
         if self.is_market_refreshing:
-            return
+            return False
 
         symbols = self._get_high_conviction_tickers()
         if not symbols:
             logger.info("No 5%+ holdings available for OpenBB market analysis.")
-            return
+            self.market_insights = {}
+            self.market_last_updated = datetime.now(timezone.utc).isoformat()
+            self._save_market_insights_to_disk()
+            return True
 
         self.is_market_refreshing = True
         try:
@@ -2383,11 +2835,12 @@ class DataService:
             )
             if not insights:
                 logger.warning("OpenBB returned no usable market insights; retaining the previous market cache.")
-                return
+                return False
 
             self.market_insights = {item["ticker"]: item for item in insights}
             self.market_last_updated = datetime.now(timezone.utc).isoformat()
             self._save_market_insights_to_disk()
+            return True
         finally:
             self.is_market_refreshing = False
 
@@ -2699,6 +3152,7 @@ class DataService:
             period_metrics = {
                 "current_price": market_data.get("current_price"),
                 "low_52_week": market_data.get("low_52_week"),
+                "low_52_week_date": market_data.get("low_52_week_date"),
                 "pct_above_low": market_data.get("pct_above_low")
             }
             if (
@@ -3042,6 +3496,10 @@ class DataService:
                 if low_52_week is not None
                 else None
             ),
+            "low_52_week_date": (
+                market_data.get("low_52_week_date")
+                or quote.get("year_low_date")
+            ),
             "pct_above_low": (
                 round(float(pct_above_low), 2)
                 if pct_above_low is not None
@@ -3334,6 +3792,8 @@ class DataService:
                 "manager": c["fund_info"]["manager"],
                 "group": c["fund_info"]["group"],
                 "annotation": c["fund_info"].get("annotation", ""),
+                "is_exception": c["fund_info"].get("is_exception", False),
+                "roster_reason": c["fund_info"].get("roster_reason", ""),
                 "status": c["status"],
                 "report_period": c["metadata"].get("report_period", ""),
                 "total_value": round(val_raw / 1_000_000.0, 2), # In $M

@@ -9,15 +9,16 @@ from pathlib import Path
 
 from .config import ResearchConfig
 from .pipeline import (
+    DEFAULT_APPLICATION_CACHE_DIR,
     DEFAULT_OUTPUT_DB,
     DEFAULT_PERFORMANCE_DB,
     DEFAULT_ROSTER,
     DEFAULT_SOURCE_DB,
     load_current_signals,
     load_report,
-    run_research,
     validate_inputs,
 )
+from .publication import run_research_atomically
 
 
 def _date(value: str) -> date:
@@ -60,6 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--output-db", type=Path, default=DEFAULT_OUTPUT_DB)
     run.add_argument("--roster", type=Path, default=DEFAULT_ROSTER)
+    run.add_argument(
+        "--application-cache-dir",
+        type=Path,
+        default=DEFAULT_APPLICATION_CACHE_DIR,
+    )
     run.add_argument("--as-of-days", type=int, default=45)
     run.add_argument(
         "--first-test-period", type=_date, default=date(2023, 3, 31)
@@ -91,11 +97,12 @@ def main() -> None:
         )
     elif args.command == "run":
         result = asdict(
-            run_research(
+            run_research_atomically(
                 source_db=args.source_db,
                 performance_db=args.performance_db,
                 output_db=args.output_db,
                 roster_path=args.roster,
+                application_cache_dir=args.application_cache_dir,
                 config=ResearchConfig(
                     as_of_days=args.as_of_days,
                     first_test_period=args.first_test_period,

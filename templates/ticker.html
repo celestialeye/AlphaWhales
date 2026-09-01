@@ -27,7 +27,7 @@
 <div class="dashboard-header">
     <div>
         <h1>Ticker Intelligence</h1>
-        <p class="text-muted">Analyze consensus ownership, portfolio weights, and QoQ positioning across all 26 tracked managers.</p>
+        <p class="text-muted">Analyze consensus ownership, portfolio weights, and QoQ positioning across all 29 tracked managers.</p>
     </div>
     <div class="ticker-search-container">
         <div class="search-wrap">
@@ -40,18 +40,9 @@
 <!-- Quick Picks Chips -->
 <div class="quick-chips-bar">
     <span class="chips-label">Popular Consensus:</span>
-    <button class="chip-btn" onclick="selectTickerChip('AAPL')">AAPL</button>
-    <button class="chip-btn" onclick="selectTickerChip('GOOGL')">GOOGL</button>
-    <button class="chip-btn" onclick="selectTickerChip('GOOG')">GOOG</button>
-    <button class="chip-btn" onclick="selectTickerChip('MSFT')">MSFT</button>
-    <button class="chip-btn" onclick="selectTickerChip('AMZN')">AMZN</button>
-    <button class="chip-btn" onclick="selectTickerChip('META')">META</button>
-    <button class="chip-btn" onclick="selectTickerChip('NVDA')">NVDA</button>
-    <button class="chip-btn" onclick="selectTickerChip('FICO')">FICO</button>
-    <button class="chip-btn" onclick="selectTickerChip('SPGI')">SPGI</button>
-    <button class="chip-btn" onclick="selectTickerChip('MCO')">MCO</button>
-    <button class="chip-btn" onclick="selectTickerChip('MA')">MA</button>
-    <button class="chip-btn" onclick="selectTickerChip('V')">V</button>
+    <span id="consensus-ticker-chips" class="consensus-chip-list">
+        <span class="text-dim">Loading current roster...</span>
+    </span>
     <button class="chip-btn chip-reset" onclick="resetTickerView()">✕ Show All Tickers</button>
 </div>
 
@@ -79,6 +70,7 @@
             <span class="ticker-price-low font-mono" id="td-52w-low-distance">
                 <span class="ticker-price-low-label">52-week low</span>
                 <strong class="ticker-price-low-value" id="td-52w-low-value">—</strong>
+                <span class="ticker-price-low-date" id="td-52w-low-date"></span>
                 <span class="ticker-price-low-separator">·</span>
                 <strong class="ticker-price-low-percent" id="td-52w-low-percent">Loading...</strong>
             </span>
@@ -116,7 +108,108 @@
         </div>
     </div>
 
-    <div class="ticker-market-grid mt-2">
+    <nav class="ticker-tab-shell mt-2" id="ticker-workspace-tabs" aria-label="Ticker intelligence sections">
+        <div class="ticker-tabs" role="tablist">
+            <button class="ticker-tab is-active" id="ticker-tab-decision" type="button" role="tab"
+                    aria-selected="true" aria-controls="ticker-panel-decision" tabindex="0"
+                    data-ticker-tab="decision">
+                <span>Decision</span><small>AWFI &amp; purchase support</small>
+            </button>
+            <button class="ticker-tab" id="ticker-tab-market" type="button" role="tab"
+                    aria-selected="false" aria-controls="ticker-panel-market" tabindex="-1"
+                    data-ticker-tab="market">
+                <span>Market</span><small>Price, metrics &amp; news</small>
+            </button>
+            <button class="ticker-tab" id="ticker-tab-whale-activity" type="button" role="tab"
+                    aria-selected="false" aria-controls="ticker-panel-whale-activity" tabindex="-1"
+                    data-ticker-tab="whale-activity">
+                <span>Whale Activity</span><small>Sentiment &amp; conviction</small>
+            </button>
+            <button class="ticker-tab" id="ticker-tab-ownership" type="button" role="tab"
+                    aria-selected="false" aria-controls="ticker-panel-ownership" tabindex="-1"
+                    data-ticker-tab="ownership">
+                <span>Ownership</span><small>Holdings &amp; history</small>
+            </button>
+            <button class="ticker-tab" id="ticker-tab-pairs" type="button" role="tab"
+                    aria-selected="false" aria-controls="ticker-panel-pairs" tabindex="-1"
+                    data-ticker-tab="pairs">
+                <span>Pairs</span><small>Relative-value research</small>
+            </button>
+        </div>
+        <p class="ticker-tab-description" id="ticker-tab-description">AWFI, valuation, timing, and educational sizing.</p>
+    </nav>
+
+    <section class="ticker-tab-panel mt-2" id="ticker-panel-decision" role="tabpanel"
+             aria-labelledby="ticker-tab-decision" data-ticker-panel="decision">
+        <article class="card ticker-awfi-card">
+            <div class="ticker-awfi-header">
+                <div>
+                    <span class="stats-eyebrow">ALPHA WHALE FORWARD INDEX · RESEARCH V2</span>
+                    <h3>Forward Opportunity Signal</h3>
+                    <p>Institutional sentiment, purchase-led actions, portfolio conviction, and point-in-time technical support.</p>
+                </div>
+                <span class="ticker-awfi-state" id="td-awfi-state">LOADING</span>
+            </div>
+            <div class="ticker-awfi-matrix">
+                <div class="ticker-awfi-matrix-header">
+                    <div>
+                        <span class="stats-eyebrow">CURRENT MODEL HORIZONS</span>
+                        <h4>Forward Score Breakdown</h4>
+                    </div>
+                    <div class="ticker-awfi-meta">
+                        <div>
+                            <span>Filing period</span>
+                            <strong id="td-awfi-filing-period">—</strong>
+                        </div>
+                        <div>
+                            <span>Market data through</span>
+                            <strong id="td-awfi-market-date">—</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="ticker-awfi-table-wrap">
+                    <table class="ticker-awfi-table">
+                        <caption class="sr-only">AWFI score details for the 6, 12, 18, and 24 month model horizons.</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Horizon</th>
+                                <th scope="col">AWFI score</th>
+                                <th scope="col">Signal</th>
+                                <th scope="col">Weighted score drivers</th>
+                            </tr>
+                        </thead>
+                        <tbody id="td-awfi-horizon-rows">
+                            <tr>
+                                <td colspan="4" class="ticker-awfi-table-loading">Loading forward scores...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="ticker-awfi-disclaimer" id="td-awfi-disclaimer">Research model only. Each horizon uses the score profile and threshold selected by its historical production study.</p>
+            </div>
+            <div class="ticker-awfi-history">
+                <div class="ticker-awfi-history-header">
+                    <div>
+                        <span class="stats-eyebrow">HISTORICAL FORWARD INDEX</span>
+                        <h4>AWFI by Filing Period</h4>
+                    </div>
+                    <span>Latest 20 available filing periods. Each investment horizon is shown separately.</span>
+                </div>
+                <div id="ticker-awfi-history-chart" class="chart-box ticker-awfi-history-chart"></div>
+            </div>
+            <span class="sr-only" aria-live="polite" id="td-awfi-live-region"></span>
+        </article>
+    </section>
+    <section class="ticker-tab-panel mt-2" id="ticker-panel-market" role="tabpanel"
+             aria-labelledby="ticker-tab-market" data-ticker-panel="market" hidden></section>
+    <section class="ticker-tab-panel mt-2" id="ticker-panel-whale-activity" role="tabpanel"
+             aria-labelledby="ticker-tab-whale-activity" data-ticker-panel="whale-activity" hidden></section>
+    <section class="ticker-tab-panel mt-2" id="ticker-panel-ownership" role="tabpanel"
+             aria-labelledby="ticker-tab-ownership" data-ticker-panel="ownership" hidden></section>
+    <section class="ticker-tab-panel mt-2" id="ticker-panel-pairs" role="tabpanel"
+             aria-labelledby="ticker-tab-pairs" data-ticker-panel="pairs" hidden></section>
+
+    <div class="ticker-market-grid mt-2" id="ticker-market-summary">
         <div class="ticker-market-metric"><span>Market Cap</span><strong class="font-mono" id="td-market-cap">—</strong></div>
         <div class="ticker-market-metric"><span>TTM P/E</span><strong class="font-mono" id="td-pe">—</strong></div>
         <div class="ticker-market-metric"><span>Forward P/E</span><strong class="font-mono" id="td-forward-pe">—</strong></div>
@@ -127,7 +220,7 @@
         <div class="ticker-market-metric"><span>EPS Growth CAGR</span><strong class="font-mono" id="td-eps-growth">—</strong></div>
     </div>
 
-    <div class="section-header mt-4">
+    <div class="section-header mt-4" id="ticker-decision-heading">
         <div>
             <h2>Purchase Decision Support</h2>
             <p class="section-sub">Valuation, technical timing, whale positioning, and risk-budget sizing are shown separately so no single signal becomes a false verdict.</p>
@@ -135,7 +228,7 @@
         <span class="card-badge">Educational Model</span>
     </div>
 
-    <article class="card whale-sentiment-card mt-2">
+    <article class="card whale-sentiment-card mt-2" id="ticker-alpha-sentiment-card">
         <div class="card-header">
             <div>
                 <span class="stats-eyebrow">SHARE ACTIVITY + MANAGER-RELATIVE CONVICTION</span>
@@ -203,7 +296,7 @@
         <div id="ticker-sentiment-history-chart" class="chart-box ticker-sentiment-history-chart"></div>
     </article>
 
-    <div class="ticker-decision-grid mt-2">
+    <div class="ticker-decision-grid mt-2" id="ticker-decision-grid">
         <article class="card ticker-decision-card">
             <div class="card-header">
                 <div>
@@ -265,7 +358,21 @@
         </article>
     </div>
 
-    <article class="card pair-signal-card mt-4">
+    <article class="card ticker-news-card mt-2" id="ticker-news-card">
+        <div class="card-header">
+            <div>
+                <span class="stats-eyebrow">MATERIAL COMPANY EVENTS</span>
+                <h3>Direct-Impact Ticker News</h3>
+            </div>
+            <span class="card-badge" id="td-news-badge">Up to 5 · OpenBB</span>
+        </div>
+        <div class="ticker-news-grid" id="td-news-list">
+            <div class="ticker-news-empty">Loading directly related company news...</div>
+        </div>
+        <p class="ticker-news-disclaimer">Requires the company or ticker in the headline plus a material event signal. Fewer than five items are shown rather than padding with loosely related coverage.</p>
+    </article>
+
+    <article class="card pair-signal-card mt-4" id="ticker-pair-card">
         <div class="card-header">
             <div>
                 <span class="stats-eyebrow">RELATIVE-VALUE RESEARCH</span>
@@ -317,7 +424,7 @@
         </div>
     </article>
 
-    <article class="card ticker-tradingview-card mt-4">
+    <article class="card ticker-tradingview-card mt-4" id="ticker-market-chart-card">
         <div class="card-header">
             <div>
                 <h3>Market Price Chart</h3>
@@ -330,14 +437,14 @@
         </div>
     </article>
 
-    <div class="section-header mt-4">
+    <div class="section-header mt-4" id="ticker-ownership-heading">
         <div>
             <h2>20-Quarter Institutional Trend</h2>
             <p class="section-sub">Ownership breadth, tracked market value, and manager actions from Q3 2021 through the latest filing.</p>
         </div>
         <span class="card-badge">20 Quarters</span>
     </div>
-    <div class="grid chart-grid mt-2">
+    <div class="grid chart-grid mt-2" id="ticker-history-grid">
         <div class="card chart-card">
             <div class="card-header"><h3>Tracked Investor Count</h3><span class="card-badge">Ownership Breadth</span></div>
             <div id="ticker-investor-history-chart" class="chart-box ticker-history-chart"></div>
@@ -347,7 +454,7 @@
             <div id="ticker-value-history-chart" class="chart-box ticker-history-chart"></div>
         </div>
     </div>
-    <article class="card whale-heatmap-card mt-2">
+    <article class="card whale-heatmap-card mt-2" id="ticker-conviction-card">
         <div class="card-header">
             <div>
                 <h3>Manager Conviction Map</h3>
@@ -374,36 +481,55 @@
         </div>
     </article>
 
-    <div class="grid chart-grid mt-4">
+    <div class="grid chart-grid mt-4" id="ticker-ownership-charts">
         <div class="card chart-card">
-            <div class="card-header"><h3>Current Holder Value Distribution</h3><span class="card-badge">Latest Filing</span></div>
-            <div id="ticker-pie-chart" class="chart-box"></div>
+            <div class="card-header">
+                <div>
+                    <h3>Current Holder Concentration</h3>
+                    <div class="chart-encoding-note">Share of total reported holder value, ranked largest to smallest</div>
+                </div>
+                <span class="card-badge" id="ticker-holder-concentration-badge">Latest Filing</span>
+            </div>
+            <div class="holder-concentration-scroll">
+                <div id="ticker-holder-concentration-chart" class="chart-box holder-concentration-chart"></div>
+            </div>
         </div>
         <div class="card chart-card">
-            <div class="card-header"><h3>Reported Value Change by Fund</h3><span class="card-badge">Latest QoQ ($M)</span></div>
+            <div class="card-header">
+                <div>
+                    <h3>Quarterly Position Moves by Fund ($M)</h3>
+                    <div class="chart-encoding-note">Bar length = reported value change; color = share-count action.</div>
+                </div>
+                <span class="card-badge">QoQ Value Shifts</span>
+            </div>
+            <div class="position-move-legend" role="list" aria-label="Fund position move legend">
+                <span role="listitem"><i class="move-swatch move-new"></i>New position</span>
+                <span role="listitem"><i class="move-swatch move-increased"></i>Increased shares</span>
+                <span role="listitem"><i class="move-swatch move-decreased"></i>Decreased shares</span>
+                <span role="listitem"><i class="move-swatch move-unchanged"></i>Unchanged shares</span>
+            </div>
             <div id="ticker-bar-chart" class="chart-box"></div>
         </div>
     </div>
 
     <!-- Specific Holders Table -->
-    <div class="card table-card mt-4">
+    <div class="card table-card mt-4" id="ticker-holders-card">
         <div class="card-header">
             <h3>Elite Fund Managers Holding <span id="td-table-ticker">AAPL</span></h3>
-            <span class="text-muted" id="td-holders-subtitle">Individual portfolio weights & QoQ changes</span>
+            <span class="text-muted" id="td-holders-subtitle">Share action and reported-value movement are separate QoQ measures</span>
         </div>
         <div class="table-container">
             <table id="holders-table" class="data-table">
                 <thead>
                     <tr>
                         <th>Fund Manager</th>
-                        <th>Strategy Group</th>
+                        <th>Investment Style</th>
                         <th>Catalog Annotation</th>
                         <th>Portfolio Weight %</th>
                         <th>Position Value ($M)</th>
                         <th>Shares Held</th>
-                        <th>QoQ Action</th>
-                        <th>Value Δ %</th>
-                        <th>Shares Δ %</th>
+                        <th>Share Action <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Share action definition" data-tooltip="Classified only from the quarter-over-quarter change in reported share count. A manager can decrease shares while reported position value rises because the quarter-end market price increased.">i</span></th>
+                        <th>Reported Value Δ % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported value change definition" data-tooltip="Current reported position value versus the prior filing. This combines share-count changes with quarter-end market-price movement and is not a manager return or transaction result.">i</span></th>
                         <th>Filing Period</th>
                     </tr>
                 </thead>
@@ -470,8 +596,10 @@
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('nav-ticker').classList.add('active');
+        initializeTickerWorkspace();
         const initTicker = "{{ ticker if ticker else '' }}";
         if (initTicker) {
+            loadConsensusTickerChips();
             loadTickerDetail(initTicker);
         } else {
             loadAllTickers();

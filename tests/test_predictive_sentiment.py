@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import replace
 from datetime import date
 
@@ -17,8 +18,10 @@ from predictive_sentiment.config import (
 from predictive_sentiment.pipeline import (
     _build_labels,
     _centered_rank,
+    _load_cached_top_holdings,
     _point_in_time_market_features,
     _production_training_rows,
+    _select_latest_top_holdings,
 )
 from predictive_sentiment.macro import macro_features_at
 from predictive_sentiment.research import (
@@ -42,6 +45,7 @@ from predictive_sentiment.validation import (
     evaluate_walk_forward,
     wilson_interval,
 )
+from roster_store import fund_fingerprint
 
 
 def _filing(
@@ -74,6 +78,85 @@ def _holding(accession: str, cusip: str, shares: float) -> HoldingRow:
         issuer="TEST COMPANY",
         title="COM",
     )
+
+
+def test_cached_top_holdings_use_newer_application_period(tmp_path):
+    roster = [{"cik": "0000000001", "manager": "Manager"}]
+    (tmp_path / "0000000001.json").write_text(
+        json.dumps(
+            {
+                "cik": "0000000001",
+                "fund_fingerprint": fund_fingerprint(roster[0]),
+                "status": "loaded",
+                "metadata": {"report_period": "2026-06-30"},
+                "holdings": [
+                    {
+                        "Cusip": "458140100",
+                        "Issuer": "INTEL CORP",
+                        "Class": "COM",
+                        "Type": "Shares",
+                        "PutCall": "",
+                        "PortfolioWeight": 4.4,
+                        "Value": 1000,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    archive_rows = [
+        {
+            "canonical_cik": "0000000001",
+            "manager_name": "Manager",
+            "report_period": date(2026, 3, 31),
+            "holding_rank": 1,
+            "universe_source": "SEC_ARCHIVE",
+            "cusip": "OLD",
+            "issuer": "OLD",
+            "title": "COM",
+            "portfolio_weight": 5.0,
+            "reported_value": 900,
+        }
+    ]
+
+    cached_rows = _load_cached_top_holdings(
+        roster,
+        tmp_path,
+        top_n=10,
+    )
+    selected = _select_latest_top_holdings(
+        archive_rows,
+        cached_rows,
+    )
+
+    assert len(cached_rows) == 1
+    assert selected[0]["cusip"] == "458140100"
+    assert selected[0]["report_period"] == date(2026, 6, 30)
+    assert selected[0]["universe_source"] == "APPLICATION_CACHE"
+
+
+def test_archive_universe_wins_when_cache_is_not_newer():
+    archive_rows = [
+        {
+            "canonical_cik": "0000000001",
+            "report_period": date(2026, 6, 30),
+            "universe_source": "SEC_ARCHIVE",
+        }
+    ]
+    cache_rows = [
+        {
+            "canonical_cik": "0000000001",
+            "report_period": date(2026, 6, 30),
+            "universe_source": "APPLICATION_CACHE",
+        }
+    ]
+
+    selected = _select_latest_top_holdings(
+        archive_rows,
+        cache_rows,
+    )
+
+    assert selected == archive_rows
 
 
 def test_fixed_asof_excludes_late_restatement_and_resets_additions():
@@ -157,7 +240,7 @@ def test_direct_stock_classifier_accepts_equity_and_rejects_funds():
     assert is_direct_common_stock(
         issuer="FOREIGN COMPANY",
         title="SPONSORED ADR",
-        shares_type="SH",
+        shares_type="Shares",
         put_call="",
     )
     assert not is_direct_common_stock(

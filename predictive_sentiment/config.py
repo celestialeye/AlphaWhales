@@ -4,8 +4,10 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from itertools import product
 
+from .awfi import AWFI_VERSION
 
-PROTOCOL_VERSION = "alpha-whale-predictive-v9.1"
+
+PROTOCOL_VERSION = "alpha-whale-predictive-v9.6"
 FORMULA_MINIMUM_MANAGERS = {
     "alpha_v1_n3": 3,
     "breadth_v1_n3": 3,
@@ -188,7 +190,7 @@ class ResearchConfig:
     split_ratio_tolerance: float = 0.05
     minimum_current_holders: int = 0
     minimum_meaningful_managers: int = 1
-    universe_mode: str = "CURRENT_ROSTER_TOP10"
+    universe_mode: str = "LATEST_AVAILABLE_ROSTER_TOP10"
     top_holdings_per_manager: int = 10
     random_seed: int = 17
     cohort_mode: str = "CURRENT_ROSTER_RETROSPECTIVE"
@@ -214,9 +216,9 @@ class ResearchConfig:
             raise ValueError("minimum_current_holders must be non-negative")
         if self.minimum_meaningful_managers < 1:
             raise ValueError("minimum_meaningful_managers must be positive")
-        if self.universe_mode != "CURRENT_ROSTER_TOP10":
+        if self.universe_mode != "LATEST_AVAILABLE_ROSTER_TOP10":
             raise ValueError(
-                "Only CURRENT_ROSTER_TOP10 is supported by this protocol"
+                "Only LATEST_AVAILABLE_ROSTER_TOP10 is supported by this protocol"
             )
         if self.top_holdings_per_manager != 10:
             raise ValueError("top_holdings_per_manager must remain 10")

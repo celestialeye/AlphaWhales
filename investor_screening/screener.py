@@ -11,6 +11,7 @@ from pathlib import Path
 import duckdb
 
 from config import FUND_MANAGERS
+from roster_store import normalize_cik
 from .database import DEFAULT_DATABASE_PATH
 
 DEFAULT_SNAPSHOT_POINTER = (
@@ -226,9 +227,9 @@ def compute_source_fingerprint(
     ).fetchall()
     payload = {
         "datasets": datasets,
-        "aliases": _alias_values(),
-        "methodology": "screening-v1",
+        "methodology": "screening-source-v2",
         "fund_pattern": FUND_LIKE_PATTERN,
+        "canonical_aliases": _alias_values(),
     }
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
@@ -1025,6 +1026,44 @@ class ScreeningService:
     def __init__(self, snapshot_path: str | Path = DEFAULT_SNAPSHOT_POINTER):
         self.snapshot_path = Path(snapshot_path)
 
+    def get_manager_summaries(self, ciks: list[str]) -> dict[str, dict]:
+        normalized_ciks = list(dict.fromkeys(normalize_cik(cik) for cik in ciks))
+        if not normalized_ciks or not self.snapshot_path.exists():
+            return {}
+
+        connection = duckdb.connect(
+            str(resolve_snapshot_path(self.snapshot_path)),
+            read_only=True,
+        )
+        try:
+            placeholders = ",".join("?" for _ in normalized_ciks)
+            rows = connection.execute(
+                f"""
+                SELECT
+                    m.cik,
+                    m.manager_name,
+                    m.latest_stock_count,
+                    perf.status AS performance_status,
+                    perf.estimated_cagr,
+                    perf.spy_excess_cagr,
+                    perf.qqq_excess_cagr
+                FROM manager_metrics m
+                LEFT JOIN manager_performance perf
+                  ON perf.cik = m.cik
+                 AND perf."window" = 'FULL'
+                 AND perf.cost_bps = 0
+                WHERE m.cik IN ({placeholders})
+                """,
+                normalized_ciks,
+            )
+            columns = [item[0] for item in rows.description]
+            return {
+                row[0]: dict(zip(columns, row))
+                for row in rows.fetchall()
+            }
+        finally:
+            connection.close()
+
     def get_screening_results(
         self,
         *,
@@ -1060,6 +1099,10 @@ class ScreeningService:
         resolved_snapshot = resolve_snapshot_path(self.snapshot_path)
         connection = duckdb.connect(str(resolved_snapshot), read_only=True)
         try:
+            roster_by_cik = {
+                fund["cik"]: fund
+                for fund in FUND_MANAGERS
+            }
             normalized_window = performance_window.strip().upper()
             if normalized_window not in {"3Y", "5Y", "FULL"}:
                 raise ValueError("performance_window must be 3Y, 5Y, or FULL")
@@ -1159,13 +1202,19 @@ class ScreeningService:
             if require_durable_position:
                 conditions.append("m.durable_position_count > 0")
             if roster_only:
-                conditions.append("m.is_current_roster")
+                roster_ciks = list(roster_by_cik)
+                if roster_ciks:
+                    placeholders = ",".join("?" for _ in roster_ciks)
+                    conditions.append(f"m.cik IN ({placeholders})")
+                    params.extend(roster_ciks)
+                else:
+                    conditions.append("false")
             if search:
                 conditions.append(
-                    "(m.manager_name ILIKE ? OR m.cik ILIKE ? OR m.roster_name ILIKE ?)"
+                    "(m.manager_name ILIKE ? OR m.cik ILIKE ?)"
                 )
                 value = f"%{search.strip()}%"
-                params.extend([value, value, value])
+                params.extend([value, value])
             structural_conditions = list(conditions)
             structural_params = list(params)
             if has_performance:
@@ -1423,6 +1472,18 @@ class ScreeningService:
                 best_bets = positions_by_cik.get(item["cik"], [])
                 item["persistent_best_bets"] = best_bets
                 item["durable_positions"] = best_bets
+                roster_entry = roster_by_cik.get(item["cik"])
+                item["is_current_roster"] = roster_entry is not None
+                item["roster_name"] = (
+                    roster_entry["manager"] if roster_entry else None
+                )
+                item["roster_is_exception"] = bool(
+                    roster_entry and roster_entry.get("is_exception")
+                )
+                item["roster_reason"] = (
+                    roster_entry.get("roster_reason", "")
+                    if roster_entry else ""
+                )
 
             metadata = connection.execute(
                 "SELECT * FROM snapshot_metadata LIMIT 1"
@@ -1435,6 +1496,7 @@ class ScreeningService:
                 else {}
             )
             meta["position_cube_available"] = has_position_cube
+            meta["configured_roster_count"] = len(roster_by_cik)
             summary = {
                 "candidate_count": len(data),
                 "structural_candidate_count": structural_counts[0],

@@ -18,7 +18,7 @@
             <span id="period-loader-progress-bar"></span>
         </div>
         <div class="period-loader-meta">
-            <span id="period-loader-count">0 of 26 funds</span>
+            <span id="period-loader-count">Loading configured funds</span>
             <span id="period-loader-source">SEC EDGAR</span>
         </div>
     </div>
@@ -68,19 +68,61 @@
     <div class="section-header portfolio-stats-heading">
         <div>
             <h2 id="portfolio-stats-title">Superinvestor Portfolio Stats</h2>
-            <p class="section-sub">Consensus ownership, conviction, and the quarter's strongest accumulation signals.</p>
+            <p class="section-sub" id="overview-tab-description">Consensus ownership, conviction, market context, and the quarter's broadest signals.</p>
         </div>
         <div class="filing-period-control">
             <label for="filing-period-select">Filing period</label>
             <select id="filing-period-select" onchange="changeFilingPeriod(this.value)" disabled>
                 <option>Loading periods...</option>
             </select>
+            <label for="awfi-horizon-select">AWFI horizon</label>
+            <select id="awfi-horizon-select" onchange="changeAwfiHorizon(this.value)">
+                <option value="126">6 months</option>
+                <option value="252" selected>12 months</option>
+                <option value="378">18 months</option>
+                <option value="504">24 months</option>
+            </select>
             <span id="filing-period-status">Latest period loads by default</span>
         </div>
     </div>
 
-    <div class="portfolio-stats-grid mt-2">
-        <article class="stats-card">
+    <div class="overview-tab-shell mt-2" id="overview-workspace">
+        <div class="overview-tabs" role="tablist" aria-label="QoQ dashboard views">
+            <button class="overview-tab is-active" id="overview-tab-overview" type="button" role="tab"
+                    aria-selected="true" tabindex="0" data-overview-tab="overview"
+                    onclick="switchOverviewTab('overview')">
+                <span>Overview</span>
+                <small>Consensus &amp; market</small>
+            </button>
+            <button class="overview-tab" id="overview-tab-sentiment" type="button" role="tab"
+                    aria-selected="false" tabindex="-1" data-overview-tab="sentiment"
+                    onclick="switchOverviewTab('sentiment')">
+                <span>AWFI</span>
+                <small>Forward index</small>
+            </button>
+            <button class="overview-tab" id="overview-tab-positioning" type="button" role="tab"
+                    aria-selected="false" tabindex="-1" data-overview-tab="positioning"
+                    onclick="switchOverviewTab('positioning')">
+                <span>Positioning</span>
+                <small>Buys &amp; sells</small>
+            </button>
+            <button class="overview-tab" id="overview-tab-managers" type="button" role="tab"
+                    aria-selected="false" tabindex="-1" data-overview-tab="managers"
+                    onclick="switchOverviewTab('managers')">
+                <span>Managers</span>
+                <small>Activity matrix</small>
+            </button>
+            <button class="overview-tab" id="overview-tab-changes" type="button" role="tab"
+                    aria-selected="false" tabindex="-1" data-overview-tab="changes"
+                    onclick="switchOverviewTab('changes')">
+                <span>All Changes</span>
+                <small>Filter &amp; export</small>
+            </button>
+        </div>
+    </div>
+
+    <div class="portfolio-stats-grid mt-2" id="portfolio-stats-grid">
+        <article class="stats-card" data-overview-panel="overview">
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">CONSENSUS</span>
@@ -96,17 +138,18 @@
                             <th>Investors</th>
                             <th>QoQ Actions</th>
                             <th title="Median portfolio weight among current holders and its percentage-point change from the previous quarter's median">Median Pos.</th>
+                            <th id="stats-awfi-horizon" title="Alpha Whale Forward Index Research v2. Combines institutional sentiment, purchase-led action structure, portfolio conviction, and point-in-time technical support. Research model only; not investment advice.">AWFI 12M</th>
                             <th id="stats-market-period" title="Quarter-end market price and price return since that date">Market</th>
                         </tr>
                     </thead>
                     <tbody id="stats-most-owned">
-                        <tr><td colspan="5" class="stats-loading">Loading ownership data...</td></tr>
+                        <tr><td colspan="6" class="stats-loading">Loading ownership data...</td></tr>
                     </tbody>
                 </table>
             </div>
         </article>
 
-        <article class="stats-card">
+        <article class="stats-card" data-overview-panel="overview">
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">HIGHEST CONVICTION</span>
@@ -119,7 +162,7 @@
             </ol>
         </article>
 
-        <article class="stats-card stats-card-wide">
+        <article class="stats-card stats-card-wide" data-overview-panel="overview">
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">CONCENTRATED POSITIONS</span>
@@ -144,7 +187,44 @@
             </div>
         </article>
 
-        <article class="stats-card">
+        <article class="stats-card stats-card-wide awfi-status-card" data-overview-panel="sentiment" hidden>
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">RESEARCH SNAPSHOT</span>
+                    <h3 id="awfi-status-title">AWFI Research v2</h3>
+                    <p class="section-sub" id="awfi-status-message">Loading AWFI snapshot status...</p>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="AWFI research status" data-tooltip="AWFI is rebuilt offline from point-in-time 13F and adjusted market data. A newer filing period can appear before its AWFI research snapshot is complete. Missing AWFI is shown explicitly rather than replaced with another score.">i</span>
+            </div>
+        </article>
+
+        <article class="stats-card sentiment-ranking-card sentiment-ranking-positive" data-overview-panel="sentiment" hidden>
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">FORWARD OPPORTUNITY</span>
+                    <h3>Top 10 Positive AWFI Scores</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Positive AWFI ranking definition" data-tooltip="Ranks positive AWFI Research v2 scores for the selected 6-24 month horizon. AWFI combines institutional sentiment, purchase-led actions, portfolio conviction, and technical support. Research only; not investment advice.">i</span>
+            </div>
+            <ol class="stats-list sentiment-ranking-list" id="stats-positive-sentiment">
+                <li class="stats-loading">Loading positive sentiment changes...</li>
+            </ol>
+        </article>
+
+        <article class="stats-card sentiment-ranking-card sentiment-ranking-negative" data-overview-panel="sentiment" hidden>
+            <div class="stats-card-header">
+                <div>
+                    <span class="stats-eyebrow">AVOID / REVIEW</span>
+                    <h3>Top 10 Negative AWFI Scores</h3>
+                </div>
+                <span class="stats-info" tabindex="0" role="img" aria-label="Negative AWFI ranking definition" data-tooltip="Ranks negative AWFI Research v2 scores for the selected horizon. Negative scores mean avoid or review; SELL precision is not strong enough for automatic liquidation. Research only.">i</span>
+            </div>
+            <ol class="stats-list sentiment-ranking-list" id="stats-negative-sentiment">
+                <li class="stats-loading">Loading negative sentiment changes...</li>
+            </ol>
+        </article>
+
+        <article class="stats-card" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">DOLLAR ACCUMULATION</span>
@@ -157,20 +237,20 @@
             </ol>
         </article>
 
-        <article class="stats-card">
+        <article class="stats-card" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">PORTFOLIO WEIGHT</span>
                     <h3>Top 10 Buys This Quarter by %</h3>
                 </div>
-                <span class="stats-icon stats-icon-orange">%</span>
+                <span class="stats-icon stats-icon-green">%</span>
             </div>
             <ol class="stats-list" id="stats-fastest-adds">
                 <li class="stats-loading">Loading portfolio weights...</li>
             </ol>
         </article>
 
-        <article class="stats-card">
+        <article class="stats-card" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">REPORTED VALUE REDUCTION</span>
@@ -183,20 +263,20 @@
             </ol>
         </article>
 
-        <article class="stats-card">
+        <article class="stats-card" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">SHARE REDUCTION</span>
                     <h3>Largest Position Cuts by %</h3>
                 </div>
-                <span class="stats-icon stats-icon-orange">%</span>
+                <span class="stats-icon stats-icon-red">%</span>
             </div>
             <ol class="stats-list" id="stats-largest-cuts">
                 <li class="stats-loading">Loading position reductions...</li>
             </ol>
         </article>
 
-        <article class="stats-card stats-card-wide">
+        <article class="stats-card stats-card-wide" data-overview-panel="overview">
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">OPENBB MARKET SIGNAL</span>
@@ -223,13 +303,12 @@
             </div>
         </article>
     </div>
-</section>
 
 <!-- Visual Insights Charts -->
-<div class="grid chart-grid mt-4">
+<div class="grid chart-grid mt-4" data-overview-panel="overview">
     <div class="card chart-card">
         <div class="card-header">
-            <h3>QoQ Share Actions by Strategy Group</h3>
+            <h3>QoQ Share Actions by Investment Style</h3>
             <span class="card-badge">Activity Distribution</span>
         </div>
         <div id="summary-chart" class="chart-box"></div>
@@ -244,7 +323,7 @@
 </div>
 
 <!-- Manager Activity Matrix -->
-<section class="manager-activity-section mt-4" aria-labelledby="manager-activity-title">
+<section class="manager-activity-section mt-4" aria-labelledby="manager-activity-title" data-overview-panel="managers" hidden>
     <div class="section-header">
         <div>
             <h2 id="manager-activity-title">Manager Activity Matrix</h2>
@@ -272,7 +351,7 @@
 </section>
 
 <!-- QoQ Changes Section -->
-<div class="section-header mt-4">
+<div class="section-header mt-4" data-overview-panel="changes" hidden>
     <div>
         <h2>Quarter-Over-Quarter Position Changes</h2>
         <p class="section-sub">All institutional buys, sells, entries, and exits sorted by absolute dollar impact.</p>
@@ -283,15 +362,16 @@
 </div>
 
 <!-- Filter Bar -->
-<div class="card filter-bar">
+<div class="card filter-bar" data-overview-panel="changes" hidden>
     <div class="filter-group-item">
-        <label for="filter-group">Group</label>
+        <label for="filter-group">Investment Style</label>
         <select id="filter-group" onchange="applyFilters()">
-            <option value="All">All Groups (26 Funds)</option>
-            <option value="Value">Value (Buffett, Klarman, Li Lu...)</option>
-            <option value="High-performance concentrated">High-performance concentrated (Sosin, Baker...)</option>
-            <option value="Quality compounder">Quality compounder (Ellenbogen, Simons...)</option>
-            <option value="2026 expansion">2026 expansion (Terry Smith, Laffont, Halvorsen...)</option>
+            <option value="All">All Styles (29 Funds)</option>
+            <option value="Value &amp; Contrarian">Value &amp; Contrarian (5)</option>
+            <option value="Quality Growth">Quality Growth (4)</option>
+            <option value="Technology &amp; Innovation">Technology &amp; Innovation (9)</option>
+            <option value="Opportunistic &amp; Concentrated">Opportunistic &amp; Concentrated (5)</option>
+            <option value="Diversified &amp; Systematic">Diversified &amp; Systematic (6)</option>
         </select>
     </div>
 
@@ -324,7 +404,7 @@
 </div>
 
 <!-- Table Card with Pagination & Sorting -->
-<div class="card table-card mt-2">
+<div class="card table-card mt-2" data-overview-panel="changes" hidden>
     <div class="table-meta-bar">
         <div id="table-results-count" class="text-muted">Showing 0 changes</div>
         <div class="table-page-controls">
@@ -348,7 +428,7 @@
             <thead>
                 <tr>
                     <th onclick="sortTable('fund_name')">Fund / Manager <span class="sort-icon" id="sort-fund_name"></span></th>
-                    <th onclick="sortTable('group')">Strategy <span class="sort-icon" id="sort-group"></span></th>
+                    <th onclick="sortTable('group')">Investment Style <span class="sort-icon" id="sort-group"></span></th>
                     <th onclick="sortTable('ticker')">Ticker <span class="sort-icon" id="sort-ticker"></span></th>
                     <th onclick="sortTable('issuer')">Company <span class="sort-icon" id="sort-issuer"></span></th>
                     <th onclick="sortTable('status')" title="Classified from the change in reported share count">Share Action <span class="sort-icon" id="sort-status"></span></th>
@@ -367,12 +447,14 @@
         </table>
     </div>
 </div>
+</section>
 {% endblock %}
 
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('nav-overview').classList.add('active');
+        initializeOverviewTabs();
         initializeOverviewPeriodSelector();
     });
 </script>

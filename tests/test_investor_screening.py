@@ -15,6 +15,7 @@ from unittest import mock
 import pandas as pd
 import duckdb
 
+from config import FUND_MANAGERS
 from investor_screening.database import connect_database
 from investor_screening.detail_ingest import (
     pending_accessions,
@@ -809,6 +810,31 @@ class InvestorScreeningTests(unittest.TestCase):
         self.assertIsNotNone(history)
         self.assertTrue(history["screening_snapshot_only"])
         self.assertEqual(len(history["portfolio_history"]), 1)
+
+        original_roster = list(FUND_MANAGERS)
+        try:
+            FUND_MANAGERS[:] = [{
+                "group": "Quality Growth",
+                "cik": "0000000001",
+                "name": "Test Manager",
+                "manager": "Test Manager",
+                "annotation": "Test",
+                "is_exception": True,
+                "roster_reason": "Test exception",
+            }]
+            roster_result = service.get_screening_results(
+                minimum_concentration_quarters=1,
+                roster_only=True,
+            )
+            self.assertEqual(roster_result["summary"]["candidate_count"], 1)
+            self.assertEqual(
+                roster_result["metadata"]["configured_roster_count"],
+                1,
+            )
+            self.assertTrue(roster_result["data"][0]["is_current_roster"])
+            self.assertTrue(roster_result["data"][0]["roster_is_exception"])
+        finally:
+            FUND_MANAGERS[:] = original_roster
 
 
 if __name__ == "__main__":

@@ -1,0 +1,266 @@
+[
+  {
+    "group": "Value & Contrarian",
+    "cik": "0001508097",
+    "name": "Sanders Capital",
+    "manager": "Sanders Capital",
+    "annotation": "Full 13F est. 17.76%; +4.97pp SPY; +3.52pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001908450",
+    "name": "Newlands Management Operations",
+    "manager": "Newlands Management",
+    "annotation": "Full 13F est. 32.72%; +11.93pp SPY; +4.87pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001963565",
+    "name": "Value Aligned Research Advisors",
+    "manager": "Value Aligned",
+    "annotation": "Full 13F est. 51.48%; +30.42pp SPY; +22.51pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Opportunistic & Concentrated",
+    "cik": "0001732768",
+    "name": "Lingotto Investment Management",
+    "manager": "Lingotto",
+    "annotation": "Full 13F est. 30.54%; +17.75pp SPY; +16.30pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Value & Contrarian",
+    "cik": "0001556915",
+    "name": "ARGA Investment Management",
+    "manager": "ARGA",
+    "annotation": "Full 13F est. 16.28%; +3.50pp SPY; +2.05pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001849753",
+    "name": "Voyager Global Management",
+    "manager": "Voyager Global",
+    "annotation": "Full 13F est. 22.14%; +7.44pp SPY; +4.12pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Quality Growth",
+    "cik": "0001767686",
+    "name": "Yarbrough Capital",
+    "manager": "Yarbrough Capital",
+    "annotation": "Full 13F est. 20.19%; +6.63pp SPY; +3.82pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Diversified & Systematic",
+    "cik": "0001806755",
+    "name": "Systematic Alpha Investments",
+    "manager": "Systematic Alpha",
+    "annotation": "Full 13F est. 16.16%; +3.38pp SPY; +1.93pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Quality Growth",
+    "cik": "0001738728",
+    "name": "Silvant Capital Management",
+    "manager": "Silvant Capital",
+    "annotation": "Full 13F est. 14.68%; +1.90pp SPY; +0.45pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Opportunistic & Concentrated",
+    "cik": "0001701717",
+    "name": "First Beijing Investment",
+    "manager": "First Beijing",
+    "annotation": "Full 13F est. 27.65%; +5.57pp SPY; +1.19pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Opportunistic & Concentrated",
+    "cik": "0001789082",
+    "name": "Crake Asset Management",
+    "manager": "Crake",
+    "annotation": "Full 13F est. 22.87%; +10.09pp SPY; +8.64pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001753384",
+    "name": "Analog Century Management",
+    "manager": "Analog Century",
+    "annotation": "Full 13F est. 39.18%; +26.40pp SPY; +24.95pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001911448",
+    "name": "Kinetic Partners Management",
+    "manager": "Kinetic Partners",
+    "annotation": "Full 13F est. 28.81%; +8.11pp SPY; +1.21pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Value & Contrarian",
+    "cik": "0000872162",
+    "name": "Blackhill Capital",
+    "manager": "Blackhill Capital",
+    "annotation": "Full 13F est. 21.01%; +8.23pp SPY; +6.78pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Diversified & Systematic",
+    "cik": "0001870364",
+    "name": "Y.D. More Investments",
+    "manager": "Y.D. More",
+    "annotation": "Full 13F est. 31.99%; +11.52pp SPY; +4.67pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Quality Growth",
+    "cik": "0001801547",
+    "name": "Blue Whale Capital",
+    "manager": "Blue Whale",
+    "annotation": "Full 13F est. 17.34%; +4.56pp SPY; +3.11pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Diversified & Systematic",
+    "cik": "0001666786",
+    "name": "Traynor Capital Management",
+    "manager": "Traynor Capital",
+    "annotation": "Full 13F est. 17.82%; +5.03pp SPY; +3.58pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001904897",
+    "name": "Styrax Capital",
+    "manager": "Styrax Capital",
+    "annotation": "Full 13F est. 25.09%; +7.57pp SPY; +2.38pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001474069",
+    "name": "Keywise Capital Management (HK)",
+    "manager": "Keywise Capital",
+    "annotation": "Full 13F est. 40.21%; +27.42pp SPY; +25.97pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Diversified & Systematic",
+    "cik": "0001964544",
+    "name": "Petredis Investment Advisors",
+    "manager": "Petredis",
+    "annotation": "Full 13F est. 27.85%; +7.39pp SPY; +0.53pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Diversified & Systematic",
+    "cik": "0000934745",
+    "name": "Weatherly Asset Management",
+    "manager": "Weatherly",
+    "annotation": "Full 13F est. 15.17%; +2.39pp SPY; +0.94pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Diversified & Systematic",
+    "cik": "0000714395",
+    "name": "German American Bancorp",
+    "manager": "German American Bancorp",
+    "annotation": "Full 13F est. 14.58%; +1.79pp SPY; +0.34pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001172779",
+    "name": "Dock Street Asset Management",
+    "manager": "Dock Street",
+    "annotation": "Full 13F est. 18.60%; +5.82pp SPY; +4.37pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Quality Growth",
+    "cik": "0001475150",
+    "name": "Randolph Co",
+    "manager": "Randolph Co",
+    "annotation": "Full 13F est. 15.12%; +2.34pp SPY; +0.89pp QQQ",
+    "is_exception": false,
+    "roster_reason": "Full-window 13F estimate beats SPY and QQQ"
+  },
+  {
+    "group": "Value & Contrarian",
+    "cik": "0001709323",
+    "name": "Himalaya Capital",
+    "manager": "Li Lu",
+    "annotation": "Exception: 3Y clone beats both; full window narrowly trails",
+    "is_exception": true,
+    "roster_reason": "Approved exception for strong recent followable performance"
+  },
+  {
+    "group": "Opportunistic & Concentrated",
+    "cik": "0001697591",
+    "name": "CAS Investment Partners",
+    "manager": "Sosin",
+    "annotation": "Exception: 3Y clone strongly beats both; full window unavailable",
+    "is_exception": true,
+    "roster_reason": "Approved exception for strong recent followable performance"
+  },
+  {
+    "group": "Technology & Innovation",
+    "cik": "0001135730",
+    "name": "Coatue Management",
+    "manager": "Laffont",
+    "annotation": "Exception: 3Y clone beats both; full window unavailable",
+    "is_exception": true,
+    "roster_reason": "Approved exception for strong recent followable performance"
+  },
+  {
+    "group": "Value & Contrarian",
+    "cik": "0001067983",
+    "name": "Berkshire Hathaway",
+    "manager": "Buffett",
+    "annotation": "Exception: exceptional official record; 13F clone modestly trails",
+    "is_exception": true,
+    "roster_reason": "Approved exception for manager intelligence beyond the 13F sleeve"
+  },
+  {
+    "group": "Opportunistic & Concentrated",
+    "cik": "0002026053",
+    "name": "Pershing Square",
+    "manager": "Ackman",
+    "annotation": "Exception: strong official strategy record; 13F clone trails",
+    "is_exception": true,
+    "roster_reason": "Approved exception for manager intelligence beyond the 13F sleeve",
+    "historical_ciks": [
+      "0001336528"
+    ]
+  }
+]

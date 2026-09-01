@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from .awfi import HORIZON_THRESHOLDS
 from .config import (
     ACTION_PROFILES,
     ACTION_THRESHOLDS,
@@ -593,7 +594,7 @@ def _macro_two_stage_trials(
         return [], None
     tuning = training[training["report_period"].isin(tuning_periods)]
     horizon = int(training["horizon"].iloc[0])
-    frozen_threshold = 25.0 if horizon == 504 else 75.0
+    frozen_threshold = HORIZON_THRESHOLDS[horizon]
     profiles = (
         ("CONTROL", 0.0, 0.0, 0.0),
         ("SECTOR_ONLY", 1.0, 0.0, 0.0),
@@ -706,7 +707,7 @@ def _fundamental_two_stage_trials(
         return [], None
     tuning = training[training["report_period"].isin(tuning_periods)]
     horizon = int(training["horizon"].iloc[0])
-    frozen_threshold = 25.0 if horizon == 504 else 75.0
+    frozen_threshold = HORIZON_THRESHOLDS[horizon]
     profiles = (
         ("CONTROL", 0.0, 0.0, 0.0),
         ("VALUE_ONLY", 1.0, 0.0, 0.0),

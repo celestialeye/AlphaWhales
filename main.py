@@ -1,32 +1,159 @@
 import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Literal
+
 from fastapi import FastAPI, Request, BackgroundTasks
+from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
+from config import FUND_MANAGERS, ROSTER_PATH
 from data_service import DataService
+from awfi_service import AwfiService
+from predictive_sentiment.publication import (
+    PublicationBusyError,
+    research_snapshot_needs_refresh,
+    run_research_atomically,
+)
 from investor_screening.screener import ScreeningService
+from roster_store import (
+    ALLOWED_ROSTER_GROUPS,
+    RosterStore,
+    normalize_cik,
+)
 
+logger = logging.getLogger(__name__)
 data_service = DataService()
 screening_service = ScreeningService()
+awfi_service = AwfiService()
+roster_store = RosterStore(ROSTER_PATH, FUND_MANAGERS)
+awfi_refresh_state = "idle"
+awfi_refresh_lock = asyncio.Lock()
+
+
+class RosterMutationRequest(BaseModel):
+    action: Literal["include", "exclude"]
+    ciks: list[str]
+    is_exception: bool = False
+    group: str | None = None
+
+def _refresh_awfi_research_if_stale():
+    global awfi_refresh_state
+    try:
+        awfi_refresh_state = "checking"
+        if not research_snapshot_needs_refresh():
+            awfi_refresh_state = "current"
+            return False
+        awfi_refresh_state = "building"
+        logger.info("AWFI history is stale; rebuilding the research snapshot")
+        run_research_atomically()
+        awfi_refresh_state = "published"
+        logger.info("AWFI research snapshot published")
+        return True
+    except PublicationBusyError as exc:
+        awfi_refresh_state = "external_build"
+        logger.info("AWFI research refresh skipped: %s", exc)
+        return False
+    except Exception:
+        awfi_refresh_state = "error"
+        logger.exception("AWFI research refresh failed")
+        return False
+
+
+async def _refresh_awfi_research_if_stale_async():
+    async with awfi_refresh_lock:
+        loop = asyncio.get_running_loop()
+        for _ in range(120):
+            published = await loop.run_in_executor(
+                None,
+                _refresh_awfi_research_if_stale,
+            )
+            if published:
+                await data_service.broadcast_event({
+                    "type": "awfi_published",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+            if awfi_refresh_state != "external_build":
+                return
+            await asyncio.sleep(5)
+        logger.warning(
+            "AWFI publication remained busy beyond the retry window"
+        )
+
+
+async def _refresh_all_data():
+    completed = await data_service.refresh_all()
+    if completed:
+        await _refresh_awfi_research_if_stale_async()
+
+
+async def _refresh_funds_and_awfi(ciks):
+    await data_service.refresh_funds(ciks)
+    await _refresh_awfi_research_if_stale_async()
+
+
+async def _refresh_roster_context_and_awfi():
+    await data_service.refresh_roster_market_context()
+    await _refresh_awfi_research_if_stale_async()
+
+
+def _awfi_snapshot_version():
+    path = getattr(awfi_service, "database_path", None)
+    return (
+        path.stat().st_mtime_ns
+        if path is not None and path.is_file()
+        else None
+    )
+
+
+def _effective_awfi_refresh_state():
+    return awfi_refresh_state
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    task = asyncio.create_task(data_service.auto_refresh_loop())
-    yield
-    # Shutdown
-    task.cancel()
+    task = asyncio.create_task(
+        data_service.auto_refresh_loop(
+            _refresh_awfi_research_if_stale_async
+        )
+    )
+    try:
+        yield
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+def static_asset_version(relative_path: str) -> int:
+    return os.stat(
+        os.path.join(BASE_DIR, "static", relative_path)
+    ).st_mtime_ns
+
+
 app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+templates.env.globals["static_asset_version"] = static_asset_version
+
+
+@app.middleware("http")
+async def disable_html_caching(request: Request, call_next):
+    response = await call_next(request)
+    if response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -54,6 +181,42 @@ async def screening_view(request: Request):
 
 
 # --- API Routes ---
+
+async def _resolve_period_awfi(
+    selected_period: str,
+    periods: list[str],
+    period_cache: dict,
+    tickers: list[dict],
+    changes: list[dict],
+) -> dict:
+    awfi_result = awfi_service.get_period_scores(
+        selected_period,
+        latest_application_period=(
+            periods[0] if selected_period == periods[0] else None
+        ),
+    )
+    if (
+        selected_period == periods[0]
+        and awfi_result["metadata"]["state"] not in {"READY", "LIVE"}
+    ):
+        sentiment_tickers = list(dict.fromkeys(
+            item["ticker"] for item in tickers
+        ))
+        sentiment_summaries = (
+            data_service.get_ticker_sentiment_summaries(
+                sentiment_tickers,
+                changes,
+            )
+        )
+        live_awfi = awfi_service.compute_live_period_scores(
+            selected_period,
+            period_cache=period_cache,
+            ticker_rows=tickers,
+            sentiment_summaries=sentiment_summaries,
+        )
+        if live_awfi["scores"]:
+            awfi_result = live_awfi
+    return awfi_result
 
 @app.get("/api/qoq-changes")
 async def api_qoq_changes(
@@ -115,15 +278,51 @@ async def api_period_view(period: str = None):
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
+    changes = data_service.get_qoq_changes(
+        include_unchanged=True,
+        fund_cache=period_cache,
+    )
+    tickers = data_service.get_ticker_view(fund_cache=period_cache)
+    most_owned = sorted(
+        tickers,
+        key=lambda item: (
+            item["num_holders"],
+            item["total_value_across_funds"],
+        ),
+        reverse=True,
+    )[:10]
+    highest_weight = sorted(
+        (
+            item for item in tickers
+            if item["num_holders"] >= 5
+        ),
+        key=lambda item: (
+            item["median_weight"],
+            item["num_holders"],
+        ),
+        reverse=True,
+    )[:10]
+    awfi_result = await _resolve_period_awfi(
+        selected_period,
+        periods,
+        period_cache,
+        tickers,
+        changes,
+    )
+    awfi_scores = awfi_result["scores"]
+    for item in tickers:
+        item["awfi"] = awfi_scores.get(
+            str(item["ticker"]).strip().upper(),
+            {},
+        )
+
     return {
         "period": selected_period,
         "periods": periods,
         "cache_status": data_service.get_period_cache_status(selected_period),
-        "changes": data_service.get_qoq_changes(
-            include_unchanged=True,
-            fund_cache=period_cache
-        ),
-        "tickers": data_service.get_ticker_view(fund_cache=period_cache),
+        "changes": changes,
+        "tickers": tickers,
+        "awfi_metadata": awfi_result["metadata"],
         "funds": data_service.get_fund_status(fund_cache=period_cache),
         "overview": data_service.get_overview(fund_cache=period_cache),
         "portfolio_stats": {
@@ -137,10 +336,67 @@ async def api_period_view(period: str = None):
 
 @app.get("/api/ticker/{ticker}")
 async def api_ticker_specific(ticker: str):
-    data = data_service.get_ticker_view(ticker)
+    periods = data_service.get_available_periods(count=20)
+    selected_period = periods[0] if periods else None
+    period_cache = (
+        await data_service.get_period_cache(selected_period)
+        if selected_period
+        else data_service.cache
+    )
+    tickers = data_service.get_ticker_view(fund_cache=period_cache)
+    normalized = ticker.strip().upper()
+    data = next(
+        (
+            item for item in tickers
+            if str(item.get("ticker", "")).strip().upper() == normalized
+        ),
+        None,
+    )
     if not data:
         return JSONResponse(status_code=404, content={"error": "Ticker not found or no holdings"})
+    changes = data_service.get_qoq_changes(
+        include_unchanged=True,
+        fund_cache=period_cache,
+    )
+    awfi_result = await _resolve_period_awfi(
+        selected_period,
+        periods,
+        period_cache,
+        tickers,
+        changes,
+    )
+    data["awfi"] = awfi_result["scores"].get(normalized, {})
+    data["awfi_metadata"] = awfi_result["metadata"]
+    awfi_history = awfi_service.get_ticker_history(normalized)
+    current_awfi = data["awfi"]
+    if current_awfi:
+        current_entry = {
+            "period": selected_period,
+            "scores": current_awfi,
+        }
+        awfi_history = [
+            item
+            for item in awfi_history
+            if item["period"] != selected_period
+        ]
+        awfi_history.append(current_entry)
+        awfi_history.sort(key=lambda item: item["period"])
+        awfi_history = awfi_history[-20:]
+    data["awfi_history"] = awfi_history
+    data["awfi_history_version"] = _awfi_snapshot_version()
     return {"data": data}
+
+
+@app.get("/api/ticker/{ticker}/awfi-history")
+async def api_ticker_awfi_history(ticker: str):
+    normalized = ticker.strip().upper()
+    return {
+        "ticker": normalized,
+        "history": awfi_service.get_ticker_history(normalized),
+        "snapshot_version": _awfi_snapshot_version(),
+        "refresh_state": _effective_awfi_refresh_state(),
+    }
+
 
 @app.get("/api/ticker/{ticker}/intelligence")
 async def api_ticker_intelligence(ticker: str):
@@ -299,13 +555,173 @@ async def api_screening(
         )
     )
 
+
+@app.get("/api/roster")
+async def api_roster():
+    roster = roster_store.snapshot()
+    return {
+        "data": roster,
+        "count": len(roster),
+        "exception_count": sum(
+            1 for item in roster
+            if item.get("is_exception")
+        ),
+    }
+
+
+@app.post("/api/roster")
+async def api_update_roster(
+    payload: RosterMutationRequest,
+    background_tasks: BackgroundTasks,
+):
+    if data_service.is_refreshing or data_service.is_market_refreshing:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": "Wait for the current data refresh to finish before changing the roster"
+            },
+        )
+    if not payload.ciks or len(payload.ciks) > 200:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Choose between 1 and 200 managers"},
+        )
+    try:
+        ciks = list(dict.fromkeys(normalize_cik(cik) for cik in payload.ciks))
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    if payload.action == "exclude":
+        result = roster_store.remove_many(ciks)
+        changed_ciks = result["removed"]
+    else:
+        if (
+            payload.group is not None
+            and payload.group not in ALLOWED_ROSTER_GROUPS
+        ):
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Unsupported roster group: {payload.group}"},
+            )
+        current_by_cik = {
+            item["cik"]: item
+            for item in roster_store.snapshot()
+        }
+        unclassified_ciks = [
+            cik for cik in ciks
+            if cik not in current_by_cik and payload.group is None
+        ]
+        if unclassified_ciks:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": (
+                        "Choose an investment style before adding new managers"
+                    )
+                },
+            )
+        new_ciks = [
+            cik
+            for cik in ciks
+            if cik not in current_by_cik
+        ]
+        if not new_ciks:
+            changed_ciks = []
+            roster = roster_store.snapshot()
+            return {
+                "data": roster,
+                "count": len(roster),
+                "exception_count": sum(
+                    1 for item in roster
+                    if item.get("is_exception")
+                ),
+                "changed_ciks": changed_ciks,
+            }
+        loop = asyncio.get_running_loop()
+        summaries = await loop.run_in_executor(
+            None,
+            lambda: screening_service.get_manager_summaries(new_ciks),
+        )
+        missing = [cik for cik in new_ciks if cik not in summaries]
+        if missing:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": (
+                        "Managers are not present in the screening snapshot: "
+                        + ", ".join(missing)
+                    )
+                },
+            )
+
+        entries = []
+        for cik in new_ciks:
+            summary = summaries[cik]
+            performance_available = (
+                summary.get("performance_status") == "AVAILABLE"
+            )
+            if performance_available:
+                annotation = (
+                    f"Full 13F est. {summary['estimated_cagr']:.2%}; "
+                    f"{summary['spy_excess_cagr']:+.2%} SPY; "
+                    f"{summary['qqq_excess_cagr']:+.2%} QQQ"
+                )
+            else:
+                annotation = "Added from Investor Screening"
+            entries.append({
+                "group": payload.group,
+                "cik": cik,
+                "name": summary["manager_name"],
+                "manager": summary["manager_name"],
+                "annotation": annotation,
+                "is_exception": payload.is_exception,
+                "roster_reason": (
+                    "Manually flagged screening exception"
+                    if payload.is_exception
+                    else "Included from Investor Screening"
+                ),
+            })
+        result = roster_store.upsert_many(entries)
+        changed_ciks = [*result["added"], *result["updated"]]
+
+    sync_result = data_service.sync_roster()
+    await data_service.broadcast_event({
+        "type": "roster_updated",
+        "count": len(FUND_MANAGERS),
+        "ciks": changed_ciks,
+    })
+    if sync_result["added"]:
+        background_tasks.add_task(
+            _refresh_funds_and_awfi,
+            sync_result["added"],
+        )
+    elif sync_result["removed"]:
+        background_tasks.add_task(
+            _refresh_roster_context_and_awfi,
+        )
+    elif changed_ciks:
+        background_tasks.add_task(
+            _refresh_awfi_research_if_stale_async,
+        )
+    roster = roster_store.snapshot()
+    return {
+        "data": roster,
+        "count": len(roster),
+        "exception_count": sum(
+            1 for item in roster
+            if item.get("is_exception")
+        ),
+        "changed_ciks": changed_ciks,
+    }
+
+
 @app.get("/api/fund-status")
 async def api_fund_status():
     return {"data": data_service.get_fund_status(), "overview": data_service.get_overview()}
 
 @app.get("/api/refresh")
 async def api_refresh(background_tasks: BackgroundTasks):
-    background_tasks.add_task(data_service.refresh_all)
+    background_tasks.add_task(_refresh_all_data)
     return {"message": "Refresh triggered in background"}
 
 @app.get("/events")

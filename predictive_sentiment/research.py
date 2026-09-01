@@ -62,7 +62,7 @@ def is_direct_common_stock(
     description = f"{issuer_text} {title_text}"
     return (
         not str(put_call or "").strip()
-        and str(shares_type or "").strip().upper() == "SH"
+        and str(shares_type or "").strip().upper() in {"SH", "SHARES"}
         and not FUND_LIKE_PATTERN.search(description)
         and not NON_COMMON_INSTRUMENT_PATTERN.search(title_text)
         and bool(COMMON_STOCK_PATTERN.search(title_text))

@@ -10,6 +10,22 @@ let currentSortAsc = false;
 let currentPage = 1;
 let pageSize = 50;
 let selectedFilingPeriod = null;
+let currentOverviewTab = 'overview';
+let selectedAwfiHorizon = 252;
+let currentTickerTab = 'decision';
+let tickerAwfiScores = {};
+let tickerAwfiMetadata = {};
+let tickerAwfiHistory = [];
+let tickerAwfiIntelligence = null;
+let tickerAwfiHistoryRefreshTimer = null;
+let tickerAwfiHistoryRefreshAttempts = 0;
+let tickerAwfiHistorySnapshotVersion = null;
+const tickerAwfiHorizons = Object.freeze([
+    {key: '126', label: '6M', duration: '6 months', color: '#22d3ee'},
+    {key: '252', label: '12M', duration: '12 months', color: '#34d399'},
+    {key: '378', label: '18M', duration: '18 months', color: '#f59e0b'},
+    {key: '504', label: '24M', duration: '24 months', color: '#a78bfa'}
+]);
 
 let globalAllTickers = [];
 let filteredAllTickers = [];
@@ -34,17 +50,45 @@ let screeningPage = 1;
 const screeningPageSize = 50;
 let screeningLoadTimer = null;
 let screeningAbortController = null;
+const screeningSelectedCiks = new Set();
+let screeningRosterBusy = false;
+const signalChartColors = Object.freeze({
+    new: '#60a5fa',
+    increased: '#34d399',
+    decreased: '#fb7185',
+    closed: '#ef4444',
+    neutral: '#64748b'
+});
+
+const tickerTabDescriptions = Object.freeze({
+    decision: 'AWFI, valuation, timing, and educational sizing.',
+    market: 'Market metrics, direct-impact news, and the interactive price chart.',
+    'whale-activity': 'Manager-relative Alpha Sentiment, conviction history, and contributors.',
+    ownership: 'Twenty-quarter ownership history, manager distributions, and current holders.',
+    pairs: 'Hypothesis-tier relative-value and pair research.'
+});
 
 // Global SSE Setup
 const evtSource = new EventSource('/events');
 evtSource.onmessage = function(e) {
     try {
         const data = JSON.parse(e.data);
-        if (data.type === 'data_refresh' || data.type === 'fund_updated') {
+        if (data.type === 'roster_updated') {
+            showToast(`Roster updated: ${data.count} configured managers`);
+            if (window.location.pathname === '/screening') {
+                loadInvestorScreening();
+            } else if (window.location.pathname.startsWith('/investor')) {
+                loadInvestorsList();
+            }
+            return;
+        }
+        if (data.type === 'fund_updated') {
             updateTimestamp(data.timestamp || new Date().toISOString());
-            showToast(`SEC Data Refreshed: ${data.type === 'fund_updated' ? `CIK ${data.cik} updated` : 'All 26 funds updated'}`);
-
-            // Re-fetch current page data
+            return;
+        }
+        if (data.type === 'data_refresh') {
+            updateTimestamp(data.timestamp || new Date().toISOString());
+            showToast('SEC Data Refreshed: All configured funds updated');
             if (window.location.pathname === '/') {
                 loadOverviewData(selectedFilingPeriod);
             } else if (window.location.pathname.startsWith('/ticker')) {
@@ -55,6 +99,14 @@ evtSource.onmessage = function(e) {
                 const parts = window.location.pathname.split('/');
                 if (parts.length > 2 && parts[2]) loadInvestorDetail(parts[2]);
                 else loadInvestorsList();
+            }
+        } else if (data.type === 'awfi_published') {
+            showToast('AWFI history updated');
+            if (window.location.pathname.startsWith('/ticker/')) {
+                const ticker = window.location.pathname.split('/')[2];
+                if (ticker) loadTickerDetail(ticker);
+            } else if (window.location.pathname === '/') {
+                loadOverviewData(selectedFilingPeriod);
             }
         }
     } catch(err) {
@@ -71,7 +123,7 @@ function triggerRefresh() {
     if (text) text.textContent = ' Refreshing...';
     if (btn) btn.disabled = true;
 
-    showToast('Triggered SEC 13F background refresh across 26 funds...');
+    showToast('Triggered SEC 13F background refresh across configured funds...');
 
     fetch('/api/refresh')
         .then(r => r.json())
@@ -132,11 +184,13 @@ function formatPct(num) {
 }
 function getGroupClass(g) {
     if (!g) return 'badge-neutral';
-    if (g.includes('Value')) return 'badge-group-value';
-    if (g.includes('High-performance')) return 'badge-group-high-perf';
-    if (g.includes('Quality')) return 'badge-group-quality';
-    if (g.includes('2026')) return 'badge-group-2026';
-    return 'badge-neutral';
+    return {
+        'Value & Contrarian': 'badge-group-value',
+        'Quality Growth': 'badge-group-quality',
+        'Technology & Innovation': 'badge-group-technology',
+        'Opportunistic & Concentrated': 'badge-group-opportunistic',
+        'Diversified & Systematic': 'badge-group-diversified'
+    }[g] || 'badge-neutral';
 }
 function getStatusClass(s) {
     if (!s) return 'badge-status-unchanged';
@@ -158,6 +212,79 @@ function formatFilingPeriodLabel(period) {
     return `Q${quarter} ${date.getUTCFullYear()} · ${period}`;
 }
 
+const overviewTabDescriptions = Object.freeze({
+    overview: 'Consensus ownership, conviction, market context, and the quarter’s broadest signals.',
+    sentiment: 'AWFI ranks forward-looking opportunity and avoidance signals for the selected investment horizon.',
+    positioning: 'Largest reported accumulation and reduction signals, separated by dollars, weight, and shares.',
+    managers: 'Scan each manager’s largest portfolio-weight additions and reductions without leaving the period view.',
+    changes: 'Filter, sort, paginate, and export every comparable quarter-over-quarter position change.'
+});
+
+function switchOverviewTab(tabName, updateHash = true) {
+    if (!Object.hasOwn(overviewTabDescriptions, tabName)) tabName = 'overview';
+    currentOverviewTab = tabName;
+
+    document.querySelectorAll('[data-overview-tab]').forEach(tab => {
+        const isActive = tab.dataset.overviewTab === tabName;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tab.tabIndex = isActive ? 0 : -1;
+    });
+    document.querySelectorAll('[data-overview-panel]').forEach(panel => {
+        panel.hidden = panel.dataset.overviewPanel !== tabName;
+    });
+
+    const description = document.getElementById('overview-tab-description');
+    if (description) description.textContent = overviewTabDescriptions[tabName];
+
+    if (updateHash) {
+        window.history.replaceState(null, '', `#${tabName}`);
+    }
+    if (tabName === 'overview' && window.Plotly) {
+        window.requestAnimationFrame(() => {
+            ['summary-chart', 'top-moves-chart'].forEach(id => {
+                const chart = document.getElementById(id);
+                if (chart?.data) Plotly.Plots.resize(chart);
+            });
+        });
+    }
+}
+
+function initializeOverviewTabs() {
+    const tabs = [...document.querySelectorAll('[data-overview-tab]')];
+    if (!tabs.length) return;
+
+    const requestedTab = window.location.hash.slice(1);
+    switchOverviewTab(
+        Object.hasOwn(overviewTabDescriptions, requestedTab)
+            ? requestedTab
+            : 'overview',
+        false
+    );
+    document.querySelector('.overview-tabs')?.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const currentIndex = tabs.findIndex(tab => tab.dataset.overviewTab === currentOverviewTab);
+        const nextIndex = event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+                ? tabs.length - 1
+                : event.key === 'ArrowRight'
+                    ? (currentIndex + 1) % tabs.length
+                    : (currentIndex - 1 + tabs.length) % tabs.length;
+        const nextTab = tabs[nextIndex];
+        switchOverviewTab(nextTab.dataset.overviewTab);
+        nextTab.focus();
+    });
+}
+
+function changeAwfiHorizon(value) {
+    const parsed = Number(value);
+    if (![126, 252, 378, 504].includes(parsed)) return;
+    selectedAwfiHorizon = parsed;
+    loadOverviewData(selectedFilingPeriod);
+}
+
 function formatCalendarDate(value) {
     if (!value) return 'Unavailable';
     return new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, {
@@ -166,6 +293,37 @@ function formatCalendarDate(value) {
         year: 'numeric',
         timeZone: 'UTC'
     });
+}
+
+function formatNewsTimestamp(value) {
+    if (!value) return 'Publication time unavailable';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Publication time unavailable';
+    return parsed.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function safeExternalNewsUrl(value) {
+    try {
+        const parsed = new URL(String(value || ''));
+        return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : null;
+    } catch {
+        return null;
+    }
 }
 
 function addCalendarDays(value, days) {
@@ -223,7 +381,7 @@ function updatePeriodLoader(period, status = {}) {
     const message = document.getElementById('period-loader-message');
     const count = document.getElementById('period-loader-count');
     const source = document.getElementById('period-loader-source');
-    const total = status.total_funds || 26;
+    const total = status.total_funds || 0;
     const completed = status.completed_funds || 0;
     const percent = total > 0 ? Math.max(4, Math.round((completed / total) * 100)) : 4;
 
@@ -259,7 +417,7 @@ async function showPeriodLoader(period) {
     if (!loader) return;
     loader.hidden = false;
     document.body.classList.add('period-loading');
-    updatePeriodLoader(period, {state: 'uncached', completed_funds: 0, total_funds: 26});
+    updatePeriodLoader(period, {state: 'uncached', completed_funds: 0, total_funds: 0});
 
     try {
         const response = await fetch(`/api/period-cache-status?period=${encodeURIComponent(period)}`);
@@ -305,6 +463,8 @@ async function loadOverviewData(period = selectedFilingPeriod) {
         const result = await response.json();
         selectedFilingPeriod = result.period;
         if (select) select.value = result.period;
+        const awfiSelect = document.getElementById('awfi-horizon-select');
+        if (awfiSelect) awfiSelect.value = String(selectedAwfiHorizon);
 
         const allQoQData = result.changes || [];
         globalQoQData = allQoQData.filter(change => change.status !== 'UNCHANGED');
@@ -313,7 +473,12 @@ async function loadOverviewData(period = selectedFilingPeriod) {
         renderOverviewCharts(allQoQData);
         renderManagerActivityMatrix(globalQoQData, result.funds || []);
         renderSignalKpis(result.tickers || [], globalQoQData, result.portfolio_stats || {});
-        renderPortfolioStats(result.tickers || [], globalQoQData, result.portfolio_stats || {});
+        renderPortfolioStats(
+            result.tickers || [],
+            globalQoQData,
+            result.portfolio_stats || {},
+            result.awfi_metadata || {}
+        );
         if (status) {
             const loaded = result.overview?.loaded_funds ?? 0;
             const total = result.overview?.total_funds ?? 0;
@@ -578,7 +743,52 @@ function formatQoqDelta(value, suffix, singularLabel = null) {
     return `<small class="stats-qoq ${directionClass}">${arrow} ${formattedValue}${label} QoQ</small>`;
 }
 
-function renderOwnershipActivityTable(items, reportPeriod) {
+function getSelectedAwfi(item) {
+    return item?.awfi?.[String(selectedAwfiHorizon)] || null;
+}
+
+function formatAwfiHorizonLabel(horizon) {
+    return `${Math.round(Number(horizon) / 21)}M`;
+}
+
+function renderStatsAwfi(awfi, metadata = {}, compact = false) {
+    if (metadata.state === 'STALE') {
+        return '<span class="stats-awfi stale">— <small>Stale research</small></span>';
+    }
+    if (!awfi || awfi.score === null || awfi.score === undefined) {
+        return '<span class="stats-awfi unavailable">— <small>No AWFI score</small></span>';
+    }
+    const signal = String(awfi.signal || 'HOLD').toUpperCase();
+    const directionClass = signal === 'BUY'
+        ? 'buy'
+        : signal === 'SELL'
+            ? 'sell'
+            : 'hold';
+    const scoreValue = Number(awfi.score);
+    const score = `${scoreValue > 0 ? '+' : ''}${scoreValue.toFixed(0)}`;
+    const horizon = formatAwfiHorizonLabel(
+        awfi.horizon_sessions || selectedAwfiHorizon
+    );
+    const signalLabel = signal === 'SELL'
+        ? 'SELL / AVOID'
+        : signal;
+    const tooltip = [
+        `AWFI Research v2 ${horizon}`,
+        `Signal: ${signalLabel}`,
+        `Market data through ${awfi.feature_date || awfi.as_of_date || 'unavailable'}`,
+        `Thresholds +${awfi.positive_threshold} / -${awfi.negative_threshold}`,
+        'Research model; not investment advice'
+    ].join('; ');
+    return `
+        <span class="stats-awfi ${directionClass}"
+              title="${escapeScreeningHtml(tooltip)}">
+            <b>${score}</b>
+            <small>${compact ? signalLabel : `${signalLabel} · ${horizon}`}</small>
+        </span>
+    `;
+}
+
+function renderOwnershipActivityTable(items, reportPeriod, awfiMetadata) {
     const body = document.getElementById('stats-most-owned');
     if (!body) return;
 
@@ -643,6 +853,9 @@ function renderOwnershipActivityTable(items, reportPeriod) {
                     </div>
                 </td>
                 <td>
+                    ${renderStatsAwfi(getSelectedAwfi(item), awfiMetadata)}
+                </td>
+                <td>
                     <div class="stats-table-stack stats-market-cell">
                         ${marketContext}
                     </div>
@@ -656,13 +869,35 @@ function renderOwnershipActivityTable(items, reportPeriod) {
 // sample, not a single manager's concentrated bet.
 const MIN_CONVICTION_HOLDERS = 5;
 
-function renderPortfolioStats(tickers, changes, portfolioStats) {
+function renderPortfolioStats(tickers, changes, portfolioStats, awfiMetadata = {}) {
     const period = changes.find(change => change.report_period)?.report_period;
+    const awfiHeader = document.getElementById('stats-awfi-horizon');
+    if (awfiHeader) {
+        awfiHeader.textContent = `AWFI ${formatAwfiHorizonLabel(selectedAwfiHorizon)}`;
+    }
+    const awfiStatusTitle = document.getElementById('awfi-status-title');
+    const awfiStatusMessage = document.getElementById('awfi-status-message');
+    if (awfiStatusTitle && awfiStatusMessage) {
+        const requested = awfiMetadata.requested_period || period || 'selected period';
+        const latest = awfiMetadata.latest_period;
+        if (awfiMetadata.state === 'READY' || awfiMetadata.state === 'LIVE') {
+            awfiStatusTitle.textContent = `AWFI Research v2 · ${formatFilingPeriodLabel(requested)}`;
+            awfiStatusMessage.textContent = awfiMetadata.state === 'LIVE'
+                ? `Filing inputs are fixed to ${formatFilingPeriodLabel(requested)} and technical inputs are refreshed through ${formatCalendarDate(awfiMetadata.market_data_date)}. All horizons use a consistent ±75 research threshold.`
+                : `Exact-period ${formatAwfiHorizonLabel(selectedAwfiHorizon)} research scores from run ${awfiMetadata.run_id || 'unavailable'}.`;
+        } else if (awfiMetadata.state === 'STALE') {
+            awfiStatusTitle.textContent = 'AWFI research snapshot is stale';
+            awfiStatusMessage.textContent = `Holdings are ${requested}, while the latest completed AWFI snapshot is ${latest || 'unavailable'}. Scores will remain unavailable until the offline research snapshot is rebuilt.`;
+        } else {
+            awfiStatusTitle.textContent = 'AWFI unavailable for this period';
+            awfiStatusMessage.textContent = awfiMetadata.reason || 'No exact-period AWFI Research v2 scores are available.';
+        }
+    }
 
     const mostOwned = [...tickers]
         .sort((a, b) => b.num_holders - a.num_holders || b.total_value_across_funds - a.total_value_across_funds)
         .slice(0, 10);
-    renderOwnershipActivityTable(mostOwned, period);
+    renderOwnershipActivityTable(mostOwned, period, awfiMetadata);
 
     const highestWeight = tickers
         .filter(t => t.num_holders >= MIN_CONVICTION_HOLDERS)
@@ -674,8 +909,53 @@ function renderPortfolioStats(tickers, changes, portfolioStats) {
         item => `
             <span>${formatPct(item.median_weight)} median</span>
             ${formatQoqDelta(item.median_weight_change, 'pp')}
+            ${renderStatsAwfi(getSelectedAwfi(item), awfiMetadata, true)}
         `,
         item => `across ${item.num_holders} funds`
+    );
+
+    const awfiRankings = tickers
+        .map(item => {
+            const awfi = getSelectedAwfi(item);
+            return {
+                ...item,
+                awfi,
+                awfiValue: Number(awfi?.score)
+            };
+        })
+        .filter(item => Number.isFinite(item.awfiValue));
+    const positiveAwfi = awfiRankings
+        .filter(item => item.awfiValue > 0)
+        .sort((a, b) => (
+            b.awfiValue - a.awfiValue
+            || b.num_holders - a.num_holders
+        ))
+        .slice(0, 10);
+    const negativeAwfi = awfiRankings
+        .filter(item => item.awfiValue < 0)
+        .sort((a, b) => (
+            a.awfiValue - b.awfiValue
+            || b.num_holders - a.num_holders
+        ))
+        .slice(0, 10);
+    const awfiDetail = item => {
+        const awfi = item.awfi;
+        const horizon = formatAwfiHorizonLabel(
+            awfi?.horizon_sessions || selectedAwfiHorizon
+        );
+        return `${horizon} · ${awfi?.signal === 'SELL' ? 'SELL / AVOID' : awfi?.signal || 'HOLD'} · Research v2`;
+    };
+    renderStatsList(
+        'stats-positive-sentiment',
+        positiveAwfi,
+        item => renderStatsAwfi(item.awfi, awfiMetadata, true),
+        awfiDetail
+    );
+    renderStatsList(
+        'stats-negative-sentiment',
+        negativeAwfi,
+        item => renderStatsAwfi(item.awfi, awfiMetadata, true),
+        awfiDetail
     );
 
     const biggestBets = tickers
@@ -828,7 +1108,7 @@ function renderPortfolioStats(tickers, changes, portfolioStats) {
                     </td>
                     <td class="font-mono">$${formatNum(item.current_price)}</td>
                     <td class="font-mono">$${formatNum(item.low_52_week)}</td>
-                    <td class="font-mono ${item.pct_above_low <= 10 ? 'text-green' : 'text-yellow'}"><strong>${formatPct(item.pct_above_low)}</strong></td>
+                    <td class="font-mono text-green"><strong>${formatPct(item.pct_above_low)}</strong></td>
                     <td class="font-mono">${formatPct(item.max_portfolio_weight)}</td>
                     <td class="font-mono">${item.ownership_count}</td>
                 </tr>
@@ -1016,7 +1296,7 @@ function renderQoQTablePage() {
 function renderOverviewCharts(data) {
     if (!data || data.length === 0) return;
 
-    // Chart 1: Group move distribution
+    // Chart 1: Investment-style move distribution
     const groupMoves = {};
     data.forEach(r => {
         if (!groupMoves[r.group]) groupMoves[r.group] = { 'NEW': 0, 'INCREASED': 0, 'DECREASED': 0, 'CLOSED': 0, 'UNCHANGED': 0 };
@@ -1025,11 +1305,11 @@ function renderOverviewCharts(data) {
 
     const groups = Object.keys(groupMoves);
     const plotData1 = [
-        { name: 'NEW', x: groups, y: groups.map(g => groupMoves[g]['NEW']), type: 'bar', marker: { color: '#22c55e' } },
-        { name: 'INCREASED', x: groups, y: groups.map(g => groupMoves[g]['INCREASED']), type: 'bar', marker: { color: '#06b6d4' } },
-        { name: 'DECREASED', x: groups, y: groups.map(g => groupMoves[g]['DECREASED']), type: 'bar', marker: { color: '#f97316' } },
-        { name: 'CLOSED', x: groups, y: groups.map(g => groupMoves[g]['CLOSED']), type: 'bar', marker: { color: '#ef4444' } },
-        { name: 'UNCHANGED', x: groups, y: groups.map(g => groupMoves[g]['UNCHANGED']), type: 'bar', marker: { color: '#64748b' } },
+        { name: 'NEW', x: groups, y: groups.map(g => groupMoves[g]['NEW']), type: 'bar', marker: { color: signalChartColors.new } },
+        { name: 'INCREASED', x: groups, y: groups.map(g => groupMoves[g]['INCREASED']), type: 'bar', marker: { color: signalChartColors.increased } },
+        { name: 'DECREASED', x: groups, y: groups.map(g => groupMoves[g]['DECREASED']), type: 'bar', marker: { color: signalChartColors.decreased } },
+        { name: 'CLOSED', x: groups, y: groups.map(g => groupMoves[g]['CLOSED']), type: 'bar', marker: { color: signalChartColors.closed } },
+        { name: 'UNCHANGED', x: groups, y: groups.map(g => groupMoves[g]['UNCHANGED']), type: 'bar', marker: { color: signalChartColors.neutral } },
     ];
 
     const layout1 = {
@@ -1054,7 +1334,11 @@ function renderOverviewCharts(data) {
         type: 'bar',
         orientation: 'h',
         marker: {
-            color: top10.map(d => d.value_change >= 0 ? '#06b6d4' : '#f97316')
+            color: top10.map(d => (
+                d.value_change >= 0
+                    ? signalChartColors.new
+                    : signalChartColors.closed
+            ))
         }
     }];
     const layout2 = {
@@ -1075,7 +1359,7 @@ function exportQoQToCSV() {
         showToast('No data to export.');
         return;
     }
-    const headers = ["Fund", "Manager", "Group", "Ticker", "Issuer", "Action", "WeightPct", "Value_M", "PrevValue_M", "Change_M", "ChangePct", "SharesChangePct", "Period"];
+    const headers = ["Fund", "Manager", "InvestmentStyle", "Ticker", "Issuer", "Action", "WeightPct", "Value_M", "PrevValue_M", "Change_M", "ChangePct", "SharesChangePct", "Period"];
     const rows = filteredQoQData.map(r => [
         `"${r.fund_name}"`,
         `"${r.manager}"`,
@@ -1118,10 +1402,54 @@ async function loadAllTickers() {
         const r = await fetch('/api/ticker-view');
         const res = await r.json();
         globalAllTickers = res.data || [];
+        renderConsensusTickerChips(globalAllTickers);
         filterAllTickersTable();
         renderPopularityCharts(globalAllTickers);
     } catch(err) {
         console.error('Error loading all tickers:', err);
+    }
+}
+
+function renderConsensusTickerChips(tickers) {
+    const container = document.getElementById('consensus-ticker-chips');
+    if (!container) return;
+    const consensus = [...(tickers || [])]
+        .filter(item => /^[A-Z0-9.-]+$/.test(String(item.ticker || '')))
+        .sort(
+            (a, b) => (
+                (Number(b.num_holders) || 0) - (Number(a.num_holders) || 0)
+                || (Number(b.total_value_across_funds) || 0)
+                    - (Number(a.total_value_across_funds) || 0)
+            )
+        )
+        .slice(0, 20);
+    container.innerHTML = consensus.length
+        ? consensus.map(item => `
+            <button class="chip-btn"
+                    title="${formatInt(item.num_holders)} current roster holders"
+                    onclick="selectTickerChip('${escapeScreeningHtml(item.ticker)}')">
+                ${escapeScreeningHtml(item.ticker)}
+            </button>
+        `).join('')
+        : '<span class="text-dim">No current consensus holdings</span>';
+}
+
+async function loadConsensusTickerChips() {
+    if (globalAllTickers.length) {
+        renderConsensusTickerChips(globalAllTickers);
+        return;
+    }
+    try {
+        const response = await fetch('/api/ticker-view');
+        if (!response.ok) {
+            throw new Error(`Ticker request failed with HTTP ${response.status}`);
+        }
+        const result = await response.json();
+        globalAllTickers = result.data || [];
+        renderConsensusTickerChips(globalAllTickers);
+    } catch (error) {
+        console.error('Could not load consensus ticker chips:', error);
+        renderConsensusTickerChips([]);
     }
 }
 
@@ -1175,7 +1503,7 @@ function sortAndRenderAllTickers() {
             <tr onclick="window.location='/ticker/${t.ticker}'" style="cursor: pointer;">
                 <td><a href="/ticker/${t.ticker}"><strong class="font-mono">${t.ticker}</strong></a></td>
                 <td>${t.issuer}</td>
-                <td><span class="badge ${t.num_holders >= 4 ? 'badge-group-high-perf' : 'badge-neutral'} font-mono">${t.num_holders} funds</span></td>
+                <td><span class="badge ${t.num_holders >= 4 ? 'badge-consensus' : 'badge-neutral'} font-mono">${t.num_holders} funds</span></td>
                 <td class="font-mono"><strong>$${formatNum(t.total_value_across_funds)}</strong></td>
                 <td class="font-mono">${formatPct(t.median_weight)}</td>
                 <td class="text-muted" style="font-size:0.8rem">${t.holders_summary || '--'}</td>
@@ -1183,6 +1511,42 @@ function sortAndRenderAllTickers() {
         `;
     });
     tbody.innerHTML = html || `<tr><td colspan="6" class="text-center py-4 text-muted">No matching securities found.</td></tr>`;
+}
+
+function navigateToTickerDetail(ticker) {
+    const normalizedTicker = String(ticker || '').trim().toUpperCase();
+    if (!normalizedTicker) return;
+    window.location.assign(`/ticker/${encodeURIComponent(normalizedTicker)}`);
+}
+
+function makeTickerAxisLabelsInteractive(chart) {
+    chart.querySelectorAll('.ytick').forEach(tick => {
+        const ticker = tick.textContent.trim();
+        if (!ticker) return;
+
+        tick.setAttribute('role', 'link');
+        tick.setAttribute('tabindex', '0');
+        tick.setAttribute('aria-label', `View ${ticker} ticker details`);
+        tick.onclick = () => navigateToTickerDetail(ticker);
+        tick.onkeydown = event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                navigateToTickerDetail(ticker);
+            }
+        };
+    });
+}
+
+function bindTickerRankingChart(chart) {
+    if (typeof chart.removeAllListeners === 'function') {
+        chart.removeAllListeners('plotly_click');
+        chart.removeAllListeners('plotly_afterplot');
+    }
+    chart.on('plotly_click', event => {
+        navigateToTickerDetail(event.points?.[0]?.customdata);
+    });
+    chart.on('plotly_afterplot', () => makeTickerAxisLabelsInteractive(chart));
+    makeTickerAxisLabelsInteractive(chart);
 }
 
 function renderPopularityCharts(tickers) {
@@ -1199,13 +1563,14 @@ function renderPopularityCharts(tickers) {
     const holderData = [{
         x: topByHolders.map(t => t.num_holders),
         y: topByHolders.map(t => t.ticker),
+        customdata: topByHolders.map(t => t.ticker),
         text: topByHolders.map(t => `${t.num_holders} funds`),
         textposition: 'outside',
         cliponaxis: false,
         type: 'bar',
         orientation: 'h',
         marker: { color: '#ec4899' },
-        hovertemplate: '<b>%{y}</b><br>%{x} investors<extra></extra>'
+        hovertemplate: '<b>%{y}</b><br>%{x} investors<br><b>Click to view details</b><extra></extra>'
     }];
 
     const holderLayout = {
@@ -1223,19 +1588,25 @@ function renderPopularityCharts(tickers) {
         yaxis: { gridcolor: 'rgba(0,0,0,0)' }
     };
     if (document.getElementById('popularity-chart')) {
-        Plotly.newPlot('popularity-chart', holderData, holderLayout, {displayModeBar: false, responsive: true});
+        Plotly.newPlot(
+            'popularity-chart',
+            holderData,
+            holderLayout,
+            {displayModeBar: false, responsive: true}
+        ).then(bindTickerRankingChart);
     }
 
     const valueData = [{
         x: topByValue.map(t => t.total_value_across_funds),
         y: topByValue.map(t => t.ticker),
+        customdata: topByValue.map(t => t.ticker),
         text: topByValue.map(t => `$${formatNum(t.total_value_across_funds)}M`),
         textposition: 'outside',
         cliponaxis: false,
         type: 'bar',
         orientation: 'h',
         marker: { color: '#06b6d4' },
-        hovertemplate: '<b>%{y}</b><br>$%{x:,.2f}M tracked<extra></extra>'
+        hovertemplate: '<b>%{y}</b><br>$%{x:,.2f}M tracked<br><b>Click to view details</b><extra></extra>'
     }];
 
     const valueLayout = {
@@ -1253,7 +1624,12 @@ function renderPopularityCharts(tickers) {
         yaxis: { gridcolor: 'rgba(0,0,0,0)' }
     };
     if (document.getElementById('value-chart')) {
-        Plotly.newPlot('value-chart', valueData, valueLayout, {displayModeBar: false, responsive: true});
+        Plotly.newPlot(
+            'value-chart',
+            valueData,
+            valueLayout,
+            {displayModeBar: false, responsive: true}
+        ).then(bindTickerRankingChart);
     }
 }
 
@@ -1360,7 +1736,22 @@ function renderTradingViewChart(symbol) {
 }
 
 function renderTickerHistoryCharts(history) {
-    if (!history?.length) return;
+    const chartIds = [
+        'ticker-investor-history-chart',
+        'ticker-value-history-chart'
+    ];
+    if (!history?.length) {
+        chartIds.forEach(id => {
+            const chart = document.getElementById(id);
+            if (chart) {
+                chart.innerHTML = '<div class="stats-loading">Ownership history is unavailable for this ticker.</div>';
+            }
+        });
+        return;
+    }
+    chartIds.forEach(id => {
+        document.querySelector(`#${id} > .stats-loading`)?.remove();
+    });
 
     const periods = history.map(item => item.period);
     const commonLayout = {
@@ -1486,6 +1877,10 @@ function showWhaleSentimentUnavailable(message) {
     resetWhaleSentimentView(message);
     const regime = document.getElementById('td-whale-sentiment-regime');
     if (regime) regime.textContent = 'UNAVAILABLE';
+    ['ticker-sentiment-history-chart', 'ticker-conviction-heatmap'].forEach(id => {
+        const chart = document.getElementById(id);
+        if (chart) chart.innerHTML = `<div class="stats-loading">${message}</div>`;
+    });
 }
 
 function renderWhaleSentiment(intelligence) {
@@ -1610,7 +2005,8 @@ function renderWhaleSentiment(intelligence) {
         );
     }
     if (
-        latestMarketDate
+        priceDates.length
+        && latestMarketDate
         && latestMarketPrice !== null
         && latestMarketPrice !== undefined
         && (!priceDates.length || latestMarketDate > priceDates.at(-1))
@@ -1646,6 +2042,7 @@ function renderWhaleSentiment(intelligence) {
         ];
     });
 
+    document.querySelector('#ticker-sentiment-history-chart > .stats-loading')?.remove();
     Plotly.react('ticker-sentiment-history-chart', [
         {
             x: periods,
@@ -1820,9 +2217,15 @@ function renderWhaleSentiment(intelligence) {
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         font: {color: '#cbd5e1', family: 'Inter, sans-serif'},
-        margin: {t: 20, b: 62, l: 58, r: 70},
+        margin: {t: 20, b: 126, l: 58, r: 70},
         hovermode: 'x unified',
-        legend: {orientation: 'h', y: -0.18},
+        legend: {
+            orientation: 'h',
+            x: 0,
+            xanchor: 'left',
+            y: -0.24,
+            yanchor: 'top'
+        },
         xaxis: {gridcolor: '#1e293b', tickangle: -35},
         yaxis: {
             title: 'Sentiment (-100 to +100)',
@@ -1922,6 +2325,7 @@ function renderWhaleSentiment(intelligence) {
     const heatmap = document.getElementById('ticker-conviction-heatmap');
     heatmap.style.height = `${Math.max(480, managerNames.length * 25 + 100)}px`;
 
+    heatmap.querySelector(':scope > .stats-loading')?.remove();
     Plotly.react('ticker-conviction-heatmap', [{
         x: periods,
         y: managerNames,
@@ -1960,7 +2364,510 @@ function renderWhaleSentiment(intelligence) {
     renderWhaleContributors('ticker-bearish-contributors', sentimentData.bearish_contributors);
 }
 
+function organizeTickerPanels() {
+    const assignments = {
+        decision: ['ticker-decision-heading', 'ticker-decision-grid'],
+        market: ['ticker-market-summary', 'ticker-news-card', 'ticker-market-chart-card'],
+        'whale-activity': ['ticker-alpha-sentiment-card', 'ticker-conviction-card'],
+        ownership: ['ticker-ownership-heading', 'ticker-history-grid', 'ticker-ownership-charts', 'ticker-holders-card'],
+        pairs: ['ticker-pair-card']
+    };
+    Object.entries(assignments).forEach(([panelName, ids]) => {
+        const panel = document.querySelector(`[data-ticker-panel="${panelName}"]`);
+        if (!panel) return;
+        ids.forEach(id => {
+            const element = document.getElementById(id);
+            if (element && element.parentElement !== panel) panel.appendChild(element);
+        });
+    });
+}
+
+function resizeTickerPanelCharts(panelName) {
+    const chartIds = {
+        decision: ['ticker-awfi-history-chart'],
+        market: [],
+        'whale-activity': ['ticker-sentiment-history-chart', 'ticker-conviction-heatmap'],
+        ownership: ['ticker-investor-history-chart', 'ticker-value-history-chart', 'ticker-holder-concentration-chart', 'ticker-bar-chart'],
+        pairs: []
+    }[panelName] || [];
+    window.requestAnimationFrame(() => {
+        chartIds.forEach(id => {
+            const chart = document.getElementById(id);
+            if (chart?.data && window.Plotly) Plotly.Plots.resize(chart);
+        });
+        if (panelName === 'market') window.dispatchEvent(new Event('resize'));
+    });
+}
+
+function switchTickerTab(tabName, updateHash = true) {
+    if (!Object.hasOwn(tickerTabDescriptions, tabName)) tabName = 'decision';
+    currentTickerTab = tabName;
+    document.querySelectorAll('[data-ticker-tab]').forEach(tab => {
+        const selected = tab.dataset.tickerTab === tabName;
+        tab.classList.toggle('is-active', selected);
+        tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        tab.tabIndex = selected ? 0 : -1;
+        if (selected && updateHash) {
+            tab.scrollIntoView({block: 'nearest', inline: 'nearest'});
+        }
+    });
+    document.querySelectorAll('[data-ticker-panel]').forEach(panel => {
+        panel.hidden = panel.dataset.tickerPanel !== tabName;
+    });
+    const description = document.getElementById('ticker-tab-description');
+    if (description) description.textContent = tickerTabDescriptions[tabName];
+    if (updateHash) {
+        window.history.replaceState(
+            null,
+            '',
+            `${window.location.pathname}#ticker-${tabName}`
+        );
+    }
+    resizeTickerPanelCharts(tabName);
+}
+
+function initializeTickerWorkspace() {
+    organizeTickerPanels();
+    const navbar = document.querySelector('.navbar');
+    if (navbar && window.ResizeObserver) {
+        const updateNavHeight = () => {
+            document.documentElement.style.setProperty(
+                '--nav-sticky-height',
+                `${navbar.getBoundingClientRect().height}px`
+            );
+        };
+        new ResizeObserver(updateNavHeight).observe(navbar);
+        updateNavHeight();
+    }
+    const tabs = [...document.querySelectorAll('[data-ticker-tab]')];
+    if (!tabs.length) return;
+    tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => switchTickerTab(tab.dataset.tickerTab));
+        tab.addEventListener('keydown', event => {
+            let nextIndex = null;
+            if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+            if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+            if (event.key === 'Home') nextIndex = 0;
+            if (event.key === 'End') nextIndex = tabs.length - 1;
+            if (nextIndex === null) return;
+            event.preventDefault();
+            tabs[nextIndex].focus();
+            switchTickerTab(tabs[nextIndex].dataset.tickerTab);
+        });
+    });
+    const hashTab = window.location.hash.replace('#ticker-', '');
+    switchTickerTab(
+        Object.hasOwn(tickerTabDescriptions, hashTab) ? hashTab : 'decision',
+        false
+    );
+}
+
+function renderTickerAwfiHistory(
+    history = tickerAwfiHistory,
+    intelligence = tickerAwfiIntelligence
+) {
+    tickerAwfiHistory = (history || []).slice(-20);
+    tickerAwfiIntelligence = intelligence || null;
+    const chart = document.getElementById('ticker-awfi-history-chart');
+    if (!chart || !window.Plotly) return;
+    if (tickerAwfiHistory.length < 2) {
+        if (chart.data) Plotly.purge(chart);
+        const onlyPeriod = tickerAwfiHistory[0]?.period;
+        chart.innerHTML = onlyPeriod
+            ? `<div class="stats-loading">Historical AWFI needs at least two scored filing periods. Only ${escapeHtml(formatFilingPeriodLabel(onlyPeriod))} is currently available for this ticker.</div>`
+            : '<div class="stats-loading">No historical AWFI filing periods are available for this ticker.</div>';
+        return;
+    }
+    const periods = tickerAwfiHistory.map(item => item.period);
+    const chartStartDate = periods[0] || null;
+    const market = tickerAwfiIntelligence?.market || {};
+    const dailyPriceHistory = (market.price_history || [])
+        .filter(point => (
+            point.date
+            && point.close !== null
+            && point.close !== undefined
+            && (!chartStartDate || point.date >= chartStartDate)
+        ))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    const priceDates = dailyPriceHistory.map(point => point.date);
+    const priceValues = dailyPriceHistory.map(point => Number(point.close));
+    const priceHoverContext = dailyPriceHistory.map(point => (
+        `Daily close: ${formatCalendarDate(point.date)}`
+    ));
+    const latestMarketDate = tickerAwfiIntelligence?.market_price_as_of;
+    const latestMarketPrice = market.quote?.last_price;
+    if (
+        latestMarketDate
+        && latestMarketPrice !== null
+        && latestMarketPrice !== undefined
+        && (!priceDates.length || latestMarketDate > priceDates.at(-1))
+    ) {
+        priceDates.push(latestMarketDate);
+        priceValues.push(Number(latestMarketPrice));
+        priceHoverContext.push(
+            `Latest market close: ${formatCalendarDate(latestMarketDate)}`
+        );
+    }
+    const expectedFilingPoints = tickerAwfiHistory.map(item => ({
+        period: item.period,
+        expected_filing_date: addCalendarDays(item.period, 45),
+        score_as_of_date: tickerAwfiHorizons
+            .map(horizon => item.scores?.[horizon.key]?.as_of_date)
+            .find(Boolean) || null
+    }));
+    const expectedFilingCustomData = expectedFilingPoints.map(item => {
+        const expectedDateClose = closeOnOrBefore(
+            dailyPriceHistory,
+            item.expected_filing_date
+        );
+        return [
+            formatCalendarDate(item.period),
+            formatCalendarDate(item.expected_filing_date),
+            item.score_as_of_date
+                ? formatCalendarDate(item.score_as_of_date)
+                : 'Unavailable',
+            expectedDateClose === null
+                ? 'Unavailable'
+                : `$${formatNum(expectedDateClose)}`
+        ];
+    });
+    const traces = tickerAwfiHorizons.map(horizon => ({
+        x: periods,
+        y: tickerAwfiHistory.map(item => item.scores?.[horizon.key]?.score ?? null),
+        customdata: tickerAwfiHistory.map(item => {
+            const score = item.scores?.[horizon.key];
+            return [
+                score?.research_signal || score?.signal || 'UNAVAILABLE',
+                score?.feature_date || score?.as_of_date || '—'
+            ];
+        }),
+        name: horizon.label,
+        type: 'scatter',
+        mode: 'lines+markers',
+        connectgaps: false,
+        line: {color: horizon.color, width: 2.2},
+        marker: {
+            color: horizon.color,
+            size: 5,
+            line: {color: '#0f172a', width: 1}
+        },
+        opacity: 0.88,
+        hovertemplate: `<b>${horizon.label}</b><br>%{x}<br>Research score %{y:.1f}<br>Raw research verdict %{customdata[0]}<br>Market data through %{customdata[1]}<extra></extra>`
+    }));
+    traces.push({
+        x: expectedFilingPoints.map(item => item.expected_filing_date),
+        y: expectedFilingPoints.map(() => 0.04),
+        yaxis: 'y3',
+        name: 'EXPECTED 13F DEADLINE',
+        type: 'scatter',
+        mode: 'markers',
+        marker: {
+            symbol: 'triangle-up',
+            size: 10,
+            color: '#22d3ee',
+            line: {color: '#ecfeff', width: 1}
+        },
+        customdata: expectedFilingCustomData,
+        hovertemplate:
+            '<b>Expected 13F availability</b><br>' +
+            'Report period ended: %{customdata[0]}<br>' +
+            'Standard 45-day mark: %{customdata[1]}<br>' +
+            'AWFI score as of: %{customdata[2]}<br>' +
+            'Stock close on/before 45-day mark: %{customdata[3]}' +
+            '<extra></extra>'
+    });
+    if (priceDates.length) {
+        traces.push({
+            x: priceDates,
+            y: priceValues,
+            name: 'STOCK PRICE',
+            type: 'scatter',
+            mode: 'lines',
+            yaxis: 'y2',
+            connectgaps: false,
+            line: {color: '#f59e0b', width: 1.7},
+            customdata: priceHoverContext,
+            hovertemplate:
+                'Stock price: $%{y:,.2f}<br>' +
+                '%{customdata}' +
+                '<extra></extra>'
+        });
+    }
+    if (
+        latestMarketDate
+        && latestMarketPrice !== null
+        && latestMarketPrice !== undefined
+    ) {
+        traces.push({
+            x: latestMarketDate ? [latestMarketDate] : [],
+            y: latestMarketPrice !== null && latestMarketPrice !== undefined
+                ? [latestMarketPrice]
+                : [],
+            type: 'scatter',
+            mode: 'markers',
+            yaxis: 'y2',
+            showlegend: false,
+            hoverinfo: 'skip',
+            marker: {
+                symbol: 'diamond',
+                size: 8,
+                color: '#fbbf24',
+                line: {color: '#78350f', width: 1}
+            }
+        });
+    }
+    chart.querySelector(':scope > .stats-loading')?.remove();
+    Plotly.react(chart, traces, {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(2,6,23,0.22)',
+        font: {color: '#cbd5e1', family: 'Inter, sans-serif'},
+        margin: {t: 18, r: priceDates.length ? 70 : 26, b: 108, l: 58},
+        hovermode: 'x unified',
+        legend: {
+            orientation: 'h',
+            x: 0,
+            xanchor: 'left',
+            y: -0.24,
+            yanchor: 'top'
+        },
+        xaxis: {
+            type: 'date',
+            gridcolor: 'rgba(51,65,85,0.42)',
+            tickformat: '%Y',
+            tickangle: -35,
+            rangeslider: {visible: false}
+        },
+        yaxis: {
+            title: 'AWFI score',
+            range: [-105, 105],
+            dtick: 25,
+            gridcolor: 'rgba(51,65,85,0.42)',
+            zerolinecolor: '#64748b'
+        },
+        yaxis2: {
+            title: 'Stock Price ($)',
+            overlaying: 'y',
+            side: 'right',
+            visible: priceDates.length > 0,
+            showgrid: false,
+            tickprefix: '$',
+            separatethousands: true
+        },
+        yaxis3: {
+            overlaying: 'y',
+            visible: false,
+            fixedrange: true,
+            range: [0, 1]
+        },
+        shapes: [
+            {
+                type: 'line',
+                xref: 'paper',
+                yref: 'y3',
+                x0: 0,
+                x1: 1,
+                y0: 0.04,
+                y1: 0.04,
+                line: {color: 'rgba(34,211,238,0.18)', width: 1},
+                layer: 'below'
+            },
+            ...expectedFilingPoints.map(item => ({
+                type: 'line',
+                xref: 'x',
+                yref: 'paper',
+                x0: item.expected_filing_date,
+                x1: item.expected_filing_date,
+                y0: 0,
+                y1: 1,
+                line: {
+                    color: 'rgba(34,211,238,0.22)',
+                    width: 1,
+                    dash: 'dot'
+                },
+                layer: 'below'
+            }))
+        ]
+    }, {displayModeBar: false, responsive: true});
+}
+
+function formatTickerAwfiContribution(value) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return '—';
+    return `${parsed > 0 ? '+' : ''}${parsed.toFixed(1)}`;
+}
+
+function renderTickerAwfiDrivers(awfi) {
+    const contributions = awfi.component_contributions;
+    if (!contributions) {
+        return '<span class="ticker-awfi-driver-unavailable">Component detail is unavailable for this historical research snapshot.</span>';
+    }
+    const drivers = [
+        ['Whale sentiment', contributions.institutional],
+        ['Purchase actions', contributions.purchase_actions],
+        ['Portfolio conviction', contributions.portfolio_conviction],
+        ['Technical', contributions.technical]
+    ];
+    return `
+        <div class="ticker-awfi-drivers">
+            ${drivers.map(([label, value]) => {
+                const parsed = Number(value);
+                const direction = parsed > 0
+                    ? 'positive'
+                    : parsed < 0
+                        ? 'negative'
+                        : 'neutral';
+                return `
+                    <span>
+                        ${label}
+                        <strong class="font-mono ${direction}">${formatTickerAwfiContribution(value)}</strong>
+                    </span>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function renderTickerAwfi(
+    scores = tickerAwfiScores,
+    metadata = tickerAwfiMetadata,
+    history = tickerAwfiHistory
+) {
+    tickerAwfiScores = scores || {};
+    tickerAwfiMetadata = metadata || {};
+    tickerAwfiHistory = history || [];
+    const state = document.getElementById('td-awfi-state');
+    const rows = document.getElementById('td-awfi-horizon-rows');
+    const filingPeriod = document.getElementById('td-awfi-filing-period');
+    const marketDate = document.getElementById('td-awfi-market-date');
+    const disclaimer = document.getElementById('td-awfi-disclaimer');
+    const liveRegion = document.getElementById('td-awfi-live-region');
+    if (!state || !rows || !filingPeriod || !marketDate) return;
+    renderTickerAwfiHistory();
+
+    const metadataState = String(metadata.state || '').toUpperCase();
+    const availableScores = tickerAwfiHorizons
+        .map(horizon => tickerAwfiScores[horizon.key])
+        .filter(Boolean);
+    const latestFeatureDate = metadata.market_data_date || availableScores
+        .map(awfi => awfi.feature_date || awfi.as_of_date)
+        .filter(Boolean)
+        .sort()
+        .at(-1);
+    state.className = 'ticker-awfi-state';
+    state.textContent = metadataState === 'LIVE'
+        ? 'LIVE MARKET UPDATE'
+        : metadataState === 'READY'
+            ? 'HISTORICAL RESEARCH'
+            : metadataState || 'UNAVAILABLE';
+    filingPeriod.textContent = metadata.requested_period
+        ? formatFilingPeriodLabel(metadata.requested_period)
+        : '—';
+    marketDate.textContent = latestFeatureDate
+        ? formatCalendarDate(latestFeatureDate)
+        : '—';
+    if (disclaimer) {
+        disclaimer.textContent = 'Research model only. Each horizon uses its historically selected score profile and threshold; negative signals mean avoid or review, not automatic liquidation.';
+    }
+
+    rows.innerHTML = tickerAwfiHorizons.map(horizon => {
+        const awfi = tickerAwfiScores[horizon.key];
+        if (!awfi) {
+            const reason = metadata.reason || `No ${horizon.duration} score is available.`;
+            return `
+                <tr class="unavailable">
+                    <th scope="row" data-label="Horizon">
+                        <strong>${horizon.label}</strong>
+                        <span>${horizon.duration}</span>
+                    </th>
+                    <td data-label="AWFI score" class="font-mono">—</td>
+                    <td data-label="Signal"><span class="ticker-awfi-signal unavailable">Unavailable</span></td>
+                    <td data-label="Weighted score drivers" class="ticker-awfi-read">${escapeHtml(reason)}</td>
+                </tr>
+            `;
+        }
+        const score = Number(awfi.score);
+        const rawSignal = String(awfi.signal || 'HOLD').toUpperCase();
+        const signal = ['BUY', 'SELL', 'HOLD'].includes(rawSignal)
+            ? rawSignal
+            : 'HOLD';
+        const signalLabel = signal === 'SELL'
+            ? 'SELL / AVOID'
+            : signal;
+        const scoreText = Number.isFinite(score)
+            ? `${score > 0 ? '+' : ''}${score.toFixed(1)}`
+            : '—';
+        const scoreDirection = score > 0
+            ? 'positive'
+            : score < 0
+                ? 'negative'
+                : 'neutral';
+        return `
+            <tr class="${signal.toLowerCase()}">
+                <th scope="row" data-label="Horizon">
+                    <strong>${horizon.label}</strong>
+                    <span>${horizon.duration}</span>
+                </th>
+                <td data-label="AWFI score">
+                    <strong class="ticker-awfi-table-score font-mono ${scoreDirection}">${scoreText}</strong>
+                </td>
+                <td data-label="Signal">
+                    <span class="ticker-awfi-signal ${signal.toLowerCase()}">${signalLabel}</span>
+                    <small class="ticker-awfi-signal-threshold font-mono">
+                        BUY ≥ +${formatTickerAwfiContribution(awfi.positive_threshold).replace('+', '')}
+                        · AVOID ≤ -${formatTickerAwfiContribution(awfi.negative_threshold).replace('+', '')}
+                    </small>
+                </td>
+                <td data-label="Weighted score drivers" class="ticker-awfi-read">${renderTickerAwfiDrivers(awfi)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    if (liveRegion) {
+        const availableCount = tickerAwfiHorizons.filter(
+            horizon => tickerAwfiScores[horizon.key]
+        ).length;
+        liveRegion.textContent = `AWFI updated with ${availableCount} of 4 horizons available through ${formatCalendarDate(latestFeatureDate)}.`;
+    }
+}
+
+function scheduleTickerAwfiHistoryRefresh(ticker) {
+    clearTimeout(tickerAwfiHistoryRefreshTimer);
+    if (tickerAwfiHistoryRefreshAttempts >= 80) {
+        return;
+    }
+    tickerAwfiHistoryRefreshTimer = setTimeout(async () => {
+        tickerAwfiHistoryRefreshAttempts += 1;
+        try {
+            const response = await fetch(
+                `/api/ticker/${encodeURIComponent(ticker)}/awfi-history`,
+                {cache: 'no-store'}
+            );
+            if (response.ok) {
+                const result = await response.json();
+                const snapshotChanged = (
+                    result.snapshot_version !== null
+                    && result.snapshot_version !== tickerAwfiHistorySnapshotVersion
+                );
+                tickerAwfiHistorySnapshotVersion = result.snapshot_version;
+                if (snapshotChanged) {
+                    loadTickerDetail(ticker);
+                    return;
+                }
+                if (!['checking', 'building', 'external_build'].includes(
+                    result.refresh_state
+                )) {
+                    return;
+                }
+            }
+        } catch (error) {
+            console.warn('AWFI history refresh is not ready:', error);
+        }
+        scheduleTickerAwfiHistoryRefresh(ticker);
+    }, 15000);
+}
+
 function renderTickerIntelligence(intelligence) {
+    tickerAwfiIntelligence = intelligence;
     const market = intelligence.market || {};
     const quote = market.quote || {};
     const metrics = market.metrics || {};
@@ -1972,6 +2879,7 @@ function renderTickerIntelligence(intelligence) {
     const currentPrice = quote.last_price;
     const dayChange = quote.day_change;
     const dayChangePct = quote.day_change_pct;
+    renderTickerNews(market.news || []);
 
     document.getElementById('td-current-price').textContent = (
         currentPrice !== null && currentPrice !== undefined
@@ -1995,14 +2903,17 @@ function renderTickerIntelligence(intelligence) {
         const hasLowDistance = lowDistance !== null && lowDistance !== undefined;
         const lowDistanceClass = !hasLowDistance
             ? 'text-dim'
-            : lowDistance <= 10
+            : lowDistance >= 0
                 ? 'text-green'
-                : lowDistance <= 25
-                    ? 'text-yellow'
-                    : 'text-orange';
+                : 'text-red';
         document.getElementById('td-52w-low-value').textContent = hasLowDistance
             ? `$${formatNum(quote.year_low)}`
             : '—';
+        document.getElementById('td-52w-low-date').textContent = (
+            hasLowDistance && quote.year_low_date
+                ? `on ${formatCalendarDate(quote.year_low_date)}`
+                : ''
+        );
         const lowPercentElement = document.getElementById('td-52w-low-percent');
         lowPercentElement.className = `ticker-price-low-percent ${lowDistanceClass}`;
         lowPercentElement.textContent = hasLowDistance
@@ -2043,7 +2954,7 @@ function renderTickerIntelligence(intelligence) {
     const basisGap = intelligence.price_vs_estimated_basis_pct;
     const basisGapElement = document.getElementById('td-basis-gap');
     if (basisGapElement) {
-        basisGapElement.className = `ticker-basis-gap font-mono ${basisGap > 0 ? 'text-red' : basisGap < 0 ? 'text-green' : 'text-dim'}`;
+        basisGapElement.className = `ticker-basis-gap font-mono ${basisGap > 0 ? 'text-green' : basisGap < 0 ? 'text-red' : 'text-dim'}`;
         basisGapElement.textContent = basisGap !== null && basisGap !== undefined
             ? `${basisGap > 0 ? '+' : ''}${formatPct(basisGap)} vs estimate`
             : '20-quarter model unavailable';
@@ -2091,7 +3002,47 @@ function renderTickerIntelligence(intelligence) {
     document.getElementById('td-chart-symbol').textContent = chartSymbol;
     renderTradingViewChart(chartSymbol);
     renderTickerHistoryCharts(intelligence.history || []);
+    renderTickerAwfiHistory(tickerAwfiHistory, intelligence);
     renderWhaleSentiment(intelligence);
+}
+
+function renderTickerNews(news) {
+    const container = document.getElementById('td-news-list');
+    const badge = document.getElementById('td-news-badge');
+    if (!container) return;
+
+    const articles = (news || [])
+        .map(article => ({
+            ...article,
+            safeUrl: safeExternalNewsUrl(article.url)
+        }))
+        .filter(article => article.title && article.safeUrl)
+        .slice(0, 5);
+
+    if (!articles.length) {
+        if (badge) badge.textContent = 'No direct matches';
+        container.innerHTML = '<div class="ticker-news-empty">No directly impactful company news passed the relevance filter.</div>';
+        return;
+    }
+
+    if (badge) {
+        badge.textContent = `${articles.length} direct-impact article${articles.length === 1 ? '' : 's'}`;
+    }
+    container.innerHTML = articles.map((article, index) => `
+        <a class="ticker-news-item"
+           href="${escapeHtml(article.safeUrl)}"
+           target="_blank"
+           rel="noopener noreferrer">
+            <div class="ticker-news-meta">
+                <span>${escapeHtml(article.source || 'News source')}</span>
+                <time datetime="${escapeHtml(article.published_at || '')}">${escapeHtml(formatNewsTimestamp(article.published_at))}</time>
+            </div>
+            <strong>${escapeHtml(article.title)}</strong>
+            ${article.summary ? `<p>${escapeHtml(article.summary)}</p>` : ''}
+            <span class="ticker-news-link">Open article <span aria-hidden="true">↗</span></span>
+            <span class="ticker-news-rank">${String(index + 1).padStart(2, '0')}</span>
+        </a>
+    `).join('');
 }
 
 function renderPairSignal(pair) {
@@ -2145,6 +3096,10 @@ function showTickerLoader(ticker) {
     document.body.classList.add('period-loading');
     document.getElementById('ticker-loader-title').textContent = `Loading ${ticker.toUpperCase()} intelligence`;
     updateTickerLoader(0, 'Preparing the latest 13F ownership snapshot...', 'Alpha Whales');
+    const newsContainer = document.getElementById('td-news-list');
+    if (newsContainer) {
+        newsContainer.innerHTML = '<div class="ticker-news-empty">Loading directly related company news...</div>';
+    }
 }
 
 function updateTickerLoader(stage, message, source) {
@@ -2161,12 +3116,118 @@ function hideTickerLoader() {
     document.body.classList.remove('period-loading');
 }
 
+function resetTickerDetailData(ticker) {
+    clearTimeout(tickerAwfiHistoryRefreshTimer);
+    tickerAwfiHistoryRefreshTimer = null;
+    tickerAwfiHistoryRefreshAttempts = 0;
+    tickerAwfiHistorySnapshotVersion = null;
+    tickerAwfiIntelligence = null;
+    const values = {
+        'td-ticker': ticker.toUpperCase(),
+        'td-issuer': 'Loading ticker data...',
+        'td-holders-summary': 'Preparing current ownership snapshot',
+        'td-sector': 'Sector unavailable',
+        'td-industry': 'Industry unavailable',
+        'td-exchange': 'Exchange unavailable',
+        'td-current-price': '—',
+        'td-day-change': 'Loading market intelligence...',
+        'td-52w-low-value': '—',
+        'td-52w-low-date': '',
+        'td-52w-low-percent': 'Unavailable',
+        'td-whale-basis': '—',
+        'td-basis-gap': '20-quarter model unavailable',
+        'td-filing-period': 'Filing period unavailable',
+        'td-holders-count': '0',
+        'td-total-value': '$0.00 M',
+        'td-total-shares': '0',
+        'td-median-weight': '0.00%',
+        'td-market-cap': '—',
+        'td-pe': '—',
+        'td-forward-pe': '—',
+        'td-pe-5y': '—',
+        'td-52w-range': '—',
+        'td-beta': '—',
+        'td-1y-return': '—',
+        'td-eps-growth': '—',
+        'td-valuation-status': '—',
+        'td-fair-value': '—',
+        'td-purchase-price': '—',
+        'td-graham-number': '—',
+        'td-graham-conservative': '—',
+        'td-normalized-pe-value': '—',
+        'td-trend-status': 'TREND: —',
+        'td-entry-timing': 'Loading...',
+        'td-rsi14': '—',
+        'td-rsi2': '—',
+        'td-sma50-distance': '—',
+        'td-sma200-distance': '—',
+        'td-momentum-6m': '—',
+        'td-volatility': '—',
+        'td-model-stance': '—',
+        'td-equity-sleeve-range': '—',
+        'td-total-portfolio-range': '—',
+        'td-chart-symbol': 'Market Data',
+        'td-table-ticker': ticker.toUpperCase(),
+        'td-holders-subtitle': 'Loading individual portfolio weights...',
+        'td-news-badge': 'Loading',
+        'td-pair-status': 'LOADING',
+        'td-pair-focal': ticker.toUpperCase(),
+        'td-pair-peer': '—',
+        'td-pair-type': 'Analyzing relationship...',
+        'td-pair-action': 'Running disciplined pair gates...',
+        'td-pair-observation': 'The observed spread direction will appear here.',
+        'td-pair-zscore': '—',
+        'td-pair-quality': '—',
+        'td-pair-pvalue': '—',
+        'td-pair-oos': '—',
+        'td-pair-half-life': '—',
+        'td-pair-stability': '—',
+        'td-pair-correlation': '—',
+        'td-pair-hedge-ratio': '—',
+        'td-pair-stock-execution': 'Waiting for a valid signal',
+        'td-pair-put-execution': 'Waiting for a valid signal'
+    };
+    Object.entries(values).forEach(([id, value]) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
+    });
+    const pairPeer = document.getElementById('td-pair-peer');
+    if (pairPeer) pairPeer.href = '/ticker';
+    const news = document.getElementById('td-news-list');
+    if (news) {
+        news.innerHTML = '<div class="ticker-news-empty">Loading directly related company news...</div>';
+    }
+    const holders = document.getElementById('holders-table-body');
+    if (holders) {
+        holders.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">Loading current holders...</td></tr>';
+    }
+    const tradingView = document.getElementById('ticker-tradingview-chart');
+    if (tradingView) {
+        tradingView.innerHTML = '<div class="stats-loading">Loading TradingView chart...</div>';
+    }
+    [
+        'ticker-sentiment-history-chart',
+        'ticker-conviction-heatmap',
+        'ticker-investor-history-chart',
+        'ticker-value-history-chart',
+        'ticker-holder-concentration-chart',
+        'ticker-bar-chart'
+    ].forEach(id => {
+        const chart = document.getElementById(id);
+        if (!chart) return;
+        if (chart.data && window.Plotly) Plotly.purge(chart);
+        chart.innerHTML = '<div class="stats-loading">Loading chart...</div>';
+    });
+    resetWhaleSentimentView();
+    renderTickerAwfi({}, {state: 'LOADING', reason: 'Loading AWFI scores...'}, []);
+}
+
 async function loadTickerDetail(ticker) {
     const detailView = document.getElementById('ticker-detail-view');
     const allView = document.getElementById('all-tickers-view');
     if (detailView) detailView.style.display = 'block';
-    if (allView) allView.style.display = 'block';
-    resetWhaleSentimentView();
+    if (allView) allView.style.display = 'none';
+    resetTickerDetailData(ticker);
     const loaderStartedAt = performance.now();
     showTickerLoader(ticker);
 
@@ -2175,13 +3236,15 @@ async function loadTickerDetail(ticker) {
         updateTickerLoader(1, '13F holdings loaded. Building market and valuation intelligence...', 'SEC filings');
         if (r.status === 404) {
             document.getElementById('td-ticker').textContent = ticker.toUpperCase();
-            document.getElementById('td-issuer').textContent = 'Not held by tracked 26 funds this quarter';
+            document.getElementById('td-issuer').textContent = 'Not held by the configured roster this quarter';
             document.getElementById('td-holders-count').textContent = '0';
             document.getElementById('td-total-value').textContent = '$0.00 M';
             document.getElementById('td-total-shares').textContent = '0';
             document.getElementById('td-median-weight').textContent = '0.00%';
-            document.getElementById('holders-table-body').innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No positions in ${ticker.toUpperCase()} found among the 26 elite managers.</td></tr>`;
+            document.getElementById('td-holders-subtitle').textContent = 'No current holders in the configured roster';
+            document.getElementById('holders-table-body').innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted">No positions in ${ticker.toUpperCase()} found among configured managers.</td></tr>`;
             showWhaleSentimentUnavailable('No tracked filing history for this ticker.');
+            renderTickerAwfi({}, {state: 'UNAVAILABLE', reason: 'Ticker is not held in the current roster.'}, []);
             return;
         }
 
@@ -2201,6 +3264,19 @@ async function loadTickerDetail(ticker) {
         document.getElementById('td-total-shares').textContent = formatInt(data.total_shares);
         document.getElementById('td-median-weight').textContent = formatPct(data.median_weight);
         if (document.getElementById('td-table-ticker')) document.getElementById('td-table-ticker').textContent = data.ticker;
+        if (document.getElementById('td-holders-subtitle')) {
+            document.getElementById('td-holders-subtitle').textContent = (
+                `${data.num_holders} current holder${data.num_holders === 1 ? '' : 's'} · ` +
+                'share action vs reported value movement'
+            );
+        }
+        renderTickerAwfi(
+            data.awfi || {},
+            data.awfi_metadata || {},
+            data.awfi_history || []
+        );
+        tickerAwfiHistorySnapshotVersion = data.awfi_history_version ?? null;
+        scheduleTickerAwfiHistoryRefresh(data.ticker);
 
         const intelligenceResponse = await intelligenceRequest;
         if (intelligenceResponse.ok) {
@@ -2210,10 +3286,12 @@ async function loadTickerDetail(ticker) {
         } else {
             const intelligenceError = await intelligenceResponse.json().catch(() => ({}));
             console.error('Ticker intelligence unavailable:', intelligenceError);
+            renderTickerNews([]);
             document.getElementById('td-day-change').textContent = 'Market intelligence unavailable';
             document.getElementById('ticker-tradingview-chart').innerHTML = (
                 '<div class="stats-loading">Market chart unavailable for this ticker.</div>'
             );
+            renderTickerHistoryCharts([]);
             showWhaleSentimentUnavailable('Ticker sentiment intelligence is unavailable.');
         }
 
@@ -2235,8 +3313,13 @@ async function loadTickerDetail(ticker) {
         // Render Holders Table
         let html = '';
         data.holders.sort((a,b) => b.value - a.value).forEach(h => {
-            const valChangeClass = h.value_change > 0 ? 'text-green' : (h.value_change < 0 ? 'text-red' : 'text-muted');
             const pctChangeClass = h.value_change_pct > 0 ? 'text-green' : (h.value_change_pct < 0 ? 'text-red' : 'text-muted');
+            const reportedValueChange = `${h.value_change_pct > 0 ? '+' : ''}${formatPct(h.value_change_pct)}`;
+            const shareActionDetail = h.status === 'NEW'
+                ? 'New holding'
+                : h.status === 'CLOSED'
+                    ? 'Full exit'
+                    : `${h.shares_change_pct > 0 ? '+' : ''}${formatPct(h.shares_change_pct)} shares`;
 
             html += `
                 <tr>
@@ -2249,48 +3332,132 @@ async function loadTickerDetail(ticker) {
                     <td class="font-mono">${renderSparkline(h.portfolio_weight)}</td>
                     <td class="font-mono"><strong>$${formatNum(h.value)}</strong></td>
                     <td class="font-mono">${formatInt(h.shares)}</td>
-                    <td><span class="badge ${getStatusClass(h.status)}">${h.status}</span></td>
-                    <td class="font-mono ${pctChangeClass}">${formatPct(h.value_change_pct)}</td>
-                    <td class="font-mono">${formatPct(h.shares_change_pct)}</td>
+                    <td>
+                        <div class="qoq-action-cell">
+                            <span class="badge ${getStatusClass(h.status)}">${h.status}</span>
+                            <small>${shareActionDetail}</small>
+                        </div>
+                    </td>
+                    <td class="font-mono ${pctChangeClass}">${reportedValueChange}</td>
                     <td class="font-mono text-dim">${h.report_period}</td>
                 </tr>
             `;
         });
         document.getElementById('holders-table-body').innerHTML = html;
 
-        // Render Pie Chart (Holders Ownership Share)
-        const pieData = [{
-            values: data.holders.map(h => h.value),
-            labels: data.holders.map(h => h.manager),
-            type: 'pie',
-            hole: 0.45,
-            textinfo: 'label+percent',
-            marker: { colors: ['#3b82f6', '#ec4899', '#10b981', '#a855f7', '#f59e0b', '#06b6d4', '#84cc16'] }
-        }];
-        Plotly.newPlot('ticker-pie-chart', pieData, {
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            font: { color: '#cbd5e1', family: 'Inter, sans-serif' },
-            margin: { t: 20, b: 20, l: 20, r: 20 },
-            showlegend: false
-        }, {displayModeBar: false, responsive: true});
+        // Render ranked concentration bars so large holder sets remain legible.
+        const rankedHolders = [...data.holders]
+            .filter(holder => Number.isFinite(holder.value) && holder.value > 0)
+            .sort((a, b) => b.value - a.value);
+        const totalHolderValue = rankedHolders.reduce((sum, holder) => sum + holder.value, 0);
+        const concentrationBadge = document.getElementById('ticker-holder-concentration-badge');
+        const concentrationChart = document.getElementById('ticker-holder-concentration-chart');
+
+        if (!rankedHolders.length || totalHolderValue <= 0) {
+            if (concentrationBadge) concentrationBadge.textContent = 'No reported values';
+            if (concentrationChart) {
+                concentrationChart.innerHTML = '<div class="stats-loading">Holder concentration is unavailable.</div>';
+            }
+        } else {
+            const holderShares = rankedHolders.map(holder => (holder.value / totalHolderValue) * 100);
+            const topFiveShare = holderShares.slice(0, 5).reduce((sum, share) => sum + share, 0);
+            if (concentrationBadge) {
+                concentrationBadge.textContent = `${rankedHolders.length} holders · Top 5 ${topFiveShare.toFixed(1)}%`;
+            }
+            if (concentrationChart) {
+                concentrationChart.style.height = `${Math.max(320, rankedHolders.length * 28 + 72)}px`;
+                concentrationChart.querySelector(':scope > .stats-loading')?.remove();
+            }
+
+            Plotly.newPlot('ticker-holder-concentration-chart', [{
+                x: holderShares,
+                y: rankedHolders.map(holder => holder.manager),
+                type: 'bar',
+                orientation: 'h',
+                text: holderShares.map(share => `${share.toFixed(1)}%`),
+                textposition: 'outside',
+                cliponaxis: false,
+                customdata: rankedHolders.map(holder => [holder.fund_name, holder.value]),
+                marker: {
+                    color: rankedHolders.map((_, index) => (
+                        ['#22d3ee', '#38bdf8', '#60a5fa'][index] || '#475569'
+                    )),
+                    line: {color: 'rgba(255,255,255,0.08)', width: 1}
+                },
+                hovertemplate:
+                    '<b>%{y}</b><br>' +
+                    '%{customdata[0]}<br>' +
+                    'Share of tracked holder value: %{x:.2f}%<br>' +
+                    'Reported value: $%{customdata[1]:,.2f}M' +
+                    '<extra></extra>'
+            }], {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: {color: '#cbd5e1', family: 'Inter, sans-serif', size: 11},
+                margin: {t: 8, b: 44, l: 132, r: 58},
+                bargap: 0.28,
+                showlegend: false,
+                xaxis: {
+                    title: 'Share of Reported Holder Value',
+                    ticksuffix: '%',
+                    rangemode: 'tozero',
+                    gridcolor: '#1e293b',
+                    zeroline: false
+                },
+                yaxis: {
+                    autorange: 'reversed',
+                    automargin: true,
+                    gridcolor: 'rgba(0,0,0,0)'
+                }
+            }, {displayModeBar: false, responsive: true});
+        }
 
         // Render Bar Chart (QoQ Value changes)
+        const holdersByValueChange = [...data.holders]
+            .sort((a, b) => b.value_change - a.value_change);
+        const actionLabels = {
+            NEW: 'New position',
+            INCREASED: 'Increased shares',
+            DECREASED: 'Decreased shares',
+            UNCHANGED: 'Unchanged shares'
+        };
+        const actionColors = {
+            NEW: signalChartColors.new,
+            INCREASED: signalChartColors.increased,
+            DECREASED: signalChartColors.decreased,
+            UNCHANGED: signalChartColors.neutral
+        };
         const barData = [{
-            x: data.holders.map(h => h.value_change),
-            y: data.holders.map(h => h.manager),
+            x: holdersByValueChange.map(h => h.value_change),
+            y: holdersByValueChange.map(h => h.manager),
             type: 'bar',
             orientation: 'h',
+            customdata: holdersByValueChange.map(h => [
+                h.fund_name,
+                actionLabels[h.status] || 'Unchanged shares',
+                h.shares_change_pct,
+                h.value_change_pct
+            ]),
             marker: {
-                color: data.holders.map(h => h.value_change >= 0 ? '#06b6d4' : '#f97316')
-            }
+                color: holdersByValueChange.map(h => (
+                    actionColors[h.status] || signalChartColors.neutral
+                ))
+            },
+            hovertemplate:
+                '<b>%{y}</b><br>' +
+                '%{customdata[0]}<br>' +
+                'Share action: %{customdata[1]} (%{customdata[2]:+.2f}%)<br>' +
+                'Reported value change: $%{x:+,.2f}M (%{customdata[3]:+.2f}%)' +
+                '<extra></extra>'
         }];
+        document.querySelector('#ticker-bar-chart > .stats-loading')?.remove();
         Plotly.newPlot('ticker-bar-chart', barData, {
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
             font: { color: '#cbd5e1', family: 'Inter, sans-serif' },
             margin: { t: 20, b: 40, l: 120, r: 20 },
-            xaxis: { title: 'QoQ Value Change ($M)', gridcolor: '#1e293b' },
-            yaxis: { gridcolor: '#1e293b' }
+            xaxis: { title: 'Dollar Shift ($M)', gridcolor: '#1e293b' },
+            yaxis: { gridcolor: '#1e293b', autorange: 'reversed' }
         }, {displayModeBar: false, responsive: true});
 
     } catch(err) {
@@ -2349,7 +3516,10 @@ function filterInvestorsList() {
             <div class="card fund-card" onclick="window.location='/investor/${f.cik}'">
                 <div class="flex-align-gap" style="justify-content: space-between;">
                     <div class="fund-card-title">${f.name}</div>
-                    <span class="badge ${getGroupClass(f.group)}">${f.group}</span>
+                    <div class="flex-align-gap">
+                        ${f.is_exception ? '<span class="screening-roster-badge exception">EXCEPTION</span>' : ''}
+                        <span class="badge ${getGroupClass(f.group)}">${f.group}</span>
+                    </div>
                 </div>
                 <div class="fund-card-manager">Manager: <strong>${f.manager}</strong></div>
                 ${f.annotation ? `<div class="fund-card-annotation">${f.annotation}</div>` : ''}
@@ -2388,7 +3558,10 @@ async function loadInvestorDetail(cik) {
         // Populate Investor Header
         document.getElementById('inv-name').textContent = data.fund_info.name;
         document.getElementById('inv-manager').textContent = `Manager: ${data.fund_info.manager}`;
-        document.getElementById('inv-group-badge').innerHTML = `<span class="badge ${getGroupClass(data.fund_info.group)}">${data.fund_info.group}</span>`;
+        document.getElementById('inv-group-badge').innerHTML = `
+            ${data.fund_info.is_exception ? '<span class="screening-roster-badge exception">EXCEPTION</span>' : ''}
+            <span class="badge ${getGroupClass(data.fund_info.group)}">${data.fund_info.group}</span>
+        `;
         document.getElementById('inv-annotation').textContent = data.fund_info.annotation || '';
 
         document.getElementById('inv-aum').textContent = `$${formatNum(data.metadata.total_value_m)} M`;
@@ -2431,13 +3604,15 @@ async function loadInvestorDetail(cik) {
             if (historyTab) historyTab.textContent = 'Portfolio History';
             if (backLink) {
                 backLink.href = '/investor';
-                backLink.textContent = '◀ All 26 Fund Managers';
+                backLink.textContent = '◀ All Fund Managers';
             }
+            document.getElementById('inv-active-closed-count').textContent =
+                `${globalInvestorHoldings.length} current · ${globalInvestorClosed.length} exited this quarter`;
         }
 
         // Populate Tab Counts
         const statusCounts = data.stats.status_counts || {};
-        if (document.getElementById('tab-cnt-all')) document.getElementById('tab-cnt-all').textContent = globalInvestorHoldings.length;
+        if (document.getElementById('tab-cnt-all')) document.getElementById('tab-cnt-all').textContent = globalInvestorHoldings.length + globalInvestorClosed.length;
         if (document.getElementById('tab-cnt-new')) document.getElementById('tab-cnt-new').textContent = statusCounts['NEW'] || 0;
         if (document.getElementById('tab-cnt-inc')) document.getElementById('tab-cnt-inc').textContent = statusCounts['INCREASED'] || 0;
         if (document.getElementById('tab-cnt-dec')) document.getElementById('tab-cnt-dec').textContent = statusCounts['DECREASED'] || 0;
@@ -2487,18 +3662,26 @@ async function loadInvestorDetail(cik) {
         const barData = [{
             x: topMoves.map(h => h.value_change),
             y: topMoves.map(h => h.ticker),
+            customdata: topMoves.map(h => {
+                if (h.status === 'NEW') return 'New position';
+                if (h.status === 'INCREASED') return 'Increased shares';
+                if (h.status === 'DECREASED') return 'Decreased shares';
+                return 'Closed / exited';
+            }),
             type: 'bar',
             orientation: 'h',
+            hovertemplate: '<b>%{y}</b><br>%{customdata}<br>Reported value shift: $%{x:,.2f}M<br>Click to open ticker<extra></extra>',
             marker: {
                 color: topMoves.map(h => {
-                    if (h.status === 'NEW') return '#22c55e';
-                    if (h.status === 'INCREASED') return '#06b6d4';
-                    if (h.status === 'DECREASED') return '#f97316';
-                    return '#ef4444';
+                    if (h.status === 'NEW') return signalChartColors.new;
+                    if (h.status === 'INCREASED') return signalChartColors.increased;
+                    if (h.status === 'DECREASED') return signalChartColors.decreased;
+                    return signalChartColors.closed;
                 })
             }
         }];
-        Plotly.newPlot('bar-chart', barData, {
+        const barChart = document.getElementById('bar-chart');
+        await Plotly.newPlot(barChart, barData, {
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
             font: { color: '#cbd5e1', family: 'Inter, sans-serif' },
@@ -2506,6 +3689,11 @@ async function loadInvestorDetail(cik) {
             xaxis: { title: 'Dollar Shift ($M)', gridcolor: '#1e293b' },
             yaxis: { gridcolor: '#1e293b' }
         }, {displayModeBar: false, responsive: true});
+        barChart.on('plotly_click', event => {
+            navigateToTickerDetail(event.points?.[0]?.y);
+        });
+        barChart.on('plotly_afterplot', () => makeTickerAxisLabelsInteractive(barChart));
+        makeTickerAxisLabelsInteractive(barChart);
 
     } catch(err) {
         console.error('Error loading investor detail:', err);
@@ -2683,7 +3871,14 @@ function filterHoldingsTab(tabName) {
 
 function filterInvestorTableRows() {
     const q = document.getElementById('investor-table-search')?.value.trim().toLowerCase() || '';
-    let pool = currentHoldingsTab === 'CLOSED' ? globalInvestorClosed : globalInvestorHoldings;
+    let pool;
+    if (currentHoldingsTab === 'ALL') {
+        pool = [...globalInvestorHoldings, ...globalInvestorClosed];
+    } else if (currentHoldingsTab === 'CLOSED') {
+        pool = globalInvestorClosed;
+    } else {
+        pool = globalInvestorHoldings;
+    }
 
     if (currentHoldingsTab !== 'ALL' && currentHoldingsTab !== 'CLOSED') {
         pool = pool.filter(h => h.status === currentHoldingsTab);
@@ -2746,11 +3941,9 @@ function sortAndRenderInvestorTable(rows) {
                 : 'text-muted';
         const lowDistanceClass = h.pct_above_low === null || h.pct_above_low === undefined
             ? 'text-muted'
-            : h.pct_above_low <= 10
+            : h.pct_above_low >= 0
                 ? 'text-green'
-                : h.pct_above_low <= 25
-                    ? 'text-yellow'
-                    : 'text-orange';
+                : 'text-red';
         const reportedPrice = h.reported_price === null || h.reported_price === undefined
             ? '—'
             : `$${formatNum(h.reported_price)}`;
@@ -2790,6 +3983,7 @@ function sortAndRenderInvestorTable(rows) {
             <tr>
                 <td>${tickerCell}</td>
                 <td>${escapeInvestorHtml(h.issuer)}</td>
+                <td>${actionCell}</td>
                 <td class="font-mono">${renderSparkline(h.portfolio_weight)}</td>
                 <td class="font-mono"><strong>$${formatNum(h.value)}</strong></td>
                 <td class="font-mono">${sharesCell}</td>
@@ -2798,7 +3992,6 @@ function sortAndRenderInvestorTable(rows) {
                 <td class="font-mono investor-market-cell ${marketMoveClass}"><strong>${currentVsReported}</strong></td>
                 <td class="font-mono investor-market-cell">${low52Week}</td>
                 <td class="font-mono investor-market-cell ${lowDistanceClass}">${pctAboveLow}</td>
-                <td>${actionCell}</td>
                 <td class="font-mono ${valChangeClass}">${valueChangeCell}</td>
                 <td class="font-mono ${pctChangeClass}">${valuePctCell}</td>
                 <td class="font-mono">${sharesPctCell}</td>
@@ -3045,6 +4238,106 @@ function scheduleScreeningLoad() {
     }, 250);
 }
 
+function updateScreeningRosterControls() {
+    const selectedCount = screeningSelectedCiks.size;
+    const group = document.getElementById('screening-roster-group')?.value || '';
+    const count = document.getElementById('screening-selected-count');
+    if (count) {
+        count.textContent = `${selectedCount} selected`;
+    }
+    [
+        'screening-add-selected',
+        'screening-flag-selected'
+    ].forEach(id => {
+        const button = document.getElementById(id);
+        if (button) {
+            button.disabled = screeningRosterBusy || selectedCount === 0 || !group;
+        }
+    });
+    const removeButton = document.getElementById('screening-remove-selected');
+    if (removeButton) {
+        removeButton.disabled = screeningRosterBusy || selectedCount === 0;
+    }
+
+    const start = (screeningPage - 1) * screeningPageSize;
+    const pageRows = screeningData.slice(start, start + screeningPageSize);
+    const selectPage = document.getElementById('screening-select-page');
+    if (selectPage) {
+        const selectedOnPage = pageRows.filter(
+            manager => screeningSelectedCiks.has(manager.cik)
+        ).length;
+        selectPage.checked = pageRows.length > 0 && selectedOnPage === pageRows.length;
+        selectPage.indeterminate = selectedOnPage > 0 && selectedOnPage < pageRows.length;
+    }
+}
+
+function toggleScreeningSelection(cik, checked) {
+    if (checked) screeningSelectedCiks.add(cik);
+    else screeningSelectedCiks.delete(cik);
+    updateScreeningRosterControls();
+}
+
+function toggleScreeningPageSelection(checked) {
+    const start = (screeningPage - 1) * screeningPageSize;
+    screeningData
+        .slice(start, start + screeningPageSize)
+        .forEach(manager => {
+            if (checked) screeningSelectedCiks.add(manager.cik);
+            else screeningSelectedCiks.delete(manager.cik);
+        });
+    renderScreeningTable();
+}
+
+async function mutateScreeningRoster(event, action, ciks, isException = false) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (screeningRosterBusy || !ciks.length) return;
+
+    screeningRosterBusy = true;
+    updateScreeningRosterControls();
+    try {
+        const group = document.getElementById('screening-roster-group')?.value || null;
+        if (action === 'include' && !group) {
+            throw new Error('Choose an investment style before adding managers');
+        }
+        const response = await fetch('/api/roster', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                action,
+                ciks,
+                is_exception: isException,
+                group: action === 'include' ? group : null
+            })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || `Roster update failed with HTTP ${response.status}`);
+        }
+        screeningSelectedCiks.clear();
+        const actionLabel = action === 'exclude'
+            ? 'Removed'
+            : (isException ? 'Added and flagged' : 'Added');
+        showToast(`${actionLabel} ${ciks.length} manager${ciks.length === 1 ? '' : 's'}`);
+        await loadInvestorScreening();
+    } catch (error) {
+        console.error('Roster update failed:', error);
+        showToast(`Roster update failed: ${error.message}`);
+    } finally {
+        screeningRosterBusy = false;
+        updateScreeningRosterControls();
+    }
+}
+
+function updateSelectedScreeningRoster(action, isException = false) {
+    mutateScreeningRoster(
+        null,
+        action,
+        Array.from(screeningSelectedCiks),
+        isException
+    );
+}
+
 async function initializeInvestorScreening() {
     updateScreeningMinimumStocks();
     updateScreeningBestBetCount();
@@ -3059,7 +4352,7 @@ async function initializeInvestorScreening() {
 async function loadInvestorScreening() {
     const tbody = document.getElementById('screening-table-body');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4">Applying screening criteria...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" class="text-center py-4">Applying screening criteria...</td></tr>';
 
     const params = new URLSearchParams({
         minimum_size_billions: document.getElementById('screen-min-size')?.value || '10',
@@ -3123,7 +4416,7 @@ async function loadInvestorScreening() {
         console.error('Investor screening failed:', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" class="text-center py-4 text-red">
+                <td colspan="14" class="text-center py-4 text-red">
                     Could not load the screening snapshot: ${escapeScreeningHtml(error.message)}
                 </td>
             </tr>`;
@@ -3153,6 +4446,14 @@ function updateScreeningSummary(summary, metadata) {
     );
     setText('screening-beat-spy', formatInt(summary.beat_spy_count || 0));
     setText('screening-beat-qqq', formatInt(summary.beat_qqq_count || 0));
+    setText(
+        'screening-active-roster-count',
+        formatInt(metadata.configured_roster_count || 0)
+    );
+    setText(
+        'screening-roster-total',
+        `${formatInt(metadata.configured_roster_count || 0)} configured managers`
+    );
     const performanceWindow = document.getElementById('screen-performance-window')?.value || '3Y';
     setText(
         'screening-performance-window-label',
@@ -3175,6 +4476,7 @@ function updateScreeningSummary(summary, metadata) {
         const generated = new Date(metadata.generated_at);
         setText('screening-generated-at', `Snapshot built ${generated.toLocaleString()}`);
     }
+    updateScreeningRosterControls();
 }
 
 function sortScreening(column) {
@@ -3230,10 +4532,7 @@ function openScreeningManager(event, cik) {
     if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) {
         return;
     }
-    if (
-        event.type === 'click'
-        && event.target.closest('a, button, input, select, textarea')
-    ) {
+    if (event.target.closest('a, button, input, select, textarea')) {
         return;
     }
     event.preventDefault();
@@ -3253,7 +4552,7 @@ function renderScreeningTable() {
     if (!rows.length) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" class="screening-empty">
+                <td colspan="14" class="screening-empty">
                     <strong>No managers match this combination.</strong>
                     <span>Lower the size, concentration, or direct-stock threshold.</span>
                 </td>
@@ -3274,7 +4573,11 @@ function renderScreeningTable() {
                 ? '<span class="screening-risk-flag" title="Largest position exceeds 20%">CONCENTRATED</span>'
                 : '';
             const rosterBadge = manager.is_current_roster
-                ? `<span class="screening-roster-badge">${escapeScreeningHtml(manager.roster_name || 'Roster')}</span>`
+                ? `
+                    <span class="screening-roster-badge ${manager.roster_is_exception ? 'exception' : ''}">
+                        ${manager.roster_is_exception ? 'EXCEPTION' : 'ROSTER'}
+                    </span>
+                `
                 : '';
             const performanceAvailable = manager.performance_status === 'AVAILABLE';
             const coverage = performanceAvailable
@@ -3292,6 +4595,13 @@ function renderScreeningTable() {
                     aria-label="Open detailed investor view for ${escapeScreeningHtml(manager.manager_name)}"
                     onclick="openScreeningManager(event, '${escapeScreeningHtml(manager.cik)}')"
                     onkeydown="openScreeningManager(event, '${escapeScreeningHtml(manager.cik)}')">
+                    <td class="screening-select-cell">
+                        <input type="checkbox"
+                               aria-label="Select ${escapeScreeningHtml(manager.manager_name)}"
+                               ${screeningSelectedCiks.has(manager.cik) ? 'checked' : ''}
+                               onclick="event.stopPropagation()"
+                               onchange="toggleScreeningSelection('${escapeScreeningHtml(manager.cik)}', this.checked)">
+                    </td>
                     <td>
                         <div class="screening-manager-cell">
                             <div>
@@ -3333,6 +4643,28 @@ function renderScreeningTable() {
                     <td class="font-mono">
                         ${coverage === null ? '—' : formatPerformancePercent(coverage)}
                     </td>
+                    <td class="screening-roster-cell">
+                        ${manager.is_current_roster
+                            ? `
+                                <span class="screening-roster-state ${manager.roster_is_exception ? 'exception' : ''}">
+                                    ${manager.roster_is_exception ? 'FLAGGED' : 'IN'}
+                                </span>
+                                <button type="button" class="screening-roster-button remove"
+                                        onclick="mutateScreeningRoster(event, 'exclude', ['${escapeScreeningHtml(manager.cik)}'])">
+                                    Remove
+                                </button>
+                            `
+                            : `
+                                <button type="button" class="screening-roster-button add"
+                                        onclick="mutateScreeningRoster(event, 'include', ['${escapeScreeningHtml(manager.cik)}'])">
+                                    Add
+                                </button>
+                                <button type="button" class="screening-roster-button flag"
+                                        onclick="mutateScreeningRoster(event, 'include', ['${escapeScreeningHtml(manager.cik)}'], true)">
+                                    Add + flag
+                                </button>
+                            `}
+                    </td>
                 </tr>`;
         }).join('');
     }
@@ -3343,6 +4675,7 @@ function renderScreeningTable() {
             ? `${start + 1}-${end} of ${screeningData.length} managers`
             : '0 managers';
     }
+    updateScreeningRosterControls();
 }
 
 function changeScreeningPage(direction) {

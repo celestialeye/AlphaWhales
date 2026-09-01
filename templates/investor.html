@@ -10,22 +10,23 @@
     </div>
     {% if cik %}
     <div>
-        <a href="/investor" class="btn btn-outline" id="investor-back-link">◀ All 26 Fund Managers</a>
+        <a href="/investor" class="btn btn-outline" id="investor-back-link">◀ All 29 Fund Managers</a>
     </div>
     {% endif %}
 </div>
 
 {% if not cik %}
-<!-- Group Filters for Investor Cards -->
+<!-- Investment-style filters for investor cards -->
 <div class="card filter-bar mt-2">
     <div class="filter-group-item">
-        <label>Filter Strategy Group:</label>
+        <label>Filter Investment Style:</label>
         <select id="investor-group-filter" onchange="filterInvestorsList()">
-            <option value="All">All Groups (26 Funds)</option>
-            <option value="Value">Value (12 Funds)</option>
-            <option value="High-performance concentrated">High-performance concentrated (4 Funds)</option>
-            <option value="Quality compounder">Quality compounder (4 Funds)</option>
-            <option value="2026 expansion">2026 expansion (6 Funds)</option>
+            <option value="All">All Styles (29 Funds)</option>
+            <option value="Value &amp; Contrarian">Value &amp; Contrarian (5)</option>
+            <option value="Quality Growth">Quality Growth (4)</option>
+            <option value="Technology &amp; Innovation">Technology &amp; Innovation (9)</option>
+            <option value="Opportunistic &amp; Concentrated">Opportunistic &amp; Concentrated (5)</option>
+            <option value="Diversified &amp; Systematic">Diversified &amp; Systematic (6)</option>
         </select>
     </div>
     <div class="filter-group-item search-item">
@@ -65,9 +66,9 @@
                 <div class="metric-sub" id="inv-aum-b">$0.00 B</div>
             </div>
             <div class="inv-kpi">
-                <div class="metric-label">TOTAL POSITIONS</div>
+                <div class="metric-label">CURRENT POSITIONS</div>
                 <div class="metric-val font-mono" id="inv-holdings-count">0</div>
-                <div class="metric-sub" id="inv-active-closed-count">Active + Closed</div>
+                <div class="metric-sub" id="inv-active-closed-count">Current holdings and quarterly exits</div>
             </div>
             <div class="inv-kpi">
                 <div class="metric-label">TOP 5 CONCENTRATION</div>
@@ -106,10 +107,19 @@
         </div>
         <div class="card chart-card">
             <div class="card-header">
-                <h3>Quarterly Position Moves ($M)</h3>
+                <div>
+                    <h3>Quarterly Position Moves ($M)</h3>
+                    <p class="chart-encoding-note">Bar length = reported value change; color = share-count action.</p>
+                </div>
                 <span class="card-badge">QoQ Value Shifts</span>
             </div>
-            <div id="bar-chart" class="chart-box" style="height: 380px;"></div>
+            <div class="position-move-legend" role="list" aria-label="Quarterly position move legend">
+                <span role="listitem"><i class="move-swatch move-new"></i>New position</span>
+                <span role="listitem"><i class="move-swatch move-increased"></i>Increased shares</span>
+                <span role="listitem"><i class="move-swatch move-decreased"></i>Decreased shares</span>
+                <span role="listitem"><i class="move-swatch move-closed"></i>Closed / exited</span>
+            </div>
+            <div id="bar-chart" class="chart-box ticker-link-chart" style="height: 340px;"></div>
         </div>
     </div>
 
@@ -117,8 +127,8 @@
     <div class="card table-card mt-4">
         <div class="card-header">
             <div>
-                <h3 id="investor-holdings-title">Complete Portfolio Holdings</h3>
-                <p class="section-sub" id="investor-holdings-description">Detailed breakdown of all equities, position weights, share counts, and QoQ changes.</p>
+                <h3 id="investor-holdings-title">Portfolio Positions &amp; Exits</h3>
+                <p class="section-sub" id="investor-holdings-description">Current holdings plus positions fully exited since the previous comparable filing.</p>
             </div>
             <div class="section-actions">
                 <span class="card-badge" id="inv-market-as-of">Market data unavailable</span>
@@ -129,7 +139,7 @@
         <!-- Table Filters & Tabs -->
         <div class="table-tab-bar">
             <div class="tab-group" id="holdings-tab-group">
-                <button class="tab-btn active" onclick="filterHoldingsTab('ALL')">All Positions (<span id="tab-cnt-all">0</span>)</button>
+                <button class="tab-btn active" onclick="filterHoldingsTab('ALL')">Current + Exits (<span id="tab-cnt-all">0</span>)</button>
                 <button class="tab-btn" onclick="filterHoldingsTab('NEW')">New Buys (<span id="tab-cnt-new">0</span>)</button>
                 <button class="tab-btn" onclick="filterHoldingsTab('INCREASED')">Increased (<span id="tab-cnt-inc">0</span>)</button>
                 <button class="tab-btn" onclick="filterHoldingsTab('DECREASED')">Decreased (<span id="tab-cnt-dec">0</span>)</button>
@@ -145,13 +155,14 @@
             <table id="investor-holdings-table" class="data-table investor-market-table">
                 <thead>
                     <tr class="investor-table-group-row">
-                        <th colspan="5">Position Snapshot</th>
+                        <th colspan="6">Position Snapshot</th>
                         <th colspan="5" class="market-group">Market Context</th>
-                        <th colspan="4">Quarterly Activity</th>
+                        <th colspan="3">Quarterly Change</th>
                     </tr>
                     <tr class="investor-table-column-row" onclick="sortInvestorTable(event)">
                         <th data-sort="ticker">Ticker ↕</th>
                         <th data-sort="issuer">Company ↕</th>
+                        <th data-sort="status">Action <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Quarterly action definition" data-tooltip="Action is based on reported share counts versus the previous comparable filing. NEW is a newly reported position, INCREASED and DECREASED are changes to a continuing position, CLOSED means the position was fully exited, and UNCHANGED means the reported share count did not change." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="portfolio_weight">Portfolio % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Portfolio percentage definition" data-tooltip="Reported position value divided by the manager's total reported 13F value, multiplied by 100. This is the filing-period portfolio weight, not a live market weight." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="value">Reported Value ($M) <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported value definition" data-tooltip="The security value reported for the selected 13F report period, converted from dollars to millions. It is not the position's current live market value." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="shares">Shares Held <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Shares held definition" data-tooltip="The share or principal amount reported in the selected 13F filing. Quarter-over-quarter action and share-change fields are determined from this amount." onclick="event.stopPropagation()">i</span> ↕</th>
@@ -159,8 +170,7 @@
                         <th data-sort="current_price">Latest Price <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Latest price definition" data-tooltip="The latest cached OpenBB closing price. The market-data badge and each cell's hover title show the applicable as-of date." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="current_vs_reported_pct">Since Report <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Since report calculation" data-tooltip="Since Report = 100 × (Latest Price ÷ Implied Reported Price - 1). It measures the stock's market-price movement since quarter end, not the manager's return or gain/loss." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="low_52_week">52W Low <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="52-week low definition" data-tooltip="The lowest daily market low in the latest trailing 52-week OpenBB price window. It uses current market data, independent of the selected filing period." onclick="event.stopPropagation()">i</span> ↕</th>
-                        <th data-sort="pct_above_low">Above Low <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Percentage above 52-week low calculation" data-tooltip="Above Low = 100 × (Latest Price ÷ 52W Low - 1). Green is 10% or less above the low, yellow is above 10% through 25%, and orange is above 25%." onclick="event.stopPropagation()">i</span> ↕</th>
-                        <th data-sort="status">Action <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Quarterly action definition" data-tooltip="Action is based on reported share counts versus the previous comparable filing: NEW, INCREASED, DECREASED, CLOSED, or UNCHANGED." onclick="event.stopPropagation()">i</span> ↕</th>
+                        <th data-sort="pct_above_low">Above Low <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Percentage above 52-week low calculation" data-tooltip="Above Low = 100 × (Latest Price ÷ 52W Low - 1). Positive differences are green and negative differences are red; this remains market context rather than a valuation conclusion." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="value_change">Dollar Δ ($M) <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported dollar change calculation" data-tooltip="Current reported value minus previous reported value, in millions. It includes quarter-end price movement and therefore can move opposite to the share-count action." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="value_change_pct">Value Δ % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Reported value percentage change calculation" data-tooltip="Reported Dollar Change divided by previous reported value, multiplied by 100. This is a reported-value comparison, not transaction return." onclick="event.stopPropagation()">i</span> ↕</th>
                         <th data-sort="shares_change_pct">Shares Δ % <span class="stats-info table-column-info" tabindex="0" role="img" aria-label="Share percentage change calculation" data-tooltip="Reported share change divided by previous reported shares, multiplied by 100. This is the primary measure behind INCREASED and DECREASED actions." onclick="event.stopPropagation()">i</span> ↕</th>
