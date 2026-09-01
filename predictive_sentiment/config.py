@@ -5,7 +5,7 @@ from datetime import date
 from itertools import product
 
 
-PROTOCOL_VERSION = "alpha-whale-predictive-v6.3"
+PROTOCOL_VERSION = "alpha-whale-predictive-v9.1"
 FORMULA_MINIMUM_MANAGERS = {
     "alpha_v1_n3": 3,
     "breadth_v1_n3": 3,
@@ -18,10 +18,13 @@ ALLOWED_OPTIMIZATION_HORIZONS = (126, 252, 378, 504)
 EXPERIMENT_SENTIMENT_ONLY = "SENTIMENT_ONLY"
 EXPERIMENT_TECHNICAL_COMBINED = "TECHNICAL_COMBINED"
 EXPERIMENT_DECOMPOSED_SWEEP = "DECOMPOSED_SWEEP"
+EXPERIMENT_MACRO_SECTOR = "MACRO_SECTOR_CHALLENGER"
+EXPERIMENT_FUNDAMENTAL = "FUNDAMENTAL_CHALLENGER"
 EXPERIMENT_GROUPS = (
     EXPERIMENT_SENTIMENT_ONLY,
     EXPERIMENT_TECHNICAL_COMBINED,
     EXPERIMENT_DECOMPOSED_SWEEP,
+    EXPERIMENT_MACRO_SECTOR,
 )
 CONTEXT_SENTIMENT_ONLY = "SENTIMENT_ONLY"
 CONTEXT_PRICE_CAP_BUY_25 = "PRICE_CAP_BUY_25"
@@ -50,6 +53,12 @@ class CandidateSpec:
     crowding_weight: float = 0.0
     persistence_weight: float = 0.0
     technical_weight: float = 0.0
+    sector_weight: float = 0.0
+    macro_weight: float = 0.0
+    sensitivity_weight: float = 0.0
+    value_weight: float = 0.0
+    quality_weight: float = 0.0
+    safety_weight: float = 0.0
 
 
 ACTION_PROFILES = {

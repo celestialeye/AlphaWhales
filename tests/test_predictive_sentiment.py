@@ -20,6 +20,7 @@ from predictive_sentiment.pipeline import (
     _point_in_time_market_features,
     _production_training_rows,
 )
+from predictive_sentiment.macro import macro_features_at
 from predictive_sentiment.research import (
     FilingRow,
     FormulaScore,
@@ -469,6 +470,37 @@ def test_market_context_uses_only_closes_before_entry():
     assert features["feature_date"] == dates[-2]
     assert features["trend_regime"] == "BULLISH"
     assert features["sma_50"] < float(series.iloc[-2])
+
+
+def test_macro_features_ignore_values_after_feature_date():
+    dates = pd.date_range("2018-01-02", periods=1600, freq="B").date
+    feature_date = dates[1400]
+    base = pd.Series(
+        [2.0 + index / 10000 for index in range(len(dates))],
+        index=pd.Index(dates, name="date"),
+        dtype=float,
+    )
+    bundle = {
+        "DGS10": base.copy(),
+        "DGS2": base.subtract(0.5),
+        "DFII10": base.subtract(1.5),
+        "DXY": pd.Series(
+            [90 + index / 100 for index in range(len(dates))],
+            index=pd.Index(dates, name="date"),
+            dtype=float,
+        ),
+    }
+    spy = pd.Series(
+        [200 + index / 10 for index in range(len(dates))],
+        index=pd.Index(dates, name="date"),
+        dtype=float,
+    )
+    before = macro_features_at(bundle, spy, feature_date=feature_date)
+    bundle["DGS10"].loc[bundle["DGS10"].index > feature_date] = 99
+    bundle["DXY"].loc[bundle["DXY"].index > feature_date] = 999
+    after = macro_features_at(bundle, spy, feature_date=feature_date)
+
+    assert before == after
 
 
 def test_alpha_direction_with_support_gate_produces_buy_hold_sell():

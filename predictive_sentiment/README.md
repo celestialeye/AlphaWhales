@@ -79,6 +79,10 @@ The current top-ten-universe results and backfill coverage are documented in
 The exact tested definition of the new forward index is documented in
 [`ALPHA_WHALE_FORWARD_INDEX.md`](ALPHA_WHALE_FORWARD_INDEX.md).
 
+Treasury, DXY, sector-relative, stock-sensitivity, and point-in-time
+fundamental challenger results are documented in
+[`CHALLENGER_EXPERIMENTS.md`](CHALLENGER_EXPERIMENTS.md).
+
 ## Commands
 
 ```powershell

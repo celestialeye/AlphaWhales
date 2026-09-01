@@ -18,10 +18,20 @@ from roster_store import load_roster
 
 from .config import (
     EXPERIMENT_DECOMPOSED_SWEEP,
+    EXPERIMENT_FUNDAMENTAL,
     EXPERIMENT_GROUPS,
+    EXPERIMENT_MACRO_SECTOR,
     EXPERIMENT_TECHNICAL_COMBINED,
     PROTOCOL_VERSION,
     ResearchConfig,
+)
+from .macro import (
+    DEFAULT_MACRO_DIR,
+    SECTOR_ETFS,
+    load_macro_bundle,
+    macro_features_at,
+    sector_proxy_features_at,
+    stock_macro_sensitivity_at,
 )
 from .research import (
     FilingRow,
@@ -116,6 +126,13 @@ CREATE TABLE IF NOT EXISTS run_top_holdings (
     title VARCHAR NOT NULL,
     portfolio_weight DOUBLE NOT NULL,
     reported_value DOUBLE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS run_artifact_provenance (
+    run_id VARCHAR NOT NULL,
+    artifact_name VARCHAR NOT NULL,
+    fingerprint VARCHAR NOT NULL,
+    details_json JSON NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS split_actions (
@@ -243,6 +260,14 @@ CREATE TABLE IF NOT EXISTS candidate_trials (
 );
 
 CREATE TABLE IF NOT EXISTS decomposed_features (
+    run_id VARCHAR NOT NULL,
+    report_period DATE NOT NULL,
+    cusip VARCHAR NOT NULL,
+    horizon INTEGER NOT NULL,
+    features_json JSON NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS macro_sector_features (
     run_id VARCHAR NOT NULL,
     report_period DATE NOT NULL,
     cusip VARCHAR NOT NULL,
@@ -1213,6 +1238,171 @@ def _decomposed_observation_frame(
     return frame
 
 
+def _awfi_base_scores(frame: pd.DataFrame) -> pd.Series:
+    numerator = (
+        frame["new_strength"]
+        + 0.75 * frame["increased_strength"]
+        - 0.25 * frame["decreased_strength"]
+        - 0.25 * frame["closed_strength"]
+    )
+    denominator = (
+        frame["new_strength"]
+        + 0.75 * frame["increased_strength"]
+        + 0.25 * frame["decreased_strength"]
+        + 0.25 * frame["closed_strength"]
+    )
+    action_score = pd.Series(
+        np.where(denominator > 0, 100.0 * numerator / denominator, 0.0),
+        index=frame.index,
+        dtype=float,
+    )
+    result = pd.Series(0.0, index=frame.index, dtype=float)
+    weights = {
+        126: (0.34, 0.34, 0.17, 0.15),
+        252: (0.425, 0.2125, 0.2125, 0.15),
+        378: (0.50, 0.25, 0.25, 0.0),
+        504: (0.50, 0.25, 0.25, 0.0),
+    }
+    for horizon, values in weights.items():
+        selected = frame["horizon"] == horizon
+        result.loc[selected] = (
+            values[0] * frame.loc[selected, "alpha_score"]
+            + values[1] * action_score.loc[selected]
+            + values[2] * frame.loc[selected, "portfolio_weight_score"]
+            + values[3] * frame.loc[selected, "technical_score"]
+        )
+    return result.clip(-100.0, 100.0)
+
+
+def _macro_sector_observation_frame(
+    decomposed_current: pd.DataFrame,
+    performance: duckdb.DuckDBPyConnection,
+    macro_bundle: dict[str, pd.Series],
+) -> pd.DataFrame:
+    if decomposed_current.empty:
+        return pd.DataFrame()
+    frame = decomposed_current.copy()
+    spy = _load_price_series(performance, "SPY")
+    if spy is None:
+        raise ValueError("SPY is required for macro-sector features")
+    sector_prices = {
+        symbol: series
+        for symbol in SECTOR_ETFS
+        if (series := _load_price_series(performance, symbol)) is not None
+    }
+    if len(sector_prices) != len(SECTOR_ETFS):
+        missing = sorted(set(SECTOR_ETFS) - set(sector_prices))
+        raise ValueError(f"Sector ETF price history is missing: {missing}")
+    stock_cache: dict[str, pd.Series | None] = {}
+    macro_cache: dict[date, dict] = {}
+    sector_cache: dict[tuple[str, date], dict] = {}
+    sensitivity_cache: dict[tuple[str, date], dict] = {}
+    macro_rows = []
+    for _, row in frame.iterrows():
+        feature_date = row["feature_date"]
+        symbol = row["market_symbol"]
+        if feature_date not in macro_cache:
+            macro_cache[feature_date] = macro_features_at(
+                macro_bundle,
+                spy,
+                feature_date=feature_date,
+            )
+        key = (symbol, feature_date)
+        if key not in sector_cache:
+            if symbol not in stock_cache:
+                stock_cache[symbol] = _load_price_series(
+                    performance,
+                    symbol,
+                )
+            stock = stock_cache[symbol]
+            sector_cache[key] = (
+                sector_proxy_features_at(
+                    stock,
+                    sector_prices,
+                    spy,
+                    feature_date=feature_date,
+                )
+                if stock is not None
+                else {
+                    "sector_proxy": None,
+                    "relative_12m1m": None,
+                    "relative_6m": None,
+                    "sector_vs_spy_6m": None,
+                }
+            )
+        if key not in sensitivity_cache:
+            macro_values = macro_cache[feature_date]
+            sector_symbol = sector_cache[key].get("sector_proxy")
+            stock = stock_cache.get(symbol)
+            if (
+                stock is not None
+                and sector_symbol in sector_prices
+                and macro_values.get("market_score") is not None
+                and macro_values.get("yield_6m_change_score") is not None
+                and macro_values.get("dxy_6m_score") is not None
+            ):
+                sensitivity_cache[key] = stock_macro_sensitivity_at(
+                    stock,
+                    sector_prices[sector_symbol],
+                    spy,
+                    macro_bundle["DGS10"],
+                    macro_bundle["DXY"],
+                    feature_date=feature_date,
+                    market_score=macro_values["market_score"],
+                    yield_6m_score=macro_values[
+                        "yield_6m_change_score"
+                    ],
+                    dxy_6m_score=macro_values["dxy_6m_score"],
+                )
+            else:
+                sensitivity_cache[key] = {
+                    "market_sensitivity_raw": None,
+                    "rate_sensitivity_raw": None,
+                    "dxy_sensitivity_raw": None,
+                }
+        macro_rows.append(
+            {
+                **macro_cache[feature_date],
+                **sector_cache[key],
+                **sensitivity_cache[key],
+            }
+        )
+    macro_frame = pd.DataFrame(macro_rows, index=frame.index)
+    frame = pd.concat([frame, macro_frame], axis=1)
+    for output, source in {
+        "relative_12m1m_rank": "relative_12m1m",
+        "relative_6m_rank": "relative_6m",
+        "sector_vs_spy_rank": "sector_vs_spy_6m",
+    }.items():
+        frame[output] = frame.groupby(
+            ["report_period", "horizon"],
+            group_keys=False,
+        )[source].apply(_centered_rank)
+    frame["sector_score"] = (
+        0.45 * frame["relative_12m1m_rank"]
+        + 0.30 * frame["relative_6m_rank"]
+        + 0.25 * frame["sector_vs_spy_rank"]
+    )
+    for output, source in {
+        "market_sensitivity_rank": "market_sensitivity_raw",
+        "rate_sensitivity_rank": "rate_sensitivity_raw",
+        "dxy_sensitivity_rank": "dxy_sensitivity_raw",
+    }.items():
+        frame[output] = frame.groupby(
+            ["report_period", "horizon"],
+            group_keys=False,
+        )[source].apply(_centered_rank)
+    frame["sensitivity_score"] = (
+        0.40 * frame["market_sensitivity_rank"]
+        + 0.30 * frame["rate_sensitivity_rank"]
+        + 0.30 * frame["dxy_sensitivity_rank"]
+    )
+    frame["base_awfi_score"] = _awfi_base_scores(frame)
+    frame["formula_id"] = "awfi_msr_v1"
+    frame["score"] = frame["base_awfi_score"]
+    return frame[frame["status"] == "READY"].copy()
+
+
 def _build_current_signals(
     scores: list[FormulaScore],
     labels: list[dict],
@@ -1607,6 +1797,7 @@ def _delete_run(connection: duckdb.DuckDBPyConnection, run_id: str) -> None:
         "snapshot_positions",
         "run_mapping",
         "run_top_holdings",
+        "run_artifact_provenance",
         "split_actions",
         "manager_changes",
         "formula_scores",
@@ -1615,6 +1806,7 @@ def _delete_run(connection: duckdb.DuckDBPyConnection, run_id: str) -> None:
         "walk_forward_predictions",
         "candidate_trials",
         "decomposed_features",
+        "macro_sector_features",
         "evaluation_metrics",
         "rank_ic_by_quarter",
         "trust_gate_results",
@@ -1644,6 +1836,8 @@ def _persist_research(
     production_candidate_trials: list[dict],
     current_signals: list[dict],
     decomposed_observations: pd.DataFrame,
+    macro_sector_observations: pd.DataFrame,
+    artifact_provenance: dict[str, dict],
 ) -> None:
     connection.executemany(
         "INSERT INTO manager_snapshots VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1712,6 +1906,22 @@ def _persist_research(
                     item["reported_value"],
                 )
                 for item in top_holdings
+            ],
+        )
+    if artifact_provenance:
+        connection.executemany(
+            """
+            INSERT INTO run_artifact_provenance
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                (
+                    run_id,
+                    name,
+                    values["fingerprint"],
+                    _json(values),
+                )
+                for name, values in sorted(artifact_provenance.items())
             ],
         )
     if splits:
@@ -2050,6 +2260,36 @@ def _persist_research(
                 for _, row in decomposed_observations.iterrows()
             ],
         )
+    if not macro_sector_observations.empty:
+        excluded = {
+            "security_return",
+            "excess_return",
+            "target_return",
+            "label",
+            "excess_label",
+        }
+        connection.executemany(
+            """
+            INSERT INTO macro_sector_features
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    run_id,
+                    row["report_period"],
+                    row["cusip"],
+                    row["horizon"],
+                    _json(
+                        {
+                            key: value
+                            for key, value in row.to_dict().items()
+                            if key not in excluded
+                        }
+                    ),
+                )
+                for _, row in macro_sector_observations.iterrows()
+            ],
+        )
 
 
 def run_research(
@@ -2070,6 +2310,9 @@ def run_research(
     source = duckdb.connect(str(source_path), read_only=True)
     performance = duckdb.connect(str(performance_path), read_only=True)
     try:
+        macro_bundle, macro_fingerprint = load_macro_bundle(
+            DEFAULT_MACRO_DIR
+        )
         filings, holdings, managers = _load_source_data(source, roster)
         top_holdings = _load_current_top_holdings(
             source,
@@ -2088,6 +2331,7 @@ def run_research(
             "source_fingerprint": source_digest,
             "roster_sha256": roster_digest,
             "universe_fingerprint": universe_fingerprint,
+            "macro_fingerprint": macro_fingerprint,
             "performance_size": performance_path.stat().st_size,
             "performance_mtime_ns": performance_path.stat().st_mtime_ns,
         }
@@ -2168,11 +2412,18 @@ def run_research(
                 config=config,
                 require_ready=False,
             )
+            macro_sector_observations = _macro_sector_observation_frame(
+                decomposed_current,
+                performance,
+                macro_bundle,
+            )
             evaluations = [
                 evaluate_walk_forward(
                     (
                         decomposed_observations
                         if experiment_group == EXPERIMENT_DECOMPOSED_SWEEP
+                        else macro_sector_observations
+                        if experiment_group == EXPERIMENT_MACRO_SECTOR
                         else observations
                     ),
                     horizon=horizon,
@@ -2280,6 +2531,18 @@ def run_research(
                 production_candidate_trials=production_candidate_trials,
                 current_signals=current_signals,
                 decomposed_observations=decomposed_observations,
+                macro_sector_observations=macro_sector_observations,
+                artifact_provenance={
+                    "macro_manifest": {
+                        "fingerprint": macro_fingerprint,
+                        "path": str(DEFAULT_MACRO_DIR.resolve()),
+                    },
+                    "top_holdings_universe": {
+                        "fingerprint": universe_fingerprint,
+                        "rows": len(top_holdings),
+                        "cusips": len(top_cusips),
+                    },
+                },
             )
             output.execute(
                 """

@@ -21,6 +21,8 @@ from .config import (
     CONTEXT_TREND_AND_PRICE_75,
     CONTEXT_TREND_SUPPORTIVE,
     EXPERIMENT_DECOMPOSED_SWEEP,
+    EXPERIMENT_FUNDAMENTAL,
+    EXPERIMENT_MACRO_SECTOR,
     EXPERIMENT_SENTIMENT_ONLY,
     candidate_specs,
     ResearchConfig,
@@ -196,6 +198,50 @@ def _candidate_rows(
     rows: pd.DataFrame,
     spec: CandidateSpec,
 ) -> pd.DataFrame:
+    if spec.formula_id == "awfi_msr_v1":
+        required = ["base_awfi_score"]
+        if spec.sector_weight > 0:
+            required.append("sector_score")
+        if spec.macro_weight > 0:
+            required.append("macro_score")
+        if spec.sensitivity_weight > 0:
+            required.append("sensitivity_score")
+        result = rows.dropna(subset=required).copy()
+        support_weight = (
+            spec.sector_weight
+            + spec.macro_weight
+            + spec.sensitivity_weight
+        )
+        result["score"] = (
+            (1.0 - support_weight) * result["base_awfi_score"]
+            + spec.sector_weight * result.get("sector_score", 0.0)
+            + spec.macro_weight * result.get("macro_score", 0.0)
+            + spec.sensitivity_weight * result.get(
+                "sensitivity_score", 0.0
+            )
+        ).clip(-100.0, 100.0)
+        result["formula_id"] = spec.formula_id
+        return result
+    if spec.formula_id == "awfi_f_v1":
+        required = ["base_awfi_score"]
+        if spec.value_weight > 0:
+            required.append("value_score")
+        if spec.quality_weight > 0:
+            required.append("quality_score")
+        if spec.safety_weight > 0:
+            required.append("safety_score")
+        result = rows.dropna(subset=required).copy()
+        support_weight = (
+            spec.value_weight + spec.quality_weight + spec.safety_weight
+        )
+        result["score"] = (
+            (1.0 - support_weight) * result["base_awfi_score"]
+            + spec.value_weight * result.get("value_score", 0.0)
+            + spec.quality_weight * result.get("quality_score", 0.0)
+            + spec.safety_weight * result.get("safety_score", 0.0)
+        ).clip(-100.0, 100.0)
+        result["formula_id"] = spec.formula_id
+        return result
     if spec.formula_id != "decomposed_v1":
         return rows[rows["formula_id"] == spec.formula_id].copy()
     required = {
@@ -250,6 +296,12 @@ def _candidate_metrics(
     rows: pd.DataFrame,
     spec: CandidateSpec,
 ) -> dict[str, float | int]:
+    base_rows = (
+        rows[rows["formula_id"] == spec.formula_id]
+        if spec.formula_id
+        not in {"decomposed_v1", "awfi_msr_v1", "awfi_f_v1"}
+        else rows
+    )
     formula_rows = _candidate_rows(rows, spec)
     predicted = _predictions(
         formula_rows,
@@ -260,8 +312,11 @@ def _candidate_metrics(
     metrics = classification_metrics(
         predicted["label"], predicted["prediction"]
     )
+    metrics["eligibility_coverage"] = (
+        len(formula_rows) / len(base_rows) if len(base_rows) else 0.0
+    )
     metrics["coverage"] = (
-        len(predicted) / len(formula_rows) if len(formula_rows) else 0.0
+        len(predicted) / len(base_rows) if len(base_rows) else 0.0
     )
     rank_rows = _quarterly_rank_ic(formula_rows)
     metrics["rank_ic"] = (
@@ -314,6 +369,12 @@ def _candidate_trials(
     if experiment_group == EXPERIMENT_DECOMPOSED_SWEEP:
         trials, _ = _decomposed_two_stage_trials(training, config)
         return trials
+    if experiment_group == EXPERIMENT_MACRO_SECTOR:
+        trials, _ = _macro_two_stage_trials(training, config)
+        return trials
+    if experiment_group == EXPERIMENT_FUNDAMENTAL:
+        trials, _ = _fundamental_two_stage_trials(training, config)
+        return trials
     periods = sorted(training["report_period"].unique())
     validation_periods = periods[config.inner_warmup_quarters :]
     if len(validation_periods) < config.minimum_inner_validation_quarters:
@@ -355,6 +416,8 @@ def _trial_record(
         rejection_reasons.append("MINIMUM_NEGATIVE_CLASS")
     if metrics["coverage"] < config.minimum_inner_coverage:
         rejection_reasons.append("MINIMUM_COVERAGE")
+    if metrics["eligibility_coverage"] < 0.80:
+        rejection_reasons.append("MINIMUM_FEATURE_AVAILABILITY")
     if (
         metrics["balanced_quarters"]
         < config.minimum_inner_validation_quarters
@@ -377,6 +440,12 @@ def _trial_record(
         "crowding_weight": spec.crowding_weight,
         "persistence_weight": spec.persistence_weight,
         "technical_weight": spec.technical_weight,
+        "sector_weight": spec.sector_weight,
+        "macro_weight": spec.macro_weight,
+        "sensitivity_weight": spec.sensitivity_weight,
+        "value_weight": spec.value_weight,
+        "quality_weight": spec.quality_weight,
+        "safety_weight": spec.safety_weight,
         "candidate_order": candidate_order,
         "stage": stage,
         "eligible": not rejection_reasons,
@@ -495,6 +564,231 @@ def _decomposed_two_stage_trials(
     return [*screen_trials, *tuning_trials], selected
 
 
+def _macro_two_stage_trials(
+    training: pd.DataFrame,
+    config: ResearchConfig,
+) -> tuple[list[dict], dict | None]:
+    periods = sorted(training["report_period"].unique())
+    required = config.minimum_inner_validation_quarters * 2
+    if len(periods) < required:
+        return [], None
+    tuning_periods = periods[-config.minimum_inner_validation_quarters :]
+    first_tuning = training[
+        training["report_period"] == tuning_periods[0]
+    ]
+    if first_tuning.empty:
+        return [], None
+    first_tuning_entry = int(first_tuning["entry_index"].min())
+    screening = training[
+        (training["report_period"] < tuning_periods[0])
+        & (
+            training["exit_index"]
+            < first_tuning_entry - config.embargo_sessions
+        )
+    ]
+    if (
+        screening["report_period"].nunique()
+        < config.minimum_inner_validation_quarters
+    ):
+        return [], None
+    tuning = training[training["report_period"].isin(tuning_periods)]
+    horizon = int(training["horizon"].iloc[0])
+    frozen_threshold = 25.0 if horizon == 504 else 75.0
+    profiles = (
+        ("CONTROL", 0.0, 0.0, 0.0),
+        ("SECTOR_ONLY", 1.0, 0.0, 0.0),
+        ("MACRO_ONLY", 0.0, 1.0, 0.0),
+        ("SECTOR_MACRO_50_50", 0.5, 0.5, 0.0),
+        ("SECTOR_HEAVY_67_33", 0.67, 0.33, 0.0),
+        ("MACRO_HEAVY_33_67", 0.33, 0.67, 0.0),
+        ("SECTOR_MACRO_BETA_40_40_20", 0.4, 0.4, 0.2),
+    )
+    screen_specs = [
+        CandidateSpec(
+            formula_id="awfi_msr_v1",
+            positive_threshold=frozen_threshold,
+            negative_threshold=frozen_threshold,
+            context_id=CONTEXT_SENTIMENT_ONLY,
+            experiment_group=EXPERIMENT_MACRO_SECTOR,
+            score_profile_id=name,
+            sector_weight=0.20 * sector_ratio,
+            macro_weight=0.20 * macro_ratio,
+            sensitivity_weight=0.20 * sensitivity_ratio,
+        )
+        for name, sector_ratio, macro_ratio, sensitivity_ratio in profiles
+    ]
+    screen_trials = [
+        _trial_record(
+            screening,
+            spec,
+            config,
+            candidate_order=index,
+            stage="SCREENING",
+        )
+        for index, spec in enumerate(screen_specs)
+    ]
+    selected_base = _choose_candidate(screen_trials)
+    if selected_base is None:
+        return screen_trials, None
+    selected_support = (
+        selected_base["sector_weight"] + selected_base["macro_weight"]
+        + selected_base["sensitivity_weight"]
+    )
+    if selected_support > 0:
+        sector_ratio = selected_base["sector_weight"] / selected_support
+        macro_ratio = selected_base["macro_weight"] / selected_support
+        sensitivity_ratio = (
+            selected_base["sensitivity_weight"] / selected_support
+        )
+    else:
+        sector_ratio = macro_ratio = sensitivity_ratio = 0.0
+    tuning_specs = []
+    for support_weight in (0.10, 0.20):
+        for positive_threshold in ACTION_THRESHOLDS:
+            for negative_threshold in ACTION_THRESHOLDS:
+                tuning_specs.append(
+                    CandidateSpec(
+                        formula_id="awfi_msr_v1",
+                        positive_threshold=positive_threshold,
+                        negative_threshold=negative_threshold,
+                        context_id=CONTEXT_SENTIMENT_ONLY,
+                        experiment_group=EXPERIMENT_MACRO_SECTOR,
+                        score_profile_id=(
+                            f"{selected_base['score_profile_id']}"
+                            f"_W{int(support_weight * 100):02d}"
+                        ),
+                        sector_weight=support_weight * sector_ratio,
+                        macro_weight=support_weight * macro_ratio,
+                        sensitivity_weight=(
+                            support_weight * sensitivity_ratio
+                        ),
+                    )
+                )
+    tuning_trials = [
+        _trial_record(
+            tuning,
+            spec,
+            config,
+            candidate_order=len(screen_trials) + index,
+            stage="TUNING",
+        )
+        for index, spec in enumerate(tuning_specs)
+    ]
+    return [*screen_trials, *tuning_trials], _choose_candidate(tuning_trials)
+
+
+def _fundamental_two_stage_trials(
+    training: pd.DataFrame,
+    config: ResearchConfig,
+) -> tuple[list[dict], dict | None]:
+    periods = sorted(training["report_period"].unique())
+    required = config.minimum_inner_validation_quarters * 2
+    if len(periods) < required:
+        return [], None
+    tuning_periods = periods[-config.minimum_inner_validation_quarters :]
+    first_tuning = training[
+        training["report_period"] == tuning_periods[0]
+    ]
+    if first_tuning.empty:
+        return [], None
+    first_tuning_entry = int(first_tuning["entry_index"].min())
+    screening = training[
+        (training["report_period"] < tuning_periods[0])
+        & (
+            training["exit_index"]
+            < first_tuning_entry - config.embargo_sessions
+        )
+    ]
+    if (
+        screening["report_period"].nunique()
+        < config.minimum_inner_validation_quarters
+    ):
+        return [], None
+    tuning = training[training["report_period"].isin(tuning_periods)]
+    horizon = int(training["horizon"].iloc[0])
+    frozen_threshold = 25.0 if horizon == 504 else 75.0
+    profiles = (
+        ("CONTROL", 0.0, 0.0, 0.0),
+        ("VALUE_ONLY", 1.0, 0.0, 0.0),
+        ("QUALITY_ONLY", 0.0, 1.0, 0.0),
+        ("SAFETY_ONLY", 0.0, 0.0, 1.0),
+        ("VALUE_QUALITY", 0.5, 0.5, 0.0),
+        ("QUALITY_SAFETY", 0.0, 0.6, 0.4),
+        ("BALANCED", 0.35, 0.40, 0.25),
+    )
+    screen_specs = [
+        CandidateSpec(
+            formula_id="awfi_f_v1",
+            positive_threshold=frozen_threshold,
+            negative_threshold=frozen_threshold,
+            context_id=CONTEXT_SENTIMENT_ONLY,
+            experiment_group=EXPERIMENT_FUNDAMENTAL,
+            score_profile_id=name,
+            value_weight=0.20 * value_ratio,
+            quality_weight=0.20 * quality_ratio,
+            safety_weight=0.20 * safety_ratio,
+        )
+        for name, value_ratio, quality_ratio, safety_ratio in profiles
+    ]
+    screen_trials = [
+        _trial_record(
+            screening,
+            spec,
+            config,
+            candidate_order=index,
+            stage="SCREENING",
+        )
+        for index, spec in enumerate(screen_specs)
+    ]
+    selected_base = _choose_candidate(screen_trials)
+    if selected_base is None:
+        return screen_trials, None
+    selected_support = (
+        selected_base["value_weight"]
+        + selected_base["quality_weight"]
+        + selected_base["safety_weight"]
+    )
+    if selected_support > 0:
+        ratios = (
+            selected_base["value_weight"] / selected_support,
+            selected_base["quality_weight"] / selected_support,
+            selected_base["safety_weight"] / selected_support,
+        )
+    else:
+        ratios = (0.0, 0.0, 0.0)
+    tuning_specs = []
+    for support_weight in (0.10, 0.20):
+        for positive_threshold in ACTION_THRESHOLDS:
+            for negative_threshold in ACTION_THRESHOLDS:
+                tuning_specs.append(
+                    CandidateSpec(
+                        formula_id="awfi_f_v1",
+                        positive_threshold=positive_threshold,
+                        negative_threshold=negative_threshold,
+                        context_id=CONTEXT_SENTIMENT_ONLY,
+                        experiment_group=EXPERIMENT_FUNDAMENTAL,
+                        score_profile_id=(
+                            f"{selected_base['score_profile_id']}"
+                            f"_W{int(support_weight * 100):02d}"
+                        ),
+                        value_weight=support_weight * ratios[0],
+                        quality_weight=support_weight * ratios[1],
+                        safety_weight=support_weight * ratios[2],
+                    )
+                )
+    tuning_trials = [
+        _trial_record(
+            tuning,
+            spec,
+            config,
+            candidate_order=len(screen_trials) + index,
+            stage="TUNING",
+        )
+        for index, spec in enumerate(tuning_specs)
+    ]
+    return [*screen_trials, *tuning_trials], _choose_candidate(tuning_trials)
+
+
 def _choose_candidate(candidates: list[dict]) -> dict | None:
     eligible = [item for item in candidates if item["eligible"]]
     if not eligible:
@@ -540,6 +834,10 @@ def _selection_trials(
 ) -> tuple[list[dict], dict | None]:
     if experiment_group == EXPERIMENT_DECOMPOSED_SWEEP:
         return _decomposed_two_stage_trials(training, config)
+    if experiment_group == EXPERIMENT_MACRO_SECTOR:
+        return _macro_two_stage_trials(training, config)
+    if experiment_group == EXPERIMENT_FUNDAMENTAL:
+        return _fundamental_two_stage_trials(training, config)
     trials = _candidate_trials(
         training,
         config,
@@ -646,6 +944,14 @@ def _spec_from_selection(selection: dict) -> CandidateSpec:
         crowding_weight=float(selection["crowding_weight"]),
         persistence_weight=float(selection["persistence_weight"]),
         technical_weight=float(selection["technical_weight"]),
+        sector_weight=float(selection.get("sector_weight", 0.0)),
+        macro_weight=float(selection.get("macro_weight", 0.0)),
+        sensitivity_weight=float(
+            selection.get("sensitivity_weight", 0.0)
+        ),
+        value_weight=float(selection.get("value_weight", 0.0)),
+        quality_weight=float(selection.get("quality_weight", 0.0)),
+        safety_weight=float(selection.get("safety_weight", 0.0)),
     )
 
 
