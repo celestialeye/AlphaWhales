@@ -1,7 +1,7 @@
 # Alpha Whales Final Roster Recommendation
 
-**Decision date:** August 31, 2026  
-**Performance data through:** August 28, 2026  
+**Decision date:** August 31, 2026
+**Performance data through:** August 28, 2026
 **Status:** Approved roster implemented and refreshed.
 
 ## The three decision rules
