@@ -19,6 +19,8 @@ charts.
 | `roster.json` | Persistent manager catalog, CIK history, display metadata, style, and exception status |
 | `config.py` | Loads the roster path and owns SEC identity and cache settings |
 | `data_service.py` | SEC access, persistence, aggregation, market enrichment, valuation, timing, and ticker history |
+| `filing_operations.py` | Daily accession discovery, SQLite run ledger, targeted cache orchestration, and publication manifest |
+| `daily_pipeline.py` | Scheduler-facing one-shot daily SEC operation |
 | `pair_service.py` | Semantic peer selection and disciplined pair analysis |
 | `investor_screening/` | SEC bulk ingestion, DuckDB models, validation, and screening snapshot generation |
 | `predictive_sentiment/` | AWFI research protocol, horizon scoring, freshness detection, and atomic publication |
@@ -49,7 +51,8 @@ Ticker intelligence adds two independent branches:
 OpenBB/yfinance
   -> quote, profile, fundamentals, and daily prices
   -> six-hour ticker market cache
-  -> valuation, technical timing, serialized daily close history, and TradingView symbol
+  -> stock-profile classification and valuation method catalog
+  -> technical timing, serialized daily close history, and TradingView symbol
 
 Local semantic universe
   -> same-industry candidate peers
@@ -57,6 +60,45 @@ Local semantic universe
   -> cointegration and stability gates
   -> six-hour pair signal cache
 ```
+
+### Valuation decision pipeline
+
+Ticker valuation is calculated in `DataService._compute_valuation_analysis()`
+and persisted in cache-version-10 ticker-market payloads. The pipeline keeps
+method calculation, framework selection, and browser presentation separate:
+
+```text
+OpenBB quote + profile + metrics + annual statements + FRED yields
+  -> normalize currency/share-basis eligibility and historical inputs
+  -> calculate all supported valuation methods
+  -> classify sector, industry, growth, payout, and structural profile
+  -> choose recommended framework and primary calculated anchor
+  -> emit method values, ranges, fit, methodology, readiness, and Method Read
+  -> browser Decision Set and categorized valuation tabs
+```
+
+The complete catalog includes scenario FCF DCF, reverse DCF, residual income,
+two-stage DDM, normalized historical P/E, equity and enterprise multiples,
+Graham Number, revised Graham growth, the conservative Graham adaptation,
+NCAV, tangible asset value, SOTP, REIT NAV/AFFO, and real options.
+
+The primary fair value is the first valid calculated method in the recommended
+framework. It is never a median or vote across incompatible methods. The
+browser defaults to the recommended `Decision Set`, while `Intrinsic`,
+`Relative`, `Graham`, `Asset & Special`, and `All` tabs retain access to the
+full catalog.
+
+Method readiness is backend state and must not be presented as the investment
+conclusion. Each card instead exposes a decision-oriented `Method Read`:
+price-versus-value for calculated fair values, expectations analysis for
+reverse DCF, growth-adjusted interpretation for PEG, peer-benchmark warnings
+for unbenchmarked multiples, or explicit not-a-fit/data-required states.
+
+SOTP, property NAV/AFFO, and real-options methods remain visible when relevant,
+but do not fabricate values without segment, property, reserve, pipeline,
+volatility, debt-maturity, or exercise data. Absolute per-share methods are
+also disabled when statement currency and traded-share or ADR basis cannot be
+reconciled.
 
 ## Persistent storage
 
@@ -73,6 +115,8 @@ filing universe and historical row set.
 | `cache/market_insights.json` | Batched high-conviction market context |
 | `cache/ticker_market/<ticker>.json` | Quote, fundamentals, valuation, timing, and six years of daily closes |
 | `cache/pair_signals/<ticker>.json` | Pair diagnostics and readiness result |
+| `cache/filing_publication.json` | Atomic notification that a daily operation published external cache changes |
+| `data/operations/filing_ingestion.sqlite3` | Daily run history and accession-level filing record |
 | `data/investor_screening/investor_screening.duckdb` | Normalized SEC metadata and analytical models |
 | `data/investor_screening/lake/` | ZSTD Parquet bronze storage for large flattened SEC families |
 | `data/investor_screening/lake/npx_votes/` | Yearly lossless N-PX proxy-vote Parquet files |
@@ -83,6 +127,36 @@ filing universe and historical row set.
 | `data/investor_screening/predictive_sentiment.duckdb` | Versioned AWFI research runs, features, scores, and provenance |
 
 All listed cache and generated screening-data paths are excluded from Git.
+
+## Daily filing operations
+
+The recurring SEC schedule is external to the web process. Windows Task
+Scheduler or cron invokes `python daily_pipeline.py` once per day:
+
+```text
+roster + historical CIK chains
+  -> 120-day 13F-HR / 13F-HR/A metadata discovery
+  -> accession-idempotent SQLite ledger
+  -> affected manager and report-period set
+  -> DataService targeted cache refresh
+  -> P / P+1 / P+2 historical cache invalidation
+  -> market-context refresh
+  -> AWFI freshness and atomic publication
+  -> atomic filing publication manifest
+```
+
+The first run baselines the recent accession inventory. Later runs treat only
+previously unseen accessions as new. The manager cache records the selected
+accession, form, source CIK, filing date, report period, and SEC source URL.
+The filing operation uses a cross-process lock so duplicate scheduler
+instances cannot publish concurrently.
+
+Every FastAPI process watches the publication manifest. When an external
+operation completes, the process reloads disk-backed manager and market
+caches, clears invalidated historical periods, and emits `data_refresh`,
+`filings_ingested`, and, when applicable, `awfi_published` over its local SSE
+stream. `/filings` reads the SQLite ledger rather than relying on ephemeral
+SSE history.
 
 ## Historical filing periods
 
@@ -103,8 +177,10 @@ snapshots.
 ## Concurrency
 
 - edgartools and OpenBB calls run through `run_in_executor`.
-- Full SEC refreshes retain grouped processing to limit request rates.
+- Initial and targeted SEC refreshes retain grouped processing to limit request rates.
 - An `asyncio.Lock` prevents duplicate builds of one historical period.
+- The daily operation adds a local-filesystem cross-process lock and an
+  accession-idempotent SQLite WAL ledger.
 - Ticker market and pair requests run concurrently in the browser.
 
 ## External services

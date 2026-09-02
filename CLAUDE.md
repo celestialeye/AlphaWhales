@@ -43,6 +43,9 @@ python prefetch.py
 python prefetch.py --history-only
 python prefetch.py --ticker-intelligence-only
 
+# Daily accession-aware SEC check and targeted cache publication
+python daily_pipeline.py
+
 # Rebuild the compact screening generation and reusable performance facts
 python -m investor_screening.cli refresh-screening
 python -m investor_screening.cli refresh-performance
@@ -91,6 +94,14 @@ Do not hand-edit generated cache values. Change the fetch/transformation logic a
 
 `predictive_sentiment/` is the offline AWFI research and publication subsystem. It reads the screening foundation and adjusted-price manifest, builds point-in-time features and walk-forward evidence in staging, validates provenance/coverage, then atomically replaces the published research DuckDB. `awfi_service.py` is the runtime adapter: it reads persisted history and can append one live current-period score when application filing caches are newer than the official archive. Startup, SEC refresh, and roster mutation share the same freshness contract and publish `awfi_published` over SSE after a successful rebuild. See `docs/AWFI_DATA_LINEAGE.md` before changing this flow.
 
+`filing_operations.py` owns the daily roster-scoped operational ledger and
+targeted cache orchestration. `daily_pipeline.py` is the scheduler-facing
+entry point. Daily runs are idempotent by accession number, include original
+and amended 13F filings across historical CIK chains, invalidate dependent
+historical periods, and publish an atomic manifest that running web processes
+use to reload externally written caches. The `/filings` page is the durable
+record; SSE is notification only.
+
 ## Data and domain contracts
 
 - `roster.json` is the persistent manager source of truth; use `RosterStore` or the screening roster workflow rather than editing `config.py`. CIKs are zero-padded 10-character strings and may include `historical_ciks` to preserve reporting-entity continuity. `roster_archive.json` retains removed identities for safe re-addition.
@@ -98,6 +109,8 @@ Do not hand-edit generated cache values. Change the fetch/transformation logic a
 - Keep upstream SEC/DataFrame names (`Cusip`, `Ticker`, `Value`, `SharesPrnAmount`, `PortfolioWeight`, and comparison fields) during processing. Join current holdings to comparisons by deduplicated CUSIP, not ticker; normalize to snake_case only at API response construction.
 - Raw SEC/cache monetary values are dollars. Selected API holdings and aggregates convert values to millions inside `DataService`; do not move unit conversion into templates or JavaScript.
 - Preserve visible methodology and caveats for all derived financial outputs. Missing valuation, trend, or other required inputs must produce unavailable or zero-risk output, not a success-shaped fallback. Pair execution text may appear only for a `READY` signal.
+- Ticker valuation is decision-first but keeps the complete method catalog accessible. Select the primary method from the stock-specific recommended framework; do not average incompatible values. Keep Decision Set, Intrinsic, Relative, Graham, Asset & Special, and All views synchronized with the API. Visible Method Reads must interpret the result—never expose backend `AVAILABLE` as the decision signal.
+- Keep Graham Number, revised Graham growth, the conservative Graham adaptation, and NCAV separate. SOTP, REIT NAV/AFFO, and real-options values require their specialized inputs; show the framework and missing-data state rather than fabricating a number. Disable absolute per-share methods when statement currency and ADR/share basis cannot be reconciled.
 - Use median portfolio weight—not holder-only mean—when describing a typical holder.
 - Select historical filings by report date, not filing date. Amendments can precede complete originals in edgartools listings, and legacy values can have inconsistent scale. Choose the latest candidate among those with the largest holdings count, normalize from implied per-share values, and rebuild totals/weights before comparing quarters. A missing filing is unknown, not liquidation.
 - QoQ status is based on share-count change, so reported value may move in the opposite direction as price changes. Some `NEW`/`CLOSED` comparison fields are null; derive their changes from current minus previous values rather than coercing them to zero.

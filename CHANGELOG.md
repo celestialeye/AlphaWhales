@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-02 - Stock-specific valuation workbench
+
+### Added
+
+- A 15-method valuation catalog covering scenario and reverse DCF, residual
+  income, dividend discount, normalized P/E, equity and enterprise multiples,
+  four distinct Graham methods, tangible asset value, SOTP, REIT NAV/AFFO,
+  and real options.
+- Stock-specific framework selection using sector, industry, growth, payout,
+  cash-flow history, and available financial-statement coverage.
+- Decision Set, Intrinsic, Relative, Graham, Asset & Special, and All valuation
+  tabs with method counts and responsive mobile navigation.
+- Method-level methodology tooltips, scenario ranges, fit indicators, and
+  explicit missing-data or not-applicable states.
+- A priced-method agreement diagnostic that remains separate from the primary
+  fair-value method.
+
+### Changed
+
+- The primary fair value now comes from the first valid calculated method in
+  the recommended framework instead of a median of incompatible heuristics.
+- Valuation cards now show decision-oriented Method Reads instead of exposing
+  backend readiness such as `AVAILABLE`.
+- Relative methods distinguish growth-adjusted PEG interpretation from
+  multiples that still require same-industry peer or historical benchmarks.
+- Foreign or ADR absolute per-share methods are disabled when statement
+  currency and traded-share basis cannot be reconciled.
+- The ticker-market cache schema advanced to version 10 for the expanded
+  valuation payload.
+
 ## 2026-09-01 - AWFI Research v2 and resilient history publication
 
 ### Added

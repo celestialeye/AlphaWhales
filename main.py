@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from config import FUND_MANAGERS, ROSTER_PATH
 from data_service import DataService
+from filing_operations import FilingOperations
 from awfi_service import AwfiService
 from predictive_sentiment.publication import (
     PublicationBusyError,
@@ -33,6 +34,7 @@ awfi_service = AwfiService()
 roster_store = RosterStore(ROSTER_PATH, FUND_MANAGERS)
 awfi_refresh_state = "idle"
 awfi_refresh_lock = asyncio.Lock()
+filing_operations = None
 
 
 class RosterMutationRequest(BaseModel):
@@ -77,12 +79,14 @@ async def _refresh_awfi_research_if_stale_async():
                     "type": "awfi_published",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
+                return True
             if awfi_refresh_state != "external_build":
-                return
+                return False
             await asyncio.sleep(5)
         logger.warning(
             "AWFI publication remained busy beyond the retry window"
         )
+        return False
 
 
 async def _refresh_all_data():
@@ -114,19 +118,30 @@ def _effective_awfi_refresh_state():
     return awfi_refresh_state
 
 
+filing_operations = FilingOperations(
+    data_service,
+    after_refresh=_refresh_awfi_research_if_stale_async,
+)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    task = asyncio.create_task(
-        data_service.auto_refresh_loop(
-            _refresh_awfi_research_if_stale_async
-        )
-    )
+    tasks = [
+        asyncio.create_task(
+            data_service.auto_refresh_loop(
+                _refresh_awfi_research_if_stale_async
+            )
+        ),
+        asyncio.create_task(
+            filing_operations.watch_publications()
+        ),
+    ]
     try:
         yield
     finally:
-        task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 import os
 
@@ -178,6 +193,10 @@ async def investor_view_specific(request: Request, cik: str):
 @app.get("/screening", response_class=HTMLResponse)
 async def screening_view(request: Request):
     return templates.TemplateResponse("screening.html", {"request": request})
+
+@app.get("/filings", response_class=HTMLResponse)
+async def filings_view(request: Request):
+    return templates.TemplateResponse("filings.html", {"request": request})
 
 
 # --- API Routes ---
@@ -718,6 +737,45 @@ async def api_update_roster(
 @app.get("/api/fund-status")
 async def api_fund_status():
     return {"data": data_service.get_fund_status(), "overview": data_service.get_overview()}
+
+@app.get("/api/filings")
+async def api_filings(
+    limit: int = 100,
+    offset: int = 0,
+    status: str = None,
+    search: str = None,
+    form: str = None,
+    report_period: str = None,
+):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        None,
+        lambda: filing_operations.get_dashboard(
+            limit=min(250, max(1, limit)),
+            offset=max(0, offset),
+            status=status,
+            search=search,
+            form=form,
+            report_period=report_period,
+        ),
+    )
+
+
+@app.get("/api/filings/detail")
+async def api_filing_detail(accession: str):
+    loop = asyncio.get_running_loop()
+    detail = await loop.run_in_executor(
+        None,
+        filing_operations.get_filing_detail,
+        accession,
+    )
+    if detail is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Filing accession not found"},
+        )
+    return {"data": detail}
+
 
 @app.get("/api/refresh")
 async def api_refresh(background_tasks: BackgroundTasks):

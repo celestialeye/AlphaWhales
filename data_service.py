@@ -7,6 +7,8 @@ import os
 import re
 import statistics
 import tempfile
+import time
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -16,6 +18,41 @@ from config import FUND_MANAGERS, SEC_IDENTITY, CACHE_DIR, CACHE_TTL_HOURS
 from roster_store import fund_fingerprint
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _exclusive_file_lock(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    stream = open(path, "a+b")
+    try:
+        stream.seek(0)
+        if stream.read(1) == b"":
+            stream.write(b"\0")
+            stream.flush()
+        stream.seek(0)
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            stream.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        finally:
+            stream.close()
+
 
 class DataService:
     def __init__(self):
@@ -31,6 +68,7 @@ class DataService:
         self.period_caches = {}
         self.period_cache_locks = {}
         self.period_cache_progress = {}
+        self.period_cache_generations = {}
         self.manager_adjustment_cache = {}
         self.pending_roster_refresh_ciks = set()
         self._refresh_lock = asyncio.Lock()
@@ -84,6 +122,30 @@ class DataService:
 
     def _get_disk_cache_path(self, cik: str) -> str:
         return os.path.join(CACHE_DIR, f"{cik}.json")
+
+    @staticmethod
+    def _replace_file_with_retry(source, destination):
+        for attempt in range(40):
+            try:
+                os.replace(source, destination)
+                return
+            except PermissionError:
+                if attempt == 39:
+                    raise
+                time.sleep(0.1)
+
+    @staticmethod
+    def _delete_file_with_retry(path):
+        for attempt in range(40):
+            try:
+                os.unlink(path)
+                return
+            except FileNotFoundError:
+                return
+            except PermissionError:
+                if attempt == 39:
+                    raise
+                time.sleep(0.1)
 
     @staticmethod
     def _detect_13f_value_scale(values, shares):
@@ -173,26 +235,52 @@ class DataService:
         return normalized
 
     def _save_fund_to_disk_cache(self, cik: str):
-        try:
-            fund_data = self.cache.get(cik)
-            if not fund_data or fund_data.get("status") != "loaded":
-                return
+        fund_data = self.cache.get(cik)
+        if not fund_data or fund_data.get("status") != "loaded":
+            return False
 
-            payload = {
-                "cik": cik,
-                "fund_fingerprint": self._fund_fingerprint(
-                    fund_data["fund_info"]
-                ),
-                "status": fund_data["status"],
-                "metadata": fund_data["metadata"],
-                "last_updated": fund_data["last_updated"],
-                "holdings": fund_data["holdings"].to_dict(orient="records") if fund_data["holdings"] is not None else [],
-                "comparison": fund_data["comparison"].to_dict(orient="records") if fund_data["comparison"] is not None else [],
-                "previous_comparison": fund_data["previous_comparison"].to_dict(orient="records") if fund_data["previous_comparison"] is not None else []
-            }
-            cache_path = self._get_disk_cache_path(cik)
-            temp_path = None
-            try:
+        payload = {
+            "cik": cik,
+            "fund_fingerprint": self._fund_fingerprint(
+                fund_data["fund_info"]
+            ),
+            "status": fund_data["status"],
+            "metadata": fund_data["metadata"],
+            "last_updated": fund_data["last_updated"],
+            "holdings": fund_data["holdings"].to_dict(orient="records") if fund_data["holdings"] is not None else [],
+            "comparison": fund_data["comparison"].to_dict(orient="records") if fund_data["comparison"] is not None else [],
+            "previous_comparison": fund_data["previous_comparison"].to_dict(orient="records") if fund_data["previous_comparison"] is not None else []
+        }
+        cache_path = self._get_disk_cache_path(cik)
+        lock_path = f"{cache_path}.lock"
+        temp_path = None
+        try:
+            with _exclusive_file_lock(lock_path):
+                if os.path.exists(cache_path):
+                    try:
+                        with open(
+                            cache_path,
+                            "r",
+                            encoding="utf-8",
+                        ) as stream:
+                            existing = json.load(stream)
+                        existing_key = self._filing_freshness_key(
+                            existing.get("metadata", {})
+                        )
+                        candidate_key = self._filing_freshness_key(
+                            payload.get("metadata", {})
+                        )
+                        if existing_key > candidate_key:
+                            logger.warning(
+                                "Skipped stale fund cache publication for %s: "
+                                "%s is older than persisted %s",
+                                cik,
+                                candidate_key,
+                                existing_key,
+                            )
+                            return False
+                    except (OSError, ValueError, TypeError):
+                        pass
                 with tempfile.NamedTemporaryFile(
                     mode="w",
                     encoding="utf-8",
@@ -205,13 +293,32 @@ class DataService:
                     json.dump(payload, stream, default=str)
                     stream.flush()
                     os.fsync(stream.fileno())
-                os.replace(temp_path, cache_path)
+                self._replace_file_with_retry(temp_path, cache_path)
                 temp_path = None
-            finally:
-                if temp_path and os.path.exists(temp_path):
-                    os.unlink(temp_path)
-        except Exception as e:
-            logger.error(f"Error saving disk cache for {cik}: {e}")
+                return True
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    @staticmethod
+    def _filing_freshness_key(metadata):
+        return (
+            str(metadata.get("report_period") or ""),
+            str(metadata.get("filing_date") or ""),
+            str(metadata.get("accession_number") or ""),
+        )
+
+    def get_persisted_accession(self, cik: str):
+        try:
+            with open(
+                self._get_disk_cache_path(cik),
+                "r",
+                encoding="utf-8",
+            ) as stream:
+                payload = json.load(stream)
+            return payload.get("metadata", {}).get("accession_number")
+        except (FileNotFoundError, OSError, ValueError, TypeError):
+            return None
 
     def _load_all_from_disk_cache(self):
         loaded_count = 0
@@ -296,11 +403,28 @@ class DataService:
             "last_updated": self.market_last_updated,
             "data": list(self.market_insights.values())
         }
+        temporary_path = None
         try:
-            with open(self._get_market_cache_path(), "w", encoding="utf-8") as f:
-                json.dump(payload, f, default=str)
+            cache_path = self._get_market_cache_path()
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=os.path.dirname(cache_path),
+                prefix=".market-insights.",
+                suffix=".json.tmp",
+                delete=False,
+            ) as stream:
+                temporary_path = stream.name
+                json.dump(payload, stream, default=str)
+                stream.flush()
+                os.fsync(stream.fileno())
+            self._replace_file_with_retry(temporary_path, cache_path)
+            temporary_path = None
         except Exception as e:
             logger.error(f"Error saving OpenBB market cache: {e}")
+        finally:
+            if temporary_path and os.path.exists(temporary_path):
+                os.unlink(temporary_path)
 
     def _get_ticker_market_cache_path(self, ticker: str):
         market_dir = os.path.join(CACHE_DIR, "ticker_market")
@@ -315,7 +439,7 @@ class DataService:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
-            if payload.get("cache_version") != 5:
+            if payload.get("cache_version") != 10:
                 return None
             quote = payload.get("quote", {})
             if quote.get("year_low") is not None and not quote.get("year_low_date"):
@@ -625,14 +749,255 @@ class DataService:
     def _compute_valuation_analysis(
         current_price,
         metrics,
+        profile,
         annual_eps,
+        income_statement,
+        cash_flow,
+        balance_sheet,
         average_pe_5y,
         average_aaa_yield,
         current_aaa_yield,
+        current_treasury_yield,
         pe_observation_count
     ):
-        pe_ratio = metrics.get("pe_ratio")
-        forward_pe = metrics.get("forward_pe")
+        def safe_number(value):
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return None
+            return number if math.isfinite(number) else None
+
+        def clean_records(frame):
+            if frame is None or frame.empty:
+                return []
+            records = []
+            for _, row in frame.iterrows():
+                record = row.to_dict()
+                period = pd.to_datetime(record.get("period_ending"), errors="coerce")
+                if pd.isna(period):
+                    continue
+                record["_period"] = period
+                records.append(record)
+            return sorted(records, key=lambda item: item["_period"], reverse=True)
+
+        def record_number(record, *keys):
+            for key in keys:
+                number = safe_number(record.get(key))
+                if number is not None:
+                    return number
+            return None
+
+        def series_cagr(records, *keys):
+            observations = []
+            for record in records:
+                value = record_number(record, *keys)
+                if value is not None and value > 0:
+                    observations.append((record["_period"], value))
+            if len(observations) < 2:
+                return None
+            latest_period, latest_value = observations[0]
+            oldest_period, oldest_value = observations[-1]
+            year_span = (latest_period - oldest_period).days / 365.25
+            if year_span <= 0:
+                return None
+            return (latest_value / oldest_value) ** (1 / year_span) - 1
+
+        def assess(value):
+            if current_price is None or value is None or value <= 0:
+                return "UNAVAILABLE"
+            safety_price = value * 0.80
+            if current_price <= safety_price:
+                return "UNDERVALUED"
+            if current_price <= value * 1.10:
+                return "NEUTRAL"
+            return "OVERVALUED"
+
+        def method_result(
+            method_id,
+            name,
+            family,
+            status,
+            fit,
+            summary,
+            caveat,
+            methodology=None,
+            decision_read=None,
+            decision_tone=None,
+            decision_detail=None,
+            value=None,
+            low=None,
+            high=None,
+            metric_label=None,
+            metric_value=None,
+            metric_format=None,
+            inputs=None,
+        ):
+            method_assessment = assess(value)
+            if decision_read is None:
+                if method_assessment == "UNDERVALUED":
+                    decision_read = "MARGIN OF SAFETY"
+                    decision_tone = "positive"
+                    decision_detail = (
+                        "Price is at or below this method's 20% safety threshold."
+                    )
+                elif method_assessment == "NEUTRAL":
+                    decision_read = "NEAR FAIR VALUE"
+                    decision_tone = "caution"
+                    decision_detail = (
+                        "Price is above the safety threshold but within 10% "
+                        "of this method's fair value."
+                    )
+                elif method_assessment == "OVERVALUED":
+                    decision_read = "ABOVE METHOD VALUE"
+                    decision_tone = "negative"
+                    decision_detail = (
+                        "Price is more than 10% above this method's fair value."
+                    )
+                elif status == "NOT APPLICABLE":
+                    decision_read = "NOT A FIT"
+                    decision_tone = "muted"
+                    decision_detail = (
+                        "This method does not match the company's current structure."
+                    )
+                elif status == "AVAILABLE":
+                    decision_read = "CONTEXT ONLY"
+                    decision_tone = "info"
+                    decision_detail = (
+                        "The data is available, but this method does not produce "
+                        "a stand-alone valuation conclusion."
+                    )
+                else:
+                    decision_read = "MORE DATA NEEDED"
+                    decision_tone = "caution"
+                    decision_detail = (
+                        "Current data cannot support a reliable conclusion "
+                        "from this method."
+                    )
+            return {
+                "id": method_id,
+                "name": name,
+                "family": family,
+                "status": status,
+                "fit": fit,
+                "summary": summary,
+                "caveat": caveat,
+                "methodology": methodology or (
+                    f"{summary} Main limitation: {caveat}"
+                ),
+                "value": round(value, 2) if value is not None else None,
+                "low": round(low, 2) if low is not None else None,
+                "high": round(high, 2) if high is not None else None,
+                "assessment": method_assessment,
+                "decision_read": decision_read,
+                "decision_tone": decision_tone or "muted",
+                "decision_detail": decision_detail,
+                "metric_label": metric_label,
+                "metric_value": (
+                    round(metric_value, 2)
+                    if isinstance(metric_value, (int, float))
+                    else metric_value
+                ),
+                "metric_format": metric_format,
+                "inputs": inputs or {},
+            }
+
+        income_records = clean_records(income_statement)
+        cash_records = clean_records(cash_flow)
+        balance_records = clean_records(balance_sheet)
+        cash_by_period = {
+            record["_period"].date().isoformat(): record
+            for record in cash_records
+        }
+        balance_by_period = {
+            record["_period"].date().isoformat(): record
+            for record in balance_records
+        }
+
+        sector = str(profile.get("sector") or "").strip()
+        industry = str(profile.get("industry_category") or "").strip()
+        company_name = str(profile.get("name") or "").strip()
+        profile_text = f"{sector} {industry} {company_name}".lower()
+        quote_currency = str(
+            metrics.get("currency") or profile.get("currency") or ""
+        ).strip().upper()
+        hq_country = str(profile.get("hq_country") or "").strip().lower()
+        is_us_country = hq_country in {
+            "us",
+            "usa",
+            "u.s.",
+            "u.s.a.",
+            "united states",
+            "united states of america",
+        }
+        is_financial = any(
+            term in profile_text
+            for term in (
+                "bank",
+                "insurance",
+                "mortgage finance",
+                "savings",
+                "consumer finance",
+            )
+        )
+        is_reit = (
+            "reit" in profile_text
+            or "real estate investment trust" in profile_text
+        )
+        is_utility = sector == "Utilities" or "utility" in profile_text
+        is_regulated_utility = (
+            is_utility
+            and any(
+                term in profile_text
+                for term in (
+                    "regulated",
+                    "electric utilities",
+                    "gas utilities",
+                    "water utilities",
+                )
+            )
+        )
+        is_cyclical = sector in {"Energy", "Basic Materials"}
+        is_real_option_candidate = (
+            any(
+                term in profile_text
+                for term in (
+                    "biotechnology",
+                    "drug manufacturers",
+                    "oil & gas exploration",
+                    "gold",
+                    "uranium",
+                    "other industrial metals",
+                )
+            )
+            or sector in {"Energy", "Basic Materials"}
+        )
+        is_conglomerate = any(
+            term in profile_text
+            for term in ("conglomerate", "holding company", "insurance - diversified")
+        )
+
+        market_cap = safe_number(metrics.get("market_cap")) or safe_number(
+            profile.get("market_cap")
+        )
+        profile_share_basis = safe_number(profile.get("shares_outstanding"))
+        currency_basis_supported = (
+            quote_currency == "USD"
+            and is_us_country
+            and profile_share_basis is not None
+            and profile_share_basis > 0
+        )
+        shares_outstanding = profile_share_basis
+        if not shares_outstanding and balance_records:
+            shares_outstanding = record_number(
+                balance_records[0],
+                "ordinary_shares_number",
+                "share_issued",
+            )
+        if not shares_outstanding and market_cap and current_price:
+            shares_outstanding = market_cap / current_price
+
+        pe_ratio = safe_number(metrics.get("pe_ratio"))
+        forward_pe = safe_number(metrics.get("forward_pe"))
         trailing_eps = (
             current_price / pe_ratio
             if current_price and pe_ratio and pe_ratio > 0
@@ -643,7 +1008,7 @@ class DataService:
             if current_price and forward_pe and forward_pe > 0
             else None
         )
-        book_value = metrics.get("book_value")
+        book_value = safe_number(metrics.get("book_value"))
         growth_rate = None
         if (
             len(annual_eps) >= 2
@@ -670,36 +1035,1148 @@ class DataService:
                 if current_aaa_yield and current_aaa_yield > 0
                 else 1.0
             )
-            graham_growth = trailing_eps * (8.5 + 2 * capped_growth) * bond_ratio
+            graham_growth = (
+                trailing_eps
+                * (8.5 + 2 * capped_growth)
+                * 4.4
+                / current_aaa_yield
+                if current_aaa_yield and current_aaa_yield > 0
+                else None
+            )
             graham_conservative = trailing_eps * (7.0 + capped_growth) * bond_ratio
             if book_value and book_value > 0:
                 graham_number = math.sqrt(22.5 * trailing_eps * book_value)
             if average_pe_5y and average_pe_5y > 0:
                 normalized_pe_value = trailing_eps * average_pe_5y
+        if not currency_basis_supported:
+            graham_growth = None
+            graham_conservative = None
+            graham_number = None
+            normalized_pe_value = None
 
-        model_values = [
+        revenue_growth = safe_number(metrics.get("revenue_growth"))
+        earnings_growth = safe_number(metrics.get("earnings_growth"))
+        reported_growth = [
             value
-            for value in (
-                graham_number,
-                graham_conservative,
-                normalized_pe_value
-            )
-            if value is not None and value > 0
+            for value in (revenue_growth, earnings_growth)
+            if value is not None and -0.50 <= value <= 1.00
         ]
-        fair_value = (
-            statistics.median(model_values)
-            if len(model_values) >= 2
+        historical_revenue_growth = series_cagr(income_records, "total_revenue")
+        if historical_revenue_growth is not None:
+            reported_growth.append(historical_revenue_growth)
+        growth_reference = (
+            statistics.median(reported_growth)
+            if reported_growth
             else None
         )
-        purchase_price = fair_value * 0.80 if fair_value is not None else None
-        if current_price is None or fair_value is None or purchase_price is None:
-            assessment = "UNAVAILABLE"
-        elif current_price <= purchase_price:
-            assessment = "UNDERVALUED"
-        elif current_price <= fair_value * 1.10:
-            assessment = "NEUTRAL"
+        is_high_growth = (
+            growth_reference is not None
+            and growth_reference >= 0.15
+        )
+
+        beta = safe_number(metrics.get("beta"))
+        beta = min(max(beta if beta is not None else 1.0, 0.70), 1.80)
+        risk_free_rate = min(
+            max((current_treasury_yield or 4.0) / 100, 0.02),
+            0.07,
+        )
+        cost_of_equity = min(
+            max(risk_free_rate + beta * 0.05, 0.07),
+            0.15,
+        )
+        tax_rate = 0.21
+        if income_records:
+            tax_rate = record_number(income_records[0], "tax_rate_for_calcs") or tax_rate
+        tax_rate = min(max(tax_rate, 0.0), 0.35)
+
+        latest_balance = balance_records[0] if balance_records else {}
+        total_debt = record_number(
+            latest_balance,
+            "total_debt",
+            "long_term_debt_and_capital_lease_obligation",
+        ) or 0.0
+        net_debt = record_number(latest_balance, "net_debt")
+        if net_debt is None:
+            cash = record_number(
+                latest_balance,
+                "cash_cash_equivalents_and_short_term_investments",
+                "cash_and_cash_equivalents",
+                "cash_financial",
+            ) or 0.0
+            net_debt = total_debt - cash
+        capital_base = (market_cap or 0.0) + total_debt
+        equity_weight = (
+            market_cap / capital_base
+            if market_cap and capital_base > 0
+            else 1.0
+        )
+        debt_weight = 1.0 - equity_weight
+        debt_cost = min(max(current_aaa_yield / 100, 0.04), 0.10)
+        wacc = min(
+            max(
+                equity_weight * cost_of_equity
+                + debt_weight * debt_cost * (1 - tax_rate),
+                0.06,
+            ),
+            0.14,
+        )
+
+        fcff_history = []
+        for income_record in income_records:
+            period_key = income_record["_period"].date().isoformat()
+            cash_record = cash_by_period.get(period_key)
+            if cash_record is None:
+                continue
+            operating_cash_flow = record_number(
+                cash_record,
+                "operating_cash_flow",
+                "cash_flow_from_continuing_operating_activities",
+            )
+            capex = record_number(
+                cash_record,
+                "capital_expenditure",
+                "net_ppe_purchase_and_sale",
+                "investments_in_property_plant_and_equipment",
+            )
+            if operating_cash_flow is None or capex is None:
+                continue
+            interest_expense = abs(
+                record_number(
+                    income_record,
+                    "interest_expense",
+                    "interest_expense_non_operating",
+                ) or 0.0
+            )
+            fcff = operating_cash_flow + interest_expense * (1 - tax_rate) - abs(capex)
+            fcff_history.append({
+                "period": period_key,
+                "value": fcff,
+            })
+
+        recent_fcff = [
+            item["value"]
+            for item in fcff_history[:3]
+        ]
+        base_fcff = None
+        if recent_fcff:
+            if is_cyclical:
+                base_fcff = statistics.median(recent_fcff)
+            else:
+                base_fcff = (
+                    recent_fcff[0] * 0.65
+                    + statistics.median(recent_fcff) * 0.35
+                )
+
+        fcff_growth = None
+        if (
+            len(fcff_history) >= 3
+            and all(item["value"] > 0 for item in fcff_history)
+        ):
+            latest_fcff = fcff_history[0]
+            oldest_fcff = fcff_history[-1]
+            latest_period = date.fromisoformat(latest_fcff["period"])
+            oldest_period = date.fromisoformat(oldest_fcff["period"])
+            year_span = (latest_period - oldest_period).days / 365.25
+            if year_span > 0:
+                fcff_growth = (
+                    latest_fcff["value"] / oldest_fcff["value"]
+                ) ** (1 / year_span) - 1
+        growth_candidates = [
+            value
+            for value in (
+                fcff_growth,
+                historical_revenue_growth,
+                revenue_growth,
+            )
+            if value is not None and -0.30 <= value <= 0.50
+        ]
+        dcf_growth_cap = 0.18 if is_high_growth else 0.12
+        if is_cyclical:
+            dcf_growth_cap = 0.08
+        base_growth = min(
+            max(statistics.median(growth_candidates), -0.03),
+            dcf_growth_cap,
+        ) if growth_candidates else 0.03
+
+        def dcf_value(initial_growth, discount_rate, terminal_growth):
+            if (
+                base_fcff is None
+                or base_fcff <= 0
+                or not shares_outstanding
+                or shares_outstanding <= 0
+                or discount_rate <= terminal_growth
+            ):
+                return None
+            forecast_fcff = base_fcff
+            present_value = 0.0
+            for year in range(1, 6):
+                year_growth = initial_growth + (
+                    terminal_growth - initial_growth
+                ) * (year / 5)
+                forecast_fcff *= 1 + year_growth
+                present_value += forecast_fcff / ((1 + discount_rate) ** year)
+            terminal_value = (
+                forecast_fcff * (1 + terminal_growth)
+                / (discount_rate - terminal_growth)
+            )
+            enterprise_value = (
+                present_value
+                + terminal_value / ((1 + discount_rate) ** 5)
+            )
+            equity_value = enterprise_value - net_debt
+            return max(equity_value, 0.0) / shares_outstanding
+
+        dcf_available = (
+            currency_basis_supported
+            and not is_financial
+            and base_fcff is not None
+            and base_fcff > 0
+        )
+        dcf_base = dcf_value(base_growth, wacc, 0.025) if dcf_available else None
+        dcf_low = dcf_value(
+            max(base_growth - 0.04, -0.05),
+            min(wacc + 0.015, 0.16),
+            0.02,
+        ) if dcf_available else None
+        dcf_high = dcf_value(
+            min(base_growth + 0.03, dcf_growth_cap + 0.03),
+            max(wacc - 0.01, 0.055),
+            0.03,
+        ) if dcf_available else None
+
+        implied_growth = None
+        if (
+            dcf_available
+            and market_cap
+            and market_cap > 0
+            and dcf_value(-0.20, wacc, 0.025) is not None
+        ):
+            target_value = current_price
+            lower = -0.20
+            upper = 0.50
+            lower_value = dcf_value(lower, wacc, 0.025)
+            upper_value = dcf_value(upper, wacc, 0.025)
+            while (
+                target_value is not None
+                and upper_value is not None
+                and upper_value < target_value
+                and upper < 2.0
+            ):
+                upper = min(upper + 0.25, 2.0)
+                upper_value = dcf_value(upper, wacc, 0.025)
+            if (
+                target_value is not None
+                and lower_value is not None
+                and upper_value is not None
+                and lower_value <= target_value <= upper_value
+            ):
+                for _ in range(60):
+                    midpoint = (lower + upper) / 2
+                    midpoint_value = dcf_value(midpoint, wacc, 0.025)
+                    if midpoint_value is None:
+                        break
+                    if midpoint_value < target_value:
+                        lower = midpoint
+                    else:
+                        upper = midpoint
+                implied_growth = (lower + upper) / 2
+
+        reverse_decision_read = None
+        reverse_decision_tone = None
+        reverse_decision_detail = None
+        if implied_growth is not None:
+            expectations_gap_pct = (base_growth - implied_growth) * 100
+            if expectations_gap_pct >= 3:
+                reverse_decision_read = "EXPECTATIONS LOOK LOW"
+                reverse_decision_tone = "positive"
+                reverse_decision_detail = (
+                    f"Modeled growth is {expectations_gap_pct:.1f} percentage "
+                    "points above the growth embedded in price."
+                )
+            elif expectations_gap_pct <= -3:
+                reverse_decision_read = "EXPECTATIONS LOOK DEMANDING"
+                reverse_decision_tone = "negative"
+                reverse_decision_detail = (
+                    f"Price implies growth {abs(expectations_gap_pct):.1f} "
+                    "percentage points above the modeled reference."
+                )
+            else:
+                reverse_decision_read = "EXPECTATIONS ALIGNED"
+                reverse_decision_tone = "caution"
+                reverse_decision_detail = (
+                    "The growth embedded in price is close to the modeled reference."
+                )
+
+        reported_payout_ratio = safe_number(metrics.get("payout_ratio"))
+        payout_ratio = reported_payout_ratio
+        if payout_ratio is None:
+            payout_ratio = 0.35
+        payout_ratio = min(max(payout_ratio, 0.0), 0.85)
+        roe = safe_number(metrics.get("return_on_equity"))
+        residual_base = None
+        residual_low = None
+        residual_high = None
+
+        def residual_income_value(start_roe, discount_rate, terminal_excess_share):
+            if (
+                book_value is None
+                or book_value <= 0
+                or start_roe is None
+                or start_roe <= 0
+                or discount_rate <= 0.025
+            ):
+                return None
+            book = book_value
+            present_value = 0.0
+            initial_excess = start_roe - discount_rate
+            for year in range(1, 6):
+                excess_share = 1 - (1 - terminal_excess_share) * (year / 5)
+                year_roe = discount_rate + initial_excess * excess_share
+                residual_income = (year_roe - discount_rate) * book
+                present_value += residual_income / ((1 + discount_rate) ** year)
+                book += max(year_roe * book * (1 - payout_ratio), 0.0)
+            terminal_excess_roe = initial_excess * terminal_excess_share
+            terminal_income = terminal_excess_roe * book * 1.025
+            terminal_value = terminal_income / (discount_rate - 0.025)
+            return book_value + present_value + terminal_value / ((1 + discount_rate) ** 5)
+
+        if (
+            currency_basis_supported
+            and roe is not None
+            and roe > 0
+            and book_value
+            and book_value > 0
+        ):
+            residual_base = residual_income_value(roe, cost_of_equity, 0.25)
+            residual_low = residual_income_value(
+                max(roe * 0.85, 0.01),
+                min(cost_of_equity + 0.01, 0.16),
+                0.10,
+            )
+            residual_high = residual_income_value(
+                min(roe * 1.10, 0.45),
+                max(cost_of_equity - 0.005, 0.065),
+                0.35,
+            )
+
+        dividend_history = []
+        for cash_record in cash_records:
+            period_key = cash_record["_period"].date().isoformat()
+            balance_record = balance_by_period.get(period_key)
+            dividends = record_number(
+                cash_record,
+                "cash_dividends_paid",
+                "common_stock_dividend_paid",
+            )
+            shares = (
+                record_number(
+                    balance_record,
+                    "ordinary_shares_number",
+                    "share_issued",
+                )
+                if balance_record
+                else None
+            )
+            if dividends is not None and shares and shares > 0:
+                dividend_history.append({
+                    "period": period_key,
+                    "value": abs(dividends) / shares,
+                })
+        dividend_per_share = (
+            dividend_history[0]["value"]
+            if dividend_history
+            else None
+        )
+        dividend_growth = None
+        if len(dividend_history) >= 3:
+            latest_dividend = dividend_history[0]
+            oldest_dividend = dividend_history[-1]
+            year_span = (
+                date.fromisoformat(latest_dividend["period"])
+                - date.fromisoformat(oldest_dividend["period"])
+            ).days / 365.25
+            if year_span > 0 and oldest_dividend["value"] > 0:
+                dividend_growth = (
+                    latest_dividend["value"] / oldest_dividend["value"]
+                ) ** (1 / year_span) - 1
+        sustainable_growth = (
+            roe * (1 - payout_ratio)
+            if roe is not None
+            else None
+        )
+        dividend_growth_candidates = [
+            value
+            for value in (dividend_growth, sustainable_growth)
+            if value is not None and -0.10 <= value <= 0.15
+        ]
+        base_dividend_growth = min(
+            max(
+                statistics.median(dividend_growth_candidates)
+                if dividend_growth_candidates
+                else 0.025,
+                0.0,
+            ),
+            0.06,
+        )
+
+        def ddm_value(initial_growth, discount_rate, terminal_growth):
+            if (
+                dividend_per_share is None
+                or dividend_per_share <= 0
+                or discount_rate <= terminal_growth
+            ):
+                return None
+            dividend = dividend_per_share
+            present_value = 0.0
+            for year in range(1, 6):
+                year_growth = initial_growth + (
+                    terminal_growth - initial_growth
+                ) * (year / 5)
+                dividend *= 1 + year_growth
+                present_value += dividend / ((1 + discount_rate) ** year)
+            terminal_value = (
+                dividend * (1 + terminal_growth)
+                / (discount_rate - terminal_growth)
+            )
+            return present_value + terminal_value / ((1 + discount_rate) ** 5)
+
+        ddm_available = (
+            currency_basis_supported
+            and len(dividend_history) >= 3
+            and dividend_per_share is not None
+            and dividend_per_share > 0
+            and reported_payout_ratio is not None
+            and 0 < reported_payout_ratio <= 0.85
+        )
+        ddm_base = ddm_value(
+            base_dividend_growth,
+            cost_of_equity,
+            0.025,
+        ) if ddm_available else None
+        ddm_low = ddm_value(
+            max(base_dividend_growth - 0.015, 0.0),
+            min(cost_of_equity + 0.01, 0.16),
+            0.02,
+        ) if ddm_available else None
+        ddm_high = ddm_value(
+            min(base_dividend_growth + 0.01, 0.07),
+            max(cost_of_equity - 0.005, 0.065),
+            0.03,
+        ) if ddm_available else None
+
+        ncav_per_share = None
+        tangible_asset_value = None
+        ncav_inputs_available = False
+        if currency_basis_supported and latest_balance and shares_outstanding:
+            current_assets = record_number(latest_balance, "total_current_assets")
+            total_liabilities = record_number(
+                latest_balance,
+                "total_liabilities_net_minority_interest",
+            )
+            tangible_book_value = record_number(
+                latest_balance,
+                "tangible_book_value",
+                "net_tangible_assets",
+            )
+            if tangible_book_value is not None and tangible_book_value > 0:
+                tangible_asset_value = tangible_book_value / shares_outstanding
+            if current_assets is not None and total_liabilities is not None:
+                ncav_inputs_available = True
+                ncav_per_share = (
+                    current_assets - total_liabilities
+                ) / shares_outstanding
+                if ncav_per_share <= 0:
+                    ncav_per_share = None
+
+        dcf_status = (
+            "AVAILABLE"
+            if dcf_base is not None
+            else "NOT APPLICABLE"
+            if is_financial
+            else "INSUFFICIENT DATA"
+        )
+        reverse_dcf_status = (
+            "AVAILABLE"
+            if implied_growth is not None
+            else "NOT APPLICABLE"
+            if is_financial
+            else "INSUFFICIENT DATA"
+        )
+        residual_income_status = (
+            "AVAILABLE"
+            if residual_base is not None and residual_base > 0
+            else "INSUFFICIENT DATA"
+        )
+        dividend_discount_status = (
+            "AVAILABLE"
+            if ddm_base is not None and ddm_base > 0
+            else "NOT APPLICABLE"
+            if (
+                reported_payout_ratio is not None
+                and (
+                    reported_payout_ratio <= 0
+                    or reported_payout_ratio > 0.85
+                )
+            )
+            else "INSUFFICIENT DATA"
+        )
+        graham_number_status = (
+            "AVAILABLE"
+            if graham_number is not None
+            else "NOT APPLICABLE"
+            if (
+                trailing_eps is not None
+                and trailing_eps <= 0
+            ) or (
+                book_value is not None
+                and book_value <= 0
+            )
+            else "INSUFFICIENT DATA"
+        )
+        graham_growth_status = (
+            "AVAILABLE"
+            if graham_growth is not None
+            else "NOT APPLICABLE"
+            if trailing_eps is not None and trailing_eps <= 0
+            else "INSUFFICIENT DATA"
+        )
+        ncav_status = (
+            "AVAILABLE"
+            if ncav_per_share is not None
+            else "NOT APPLICABLE"
+            if ncav_inputs_available
+            else "INSUFFICIENT DATA"
+        )
+
+        methods = []
+        dcf_fit = (
+            92 if is_high_growth
+            else 88 if not is_financial and not is_reit
+            else 78 if is_utility
+            else 35
+        )
+        methods.append(method_result(
+            "scenario_dcf",
+            "Scenario FCF DCF",
+            "Absolute",
+            dcf_status,
+            dcf_fit,
+            "Values normalized free cash flow across bear, base, and bull operating scenarios.",
+            "Terminal growth and discount rates remain the largest sources of uncertainty.",
+            methodology=(
+                "Formula: FCFF = operating cash flow + after-tax interest - "
+                "capital expenditure. Five years of bear, base, and bull cash "
+                "flows are discounted at WACC; terminal value is added, net "
+                "debt is subtracted, and equity value is divided by shares. "
+                "Best for operating companies with positive normalized cash flow."
+            ),
+            value=dcf_base,
+            low=dcf_low,
+            high=dcf_high,
+            metric_label="Base fair value",
+            metric_value=dcf_base,
+            metric_format="currency",
+            inputs={
+                "normalized_fcff": round(base_fcff, 2) if base_fcff is not None else None,
+                "base_growth_pct": round(base_growth * 100, 2),
+                "wacc_pct": round(wacc * 100, 2),
+                "terminal_growth_pct": 2.5,
+            },
+        ))
+        methods.append(method_result(
+            "reverse_dcf",
+            "Reverse DCF",
+            "Expectations",
+            reverse_dcf_status,
+            95 if is_high_growth else 82,
+            "Solves for the starting cash-flow growth rate embedded in a five-year fade path at the current price.",
+            "The implied expectation is a reality check, not an independent fair-value estimate.",
+            methodology=(
+                "Formula: solve current price = present value of the same "
+                "five-year FCFF model for its starting growth rate, with growth "
+                "fading toward the terminal rate. Compare the implied rate with "
+                "the company's defensible operating path; this tests expectations "
+                "and does not produce a separate fair value."
+            ),
+            decision_read=reverse_decision_read,
+            decision_tone=reverse_decision_tone,
+            decision_detail=reverse_decision_detail,
+            metric_label="Market-implied starting FCF growth",
+            metric_value=implied_growth * 100 if implied_growth is not None else None,
+            metric_format="percent",
+            inputs={
+                "fundamental_growth_reference_pct": (
+                    round(base_growth * 100, 2)
+                    if base_growth is not None
+                    else None
+                ),
+                "expectations_gap_pct": (
+                    round((base_growth - implied_growth) * 100, 2)
+                    if implied_growth is not None
+                    else None
+                ),
+            },
+        ))
+        methods.append(method_result(
+            "residual_income",
+            "Residual Income",
+            "Absolute",
+            residual_income_status,
+            96 if is_financial else 80 if not is_high_growth else 48,
+            "Anchors value on book equity plus future returns earned above the cost of equity.",
+            "Book value is a weak economic-capital proxy for intangible-heavy companies.",
+            methodology=(
+                "Formula: value = current book value + present value of future "
+                "residual income, where residual income = (ROE - cost of equity) "
+                "x opening book value. Excess ROE fades over time. Best for banks, "
+                "insurers, and firms whose book equity is economically meaningful."
+            ),
+            value=residual_base,
+            low=residual_low,
+            high=residual_high,
+            metric_label="Base fair value",
+            metric_value=residual_base,
+            metric_format="currency",
+            inputs={
+                "book_value_per_share": round(book_value, 2) if book_value else None,
+                "roe_pct": round(roe * 100, 2) if roe is not None else None,
+                "cost_of_equity_pct": round(cost_of_equity * 100, 2),
+            },
+        ))
+        methods.append(method_result(
+            "dividend_discount",
+            "Two-Stage Dividend Discount",
+            "Absolute",
+            dividend_discount_status,
+            96 if is_regulated_utility else 86 if is_financial else 62,
+            "Discounts a five-year dividend path and a sustainable terminal payout.",
+            "Use only when dividends are established and reasonably reflect distributable cash.",
+            methodology=(
+                "Formula: value = present value of five years of forecast "
+                "dividends + terminal dividend / (cost of equity - terminal "
+                "growth). Dividend growth fades toward 2.5%. Requires at least "
+                "three annual payments and a reported payout ratio between 0% and 85%."
+            ),
+            value=ddm_base,
+            low=ddm_low,
+            high=ddm_high,
+            metric_label="Base fair value",
+            metric_value=ddm_base,
+            metric_format="currency",
+            inputs={
+                "dividend_per_share": (
+                    round(dividend_per_share, 4)
+                    if dividend_per_share is not None
+                    else None
+                ),
+                "dividend_growth_pct": round(base_dividend_growth * 100, 2),
+                "cost_of_equity_pct": round(cost_of_equity * 100, 2),
+            },
+        ))
+        methods.append(method_result(
+            "normalized_pe",
+            "Normalized Historical P/E",
+            "Relative",
+            "AVAILABLE" if normalized_pe_value is not None else "INSUFFICIENT DATA",
+            86 if is_cyclical else 78,
+            "Applies the stock's own median fiscal-window P/E to current trailing earnings.",
+            "A company's historical multiple can preserve past overvaluation or miss structural change.",
+            methodology=(
+                "Formula: fair value = trailing EPS x median historical fiscal-"
+                "window P/E. Each annual P/E uses the average stock price during "
+                "the 365 days ending at fiscal year-end divided by that year's "
+                "diluted EPS. At least three valid observations are required."
+            ),
+            value=normalized_pe_value,
+            low=normalized_pe_value * 0.85 if normalized_pe_value else None,
+            high=normalized_pe_value * 1.15 if normalized_pe_value else None,
+            metric_label="Historical-multiple value",
+            metric_value=normalized_pe_value,
+            metric_format="currency",
+            inputs={
+                "median_pe": round(average_pe_5y, 2) if average_pe_5y else None,
+                "observations": pe_observation_count,
+            },
+        ))
+        methods.append(method_result(
+            "graham_number",
+            "Graham Number",
+            "Asset / Earnings",
+            graham_number_status,
+            72 if not is_high_growth and not is_financial else 45,
+            "Combines trailing earnings and book value as a defensive valuation ceiling.",
+            "It materially understates capital-light businesses whose value resides in intangibles.",
+            methodology=(
+                "Formula: square root of (22.5 x trailing EPS x book value per "
+                "share). The 22.5 constant combines Graham's defensive limits "
+                "of 15x earnings and 1.5x book value. Best as a conservative "
+                "check for stable, asset-supported companies."
+            ),
+            value=graham_number,
+            metric_label="Defensive value",
+            metric_value=graham_number,
+            metric_format="currency",
+        ))
+        methods.append(method_result(
+            "graham_revised_growth",
+            "Graham Revised Growth Formula",
+            "Graham / Growth",
+            graham_growth_status,
+            68 if not is_high_growth else 42,
+            "Values positive earnings using Graham's growth formula adjusted for the current Aaa bond yield.",
+            "The result is extremely sensitive to the EPS growth assumption and is not reliable for unstable or hyper-growth firms.",
+            methodology=(
+                "Formula: intrinsic value = EPS x (8.5 + 2g) x 4.4 / Y. "
+                "EPS is trailing earnings, g is the historical EPS growth rate "
+                "capped at 15%, 4.4 is Graham's original high-grade bond yield, "
+                "and Y is the current Aaa corporate bond yield."
+            ),
+            value=graham_growth,
+            metric_label="Growth-adjusted value",
+            metric_value=graham_growth,
+            metric_format="currency",
+            inputs={
+                "growth_pct": round(capped_growth, 2) if trailing_eps else None,
+                "current_aaa_yield_pct": round(current_aaa_yield, 2),
+            },
+        ))
+        methods.append(method_result(
+            "graham_conservative_growth",
+            "Conservative Graham Growth",
+            "Graham / Growth",
+            graham_growth_status,
+            72 if not is_high_growth else 46,
+            "Uses a lower earnings multiple and less growth sensitivity than the revised Graham formula.",
+            "This is an AlphaWhales conservative adaptation, not one of Graham's canonical published formulas.",
+            methodology=(
+                "Formula: value = EPS x (7 + capped growth) x (20-year average "
+                "Aaa yield / current Aaa yield). Growth is capped at 15%. The "
+                "lower base multiple and one-times growth coefficient make this "
+                "a stricter sensitivity check than the canonical revised formula."
+            ),
+            value=graham_conservative,
+            metric_label="Conservative growth value",
+            metric_value=graham_conservative,
+            metric_format="currency",
+            inputs={
+                "growth_pct": round(capped_growth, 2) if trailing_eps else None,
+                "average_aaa_yield_pct": round(average_aaa_yield, 2),
+                "current_aaa_yield_pct": round(current_aaa_yield, 2),
+            },
+        ))
+        methods.append(method_result(
+            "ncav",
+            "Net Current Asset Value",
+            "Asset / Liquidation",
+            ncav_status,
+            82 if ncav_per_share is not None else 25,
+            "Treats current assets less all liabilities as a conservative liquidation floor.",
+            "Rarely applicable to healthy modern large caps and ignores going-concern value.",
+            methodology=(
+                "Formula: NCAV per share = (current assets - total liabilities) "
+                "/ shares outstanding. Graham's net-net purchase threshold is "
+                "two-thirds of NCAV. Fixed assets, brands, and future earnings "
+                "receive no value."
+            ),
+            value=ncav_per_share,
+            metric_label="NCAV per share",
+            metric_value=ncav_per_share,
+            metric_format="currency",
+            inputs={
+                "graham_buy_target": (
+                    round(ncav_per_share * (2 / 3), 2)
+                    if ncav_per_share is not None
+                    else None
+                ),
+            },
+        ))
+        methods.append(method_result(
+            "tangible_asset_value",
+            "Tangible Book / Asset Value",
+            "Asset / NAV Proxy",
+            "AVAILABLE" if tangible_asset_value is not None else "INSUFFICIENT DATA",
+            88 if is_financial else 48 if is_reit else 30,
+            "Shows tangible book value per share as a balance-sheet valuation floor or cross-check.",
+            "Historical-cost tangible book is not adjusted NAV and can miss franchises, property revaluation, reserves, and internally developed intangibles.",
+            methodology=(
+                "Formula: tangible asset value per share = reported tangible "
+                "book value divided by shares outstanding; book value per share "
+                "is used only when a separate tangible total is unavailable. "
+                "Most useful for banks, insurers, holding companies, and asset-heavy firms."
+            ),
+            value=tangible_asset_value,
+            metric_label="Tangible asset value",
+            metric_value=tangible_asset_value,
+            metric_format="currency",
+        ))
+        relative_metrics = {
+            "forward_pe": safe_number(metrics.get("forward_pe")),
+            "peg": (
+                safe_number(metrics.get("peg_ratio"))
+                or safe_number(metrics.get("peg_ratio_ttm"))
+            ),
+            "ev_ebitda": (
+                safe_number(metrics.get("enterprise_to_ebitda"))
+                if currency_basis_supported
+                else None
+            ),
+            "ev_revenue": (
+                safe_number(metrics.get("enterprise_to_revenue"))
+                if currency_basis_supported
+                else None
+            ),
+            "price_to_book": safe_number(metrics.get("price_to_book")),
+        }
+        available_earnings_metrics = [
+            relative_metrics[key]
+            for key in ("forward_pe", "peg", "price_to_book")
+            if relative_metrics[key] is not None
+        ]
+        earnings_metric_text = None
+        if (
+            relative_metrics["peg"] is not None
+            and relative_metrics["forward_pe"] is not None
+        ):
+            earnings_metric_text = (
+                f"{relative_metrics['forward_pe']:.2f}x P/E / "
+                f"{relative_metrics['peg']:.2f}x PEG"
+            )
+        elif relative_metrics["peg"] is not None:
+            earnings_metric_text = f"{relative_metrics['peg']:.2f}x PEG"
+        elif relative_metrics["forward_pe"] is not None:
+            earnings_metric_text = (
+                f"{relative_metrics['forward_pe']:.2f}x forward P/E"
+            )
+        elif relative_metrics["price_to_book"] is not None:
+            earnings_metric_text = (
+                f"{relative_metrics['price_to_book']:.2f}x P/B"
+            )
+        earnings_decision_read = None
+        earnings_decision_tone = None
+        earnings_decision_detail = None
+        peg_ratio = relative_metrics["peg"]
+        if peg_ratio is not None and peg_ratio > 0:
+            if peg_ratio < 1.0:
+                earnings_decision_read = "GROWTH-ADJUSTED ATTRACTIVE"
+                earnings_decision_tone = "positive"
+                earnings_decision_detail = (
+                    f"PEG is {peg_ratio:.2f}x, below 1.0x. Confirm that "
+                    "growth is durable and quality is not deteriorating."
+                )
+            elif peg_ratio <= 2.0:
+                earnings_decision_read = "GROWTH-ADJUSTED BALANCED"
+                earnings_decision_tone = "caution"
+                earnings_decision_detail = (
+                    f"PEG is {peg_ratio:.2f}x. Growth and valuation appear "
+                    "broadly balanced, subject to peer quality."
+                )
+            else:
+                earnings_decision_read = "GROWTH-ADJUSTED RICH"
+                earnings_decision_tone = "negative"
+                earnings_decision_detail = (
+                    f"PEG is {peg_ratio:.2f}x, above 2.0x. The price demands "
+                    "strong growth delivery."
+                )
+        elif available_earnings_metrics:
+            earnings_decision_read = "PEER BENCHMARK NEEDED"
+            earnings_decision_tone = "info"
+            earnings_decision_detail = (
+                "P/E or P/B alone cannot establish cheapness without "
+                "same-industry growth and profitability comparisons."
+            )
+        methods.append(method_result(
+            "relative_multiples",
+            "P/E, PEG & P/B Context",
+            "Relative",
+            "AVAILABLE" if available_earnings_metrics else "INSUFFICIENT DATA",
+            84 if is_high_growth or is_cyclical else 76,
+            "Shows equity multiples used to compare price with earnings growth and accounting equity.",
+            "Low multiples can identify value traps; no peer-derived fair value is claimed without a clean, fundamentals-adjusted peer set.",
+            methodology=(
+                "P/E = price / EPS; PEG = P/E / annual EPS growth; P/B = "
+                "price / book value per share. These are relative pricing "
+                "signals, not intrinsic values. Compare within the same industry "
+                "and adjust for growth, profitability, leverage, and accounting quality."
+            ),
+            decision_read=earnings_decision_read,
+            decision_tone=earnings_decision_tone,
+            decision_detail=earnings_decision_detail,
+            metric_label="Equity multiples",
+            metric_value=earnings_metric_text,
+            metric_format="text",
+            inputs=relative_metrics,
+        ))
+        enterprise_metric_text = None
+        if (
+            relative_metrics["ev_ebitda"] is not None
+            and relative_metrics["ev_revenue"] is not None
+        ):
+            enterprise_metric_text = (
+                f"{relative_metrics['ev_ebitda']:.2f}x EBITDA / "
+                f"{relative_metrics['ev_revenue']:.2f}x Sales"
+            )
+        elif relative_metrics["ev_ebitda"] is not None:
+            enterprise_metric_text = (
+                f"{relative_metrics['ev_ebitda']:.2f}x EV/EBITDA"
+            )
+        elif relative_metrics["ev_revenue"] is not None:
+            enterprise_metric_text = (
+                f"{relative_metrics['ev_revenue']:.2f}x EV/Revenue"
+            )
+        methods.append(method_result(
+            "enterprise_multiples",
+            "EV/EBITDA & EV/Sales",
+            "Relative / Enterprise",
+            "AVAILABLE" if enterprise_metric_text else "INSUFFICIENT DATA",
+            88 if is_cyclical else 82 if is_high_growth else 78,
+            "Compares enterprise value with operating earnings or revenue while accounting for debt and cash.",
+            "EV/EBITDA ignores maintenance capital expenditure, and EV/Sales ignores margins; both depend on correctly priced peers.",
+            methodology=(
+                "Formula: enterprise value = market capitalization + debt - "
+                "cash. EV/EBITDA divides enterprise value by EBITDA; EV/Sales "
+                "divides it by revenue. Use same-industry peers and normalize "
+                "growth, margins, capital intensity, and lease treatment."
+            ),
+            decision_read=(
+                "PEER BENCHMARK NEEDED"
+                if enterprise_metric_text
+                else None
+            ),
+            decision_tone="info" if enterprise_metric_text else None,
+            decision_detail=(
+                "These multiples describe the current price, but cheap versus "
+                "expensive requires same-industry peer or historical benchmarks."
+                if enterprise_metric_text
+                else None
+            ),
+            metric_label="Enterprise multiples",
+            metric_value=enterprise_metric_text,
+            metric_format="text",
+            inputs={
+                "ev_ebitda": relative_metrics["ev_ebitda"],
+                "ev_revenue": relative_metrics["ev_revenue"],
+            },
+        ))
+        methods.append(method_result(
+            "sotp",
+            "Sum-of-the-Parts",
+            "Structural",
+            "REQUIRES SEGMENT DATA" if is_conglomerate else "NOT APPLICABLE",
+            100 if is_conglomerate else 18,
+            "Values distinct business segments independently and reconciles them to consolidated equity value.",
+            "Segment margins, debt, central costs, tax leakage, and intercompany allocations are often incomplete.",
+            methodology=(
+                "Formula: equity value = sum of segment values + non-operating "
+                "assets - net debt - minority interests - central costs and tax "
+                "leakage. Each segment uses its own DCF or sector multiple. A "
+                "defensible result requires segment-level revenue, profit, assets, and claims."
+            ),
+            metric_label="Assessment",
+            metric_value=(
+                "Segment financials required"
+                if is_conglomerate
+                else "Focused business"
+            ),
+            metric_format="text",
+        ))
+        methods.append(method_result(
+            "reit_nav_affo",
+            "REIT NAV & Price/AFFO",
+            "Sector-Specific",
+            "REQUIRES PROPERTY / AFFO DATA" if is_reit else "NOT APPLICABLE",
+            100 if is_reit else 16,
+            "Values property equity through market cap rates and recurring funds from operations.",
+            "Generic book value and EPS do not substitute for property-level NAV, recurring capex, or AFFO.",
+            methodology=(
+                "NAV marks each property or portfolio to market using stabilized "
+                "net operating income and market cap rates, then subtracts net "
+                "debt and other claims. Price/AFFO compares the share price with "
+                "funds from operations after recurring capital expenditure."
+            ),
+            metric_label="Assessment",
+            metric_value=(
+                "Property and AFFO data required"
+                if is_reit
+                else "REIT-only framework"
+            ),
+            metric_format="text",
+        ))
+        methods.append(method_result(
+            "real_options",
+            "Contingent Claim / Real Options",
+            "Option-Based",
+            (
+                "REQUIRES SPECIALIZED INPUTS"
+                if is_real_option_candidate
+                else "NOT APPLICABLE"
+            ),
+            90 if is_real_option_candidate else 14,
+            "Values equity, projects, reserves, or pipelines as options when payoff is highly asymmetric.",
+            "Asset volatility, exercise timing, exclusivity, funding needs, and failure probabilities are difficult to estimate.",
+            methodology=(
+                "Uses option-pricing logic such as the Merton model: equity is "
+                "a call option on firm assets with debt as the strike price. "
+                "Growth projects, mineral reserves, and drug pipelines can also "
+                "be modeled as staged options. Requires asset value, volatility, "
+                "debt maturity, risk-free rate, and exercise or failure assumptions."
+            ),
+            metric_label="Assessment",
+            metric_value=(
+                "Specialized option inputs required"
+                if is_real_option_candidate
+                else "Niche framework"
+            ),
+            metric_format="text",
+        ))
+
+        structural_method = None
+        if is_conglomerate:
+            structural_method = {
+                "id": "sotp",
+                "name": "Sum-of-the-Parts",
+                "status": "REQUIRES SEGMENT DATA",
+                "reason": (
+                    "Distinct business units should be valued separately; "
+                    "summary yfinance statements cannot support a defensible SOTP."
+                ),
+            }
+        elif is_reit:
+            structural_method = {
+                "id": "nav_affo",
+                "name": "NAV + Price/AFFO",
+                "status": "REQUIRES PROPERTY / AFFO DATA",
+                "reason": (
+                    "REIT value depends on property-level cap rates and recurring "
+                    "AFFO rather than generic earnings or book value."
+                ),
+            }
+        data_warnings = []
+        if not currency_basis_supported:
+            data_warnings.append(
+                "Absolute per-share models are disabled because the available "
+                "summary data cannot prove that statement currency and the "
+                "traded-share or ADR basis match the USD quote."
+            )
+
+        if is_conglomerate:
+            framework_name = "SOTP with whole-company fallback"
+            framework_reason = (
+                "The business contains economically distinct units. SOTP is the "
+                "best structural method, while the displayed calculated anchor "
+                "uses the strongest available whole-company model."
+            )
+            preferred_ids = ("scenario_dcf", "normalized_pe", "residual_income")
+            recommended_method_ids = (
+                "sotp",
+                "scenario_dcf",
+                "normalized_pe",
+                "residual_income",
+            )
+        elif is_reit:
+            framework_name = "NAV / AFFO with dividend cross-check"
+            framework_reason = (
+                "Property NAV and recurring AFFO are the correct anchors. Until "
+                "those inputs are available, DDM is the least misleading fallback."
+            )
+            preferred_ids = ("dividend_discount", "normalized_pe")
+            recommended_method_ids = (
+                "reit_nav_affo",
+                "dividend_discount",
+                "tangible_asset_value",
+                "normalized_pe",
+            )
+        elif is_financial:
+            framework_name = "Residual Income + P/B/ROE cross-check"
+            framework_reason = (
+                "Debt is an operating input for financial firms, making generic "
+                "enterprise DCF unreliable. Book equity and excess ROE are the "
+                "more coherent anchors."
+            )
+            preferred_ids = ("residual_income", "dividend_discount", "normalized_pe")
+            recommended_method_ids = (
+                "residual_income",
+                "tangible_asset_value",
+                "relative_multiples",
+                "dividend_discount",
+                "normalized_pe",
+            )
+        elif is_regulated_utility and ddm_available:
+            framework_name = "Dividend Discount + Scenario DCF"
+            framework_reason = (
+                "A regulated payout stream supports DDM, while DCF checks whether "
+                "capital intensity and leverage make that payout sustainable."
+            )
+            preferred_ids = ("dividend_discount", "scenario_dcf", "normalized_pe")
+            recommended_method_ids = (
+                "dividend_discount",
+                "scenario_dcf",
+                "normalized_pe",
+                "enterprise_multiples",
+            )
+        elif is_cyclical:
+            framework_name = "Midcycle DCF + Normalized Multiple"
+            framework_reason = (
+                "Cycle-normalized cash flow and historical earnings power are more "
+                "useful than a point-in-time P/E near a peak or trough."
+            )
+            preferred_ids = ("scenario_dcf", "normalized_pe", "relative_multiples")
+            recommended_method_ids = (
+                "scenario_dcf",
+                "enterprise_multiples",
+                "normalized_pe",
+                "real_options",
+            )
+        elif is_high_growth:
+            framework_name = "Scenario DCF + Reverse DCF"
+            framework_reason = (
+                "Growth duration and margin conversion dominate value. Scenario "
+                "DCF estimates a range while reverse DCF exposes the expectations "
+                "already embedded in price."
+            )
+            preferred_ids = ("scenario_dcf", "reverse_dcf", "relative_multiples")
+            recommended_method_ids = (
+                "scenario_dcf",
+                "reverse_dcf",
+                "relative_multiples",
+                "enterprise_multiples",
+            )
         else:
-            assessment = "OVERVALUED"
+            framework_name = "Scenario DCF + Normalized P/E"
+            framework_reason = (
+                "Cash generation provides the intrinsic anchor and the stock's "
+                "own normalized multiple supplies a market-based cross-check."
+            )
+            preferred_ids = ("scenario_dcf", "normalized_pe", "residual_income")
+            recommended_method_ids = (
+                "scenario_dcf",
+                "normalized_pe",
+                "relative_multiples",
+                "residual_income",
+            )
+
+        method_by_id = {method["id"]: method for method in methods}
+        anchor_method = next(
+            (
+                method_by_id[method_id]
+                for method_id in preferred_ids
+                if (
+                    method_by_id.get(method_id, {}).get("value") is not None
+                    and method_by_id[method_id]["value"] > 0
+                )
+            ),
+            None,
+        )
+
+        fair_value = anchor_method["value"] if anchor_method else None
+        purchase_price = fair_value * 0.80 if fair_value is not None else None
+        assessment = assess(fair_value)
+        ordered_methods = sorted(
+            methods,
+            key=lambda method: (
+                method["status"] != "AVAILABLE",
+                -method["fit"],
+            ),
+        )
 
         return {
             "trailing_eps": round(trailing_eps, 2) if trailing_eps is not None else None,
@@ -710,12 +2187,37 @@ class DataService:
             "average_pe_observations": pe_observation_count,
             "average_aaa_yield": round(average_aaa_yield, 2),
             "current_aaa_yield": round(current_aaa_yield, 2),
-            "models_used": len(model_values),
+            "current_treasury_yield": round(current_treasury_yield or 4.0, 2),
+            "cost_of_equity_pct": round(cost_of_equity * 100, 2),
+            "wacc_pct": round(wacc * 100, 2),
+            "models_used": len([
+                method
+                for method in methods
+                if method.get("value") is not None and method["value"] > 0
+            ]),
             "graham_growth_value": round(graham_growth, 2) if graham_growth is not None else None,
             "graham_conservative_value": round(graham_conservative, 2) if graham_conservative is not None else None,
             "graham_number": round(graham_number, 2) if graham_number is not None else None,
             "normalized_pe_value": round(normalized_pe_value, 2) if normalized_pe_value is not None else None,
-            "fair_value": round(fair_value, 2) if fair_value is not None else None,
+            "recommended_framework": {
+                "name": framework_name,
+                "reason": framework_reason,
+                "anchor_method_id": anchor_method["id"] if anchor_method else None,
+                "anchor_method_name": anchor_method["name"] if anchor_method else None,
+                "recommended_method_ids": [
+                    method_id
+                    for method_id in recommended_method_ids
+                    if method_id in method_by_id
+                ],
+                "structural_method": structural_method,
+                "data_warnings": data_warnings,
+            },
+            "methods": ordered_methods,
+            "valuation_range": {
+                "low": anchor_method["low"] if anchor_method else None,
+                "high": anchor_method["high"] if anchor_method else None,
+            },
+            "fair_value": fair_value,
             "purchase_price_20pct_mos": round(purchase_price, 2) if purchase_price is not None else None,
             "assessment": assessment,
             "price_to_fair_value_pct": (
@@ -761,6 +2263,8 @@ class DataService:
         profile = {}
         news = []
         income_statement = None
+        cash_flow = None
+        balance_sheet = None
         for name, fetcher in (
             ("quote", lambda: obb.equity.price.quote(
                 symbol=market_symbol, provider="yfinance"
@@ -799,6 +2303,32 @@ class DataService:
         except Exception as e:
             errors["income"] = str(e)
             logger.warning(f"OpenBB income statement fetch failed for {ticker}: {e}")
+
+        for name, fetcher in (
+            ("cash", lambda: obb.equity.fundamental.cash(
+                symbol=market_symbol,
+                provider="yfinance",
+                period="annual",
+                limit=5,
+            ).to_df()),
+            ("balance", lambda: obb.equity.fundamental.balance(
+                symbol=market_symbol,
+                provider="yfinance",
+                period="annual",
+                limit=5,
+            ).to_df()),
+        ):
+            try:
+                frame = fetcher()
+                if name == "cash":
+                    cash_flow = frame
+                else:
+                    balance_sheet = frame
+            except Exception as e:
+                errors[name] = str(e)
+                logger.warning(
+                    f"OpenBB {name} statement fetch failed for {ticker}: {e}"
+                )
 
         try:
             news_result = obb.news.company(
@@ -924,22 +2454,35 @@ class DataService:
 
         average_aaa_yield = 4.34
         current_aaa_yield = 5.44
+        current_treasury_yield = 4.0
         try:
             aaa = pd.read_csv(
-                "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DAAA"
+                "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DAAA,DGS10"
             )
             aaa["observation_date"] = pd.to_datetime(
                 aaa["observation_date"],
                 errors="coerce"
             )
             aaa["DAAA"] = pd.to_numeric(aaa["DAAA"], errors="coerce")
-            aaa = aaa.dropna(subset=["observation_date", "DAAA"])
-            if not aaa.empty:
-                current_aaa_yield = float(aaa.iloc[-1]["DAAA"])
-                cutoff = aaa.iloc[-1]["observation_date"] - pd.DateOffset(years=20)
-                recent_aaa = aaa[aaa["observation_date"] >= cutoff]["DAAA"]
+            aaa["DGS10"] = pd.to_numeric(aaa["DGS10"], errors="coerce")
+            aaa = aaa.dropna(subset=["observation_date"])
+            aaa_yields = aaa.dropna(subset=["DAAA"])
+            treasury_yields = aaa.dropna(subset=["DGS10"])
+            if not aaa_yields.empty:
+                current_aaa_yield = float(aaa_yields.iloc[-1]["DAAA"])
+                cutoff = (
+                    aaa_yields.iloc[-1]["observation_date"]
+                    - pd.DateOffset(years=20)
+                )
+                recent_aaa = aaa_yields[
+                    aaa_yields["observation_date"] >= cutoff
+                ]["DAAA"]
                 if not recent_aaa.empty:
                     average_aaa_yield = float(recent_aaa.mean())
+            if not treasury_yields.empty:
+                current_treasury_yield = float(
+                    treasury_yields.iloc[-1]["DGS10"]
+                )
         except Exception as e:
             errors["aaa_yield"] = str(e)
             logger.warning(f"FRED AAA yield fetch failed for {ticker}: {e}")
@@ -947,10 +2490,15 @@ class DataService:
         valuation = self._compute_valuation_analysis(
             current_price,
             metrics,
+            profile,
             annual_eps,
+            income_statement,
+            cash_flow,
+            balance_sheet,
             average_pe_5y,
             average_aaa_yield,
             current_aaa_yield,
+            current_treasury_yield,
             len(pe_observations[:5])
         )
         technical = self._compute_technical_analysis(prices)
@@ -958,7 +2506,7 @@ class DataService:
         price_as_of = price_history[-1]["date"] if price_history else None
 
         payload = {
-            "cache_version": 5,
+            "cache_version": 10,
             "ticker": ticker,
             "market_symbol": market_symbol,
             "last_updated": datetime.now(timezone.utc).isoformat(),
@@ -1042,6 +2590,35 @@ class DataService:
         history_dir = os.path.join(CACHE_DIR, "history")
         os.makedirs(history_dir, exist_ok=True)
         return os.path.join(history_dir, f"{report_period}.json")
+
+    def invalidate_filing_periods(self, report_periods):
+        invalidated = set()
+        for report_period in report_periods:
+            try:
+                period = pd.Period(str(report_period), freq="Q")
+            except (TypeError, ValueError):
+                continue
+            invalidated.add(period.end_time.date().isoformat())
+            invalidated.add((period + 1).end_time.date().isoformat())
+            invalidated.add((period + 2).end_time.date().isoformat())
+
+        return self.invalidate_exact_filing_periods(invalidated)
+
+    def invalidate_exact_filing_periods(self, report_periods):
+        invalidated = {
+            str(report_period)
+            for report_period in report_periods
+            if report_period
+        }
+        for report_period in invalidated:
+            self.period_cache_generations[report_period] = (
+                self.period_cache_generations.get(report_period, 0) + 1
+            )
+            self.period_caches.pop(report_period, None)
+            self.period_cache_progress.pop(report_period, None)
+            path = self._get_period_cache_path(report_period)
+            self._delete_file_with_retry(path)
+        return sorted(invalidated)
 
     def _load_period_cache_from_disk(self, report_period: str):
         path = self._get_period_cache_path(report_period)
@@ -1137,7 +2714,7 @@ class DataService:
                     json.dump(payload, stream, default=str)
                     stream.flush()
                     os.fsync(stream.fileno())
-                os.replace(temporary_path, cache_path)
+                self._replace_file_with_retry(temporary_path, cache_path)
                 temporary_path = None
             finally:
                 if temporary_path and os.path.exists(temporary_path):
@@ -1173,6 +2750,10 @@ class DataService:
             roster_snapshot = deepcopy(FUND_MANAGERS)
             roster_fingerprint = self._roster_fingerprint(
                 roster_snapshot
+            )
+            cache_generation = self.period_cache_generations.get(
+                report_period,
+                0,
             )
             period_cache = {}
             loop = asyncio.get_event_loop()
@@ -1216,6 +2797,14 @@ class DataService:
                     raise RuntimeError(
                         "Roster changed while the historical period was "
                         "building; discarded the mixed snapshot"
+                    )
+                if self.period_cache_generations.get(
+                    report_period,
+                    0,
+                ) != cache_generation:
+                    raise RuntimeError(
+                        "Historical period was invalidated while building; "
+                        "discarded the stale snapshot"
                     )
                 self._save_period_cache_to_disk(
                     report_period,
@@ -2184,7 +3773,8 @@ class DataService:
         report,
         cik: str,
         include_previous_comparison=True,
-        include_comparison=True
+        include_comparison=True,
+        filing_metadata=None,
     ):
         holdings, value_scale = self._normalize_holdings_values(
             report.holdings
@@ -2238,18 +3828,22 @@ class DataService:
             len(holdings) if holdings is not None else 0
         )
 
+        metadata = {
+            "management_company_name": str(report.management_company_name or ""),
+            "total_value": total_val_num,
+            "total_holdings": total_holdings_num,
+            "report_period": str(report.report_period or ""),
+            "filing_date": str(getattr(report, 'filing_date', '')),
+            "value_scale_applied": value_scale,
+            "previous_report_period": previous_report_period,
+            "two_quarters_ago_period": two_quarters_ago_period
+        }
+        if filing_metadata:
+            metadata.update(filing_metadata)
+
         return {
             "status": "loaded",
-            "metadata": {
-                "management_company_name": str(report.management_company_name or ""),
-                "total_value": total_val_num,
-                "total_holdings": total_holdings_num,
-                "report_period": str(report.report_period or ""),
-                "filing_date": str(getattr(report, 'filing_date', '')),
-                "value_scale_applied": value_scale,
-                "previous_report_period": previous_report_period,
-                "two_quarters_ago_period": two_quarters_ago_period
-            },
+            "metadata": metadata,
             "holdings": holdings,
             "comparison": comp_data,
             "previous_comparison": previous_comp_data
@@ -2356,27 +3950,134 @@ class DataService:
             "Status"
         ]]
 
-    def _find_best_report_for_period(self, fund, report_period):
-        candidates = []
-        for cik in [fund["cik"], *fund.get("historical_ciks", [])]:
+    @staticmethod
+    def _filing_metadata(filing, fund, source_cik):
+        accession_number = str(
+            getattr(filing, "accession_number", "")
+            or getattr(filing, "accession_no", "")
+            or ""
+        )
+        filing_date = str(getattr(filing, "filing_date", "") or "")
+        report_period = str(
+            getattr(filing, "report_date", "")
+            or getattr(filing, "period_of_report", "")
+            or ""
+        )
+        source_url = str(getattr(filing, "filing_url", "") or "")
+        if not source_url and accession_number:
+            source_url = (
+                "https://www.sec.gov/Archives/edgar/data/"
+                f"{int(source_cik)}/{accession_number.replace('-', '')}/"
+                f"{accession_number}.txt"
+            )
+        return {
+            "accession_number": accession_number,
+            "form": str(getattr(filing, "form", "") or ""),
+            "filing_date": filing_date,
+            "report_period": report_period,
+            "source_cik": str(source_cik).zfill(10),
+            "canonical_cik": fund["cik"],
+            "manager_name": fund["manager"],
+            "source_url": source_url,
+        }
+
+    def _list_fund_filings(self, fund):
+        entries = []
+        errors = []
+        seen_accessions = set()
+        for source_cik in [fund["cik"], *fund.get("historical_ciks", [])]:
             try:
-                filings = Company(cik).get_filings(form="13F-HR")
-                for filing in filings:
-                    if str(filing.report_date or "") == report_period:
-                        report = filing.obj()
-                        candidates.append((
-                            report,
-                            cik,
-                            str(filing.form),
-                            str(filing.filing_date)
-                        ))
+                filings = Company(source_cik).get_filings(
+                    form=["13F-HR", "13F-HR/A"]
+                )
+                for filing in filings or []:
+                    metadata = self._filing_metadata(
+                        filing,
+                        fund,
+                        source_cik,
+                    )
+                    accession_number = metadata["accession_number"]
+                    dedupe_key = accession_number or (
+                        metadata["source_cik"],
+                        metadata["form"],
+                        metadata["filing_date"],
+                        metadata["report_period"],
+                    )
+                    if dedupe_key in seen_accessions:
+                        continue
+                    seen_accessions.add(dedupe_key)
+                    entries.append((filing, source_cik, metadata))
+            except Exception as exc:
+                message = (
+                    f"Could not inspect 13F filings for {fund['manager']} "
+                    f"under CIK {source_cik}: {exc}"
+                )
+                logger.warning(message)
+                errors.append({
+                    "canonical_cik": fund["cik"],
+                    "source_cik": str(source_cik).zfill(10),
+                    "manager_name": fund["manager"],
+                    "error": str(exc),
+                })
+        return entries, errors
+
+    def discover_recent_filings(self, since_date):
+        discoveries = []
+        errors = []
+        for fund in deepcopy(FUND_MANAGERS):
+            entries, fund_errors = self._list_fund_filings(fund)
+            errors.extend(fund_errors)
+            for _, _, metadata in entries:
+                try:
+                    filing_date = date.fromisoformat(
+                        metadata["filing_date"][:10]
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if filing_date >= since_date:
+                    discoveries.append(metadata)
+        discoveries.sort(
+            key=lambda item: (
+                item["filing_date"],
+                item["accession_number"],
+            ),
+            reverse=True,
+        )
+        return {
+            "filings": discoveries,
+            "errors": errors,
+            "managers_checked": len(FUND_MANAGERS),
+        }
+
+    def _find_best_report_for_period(
+        self,
+        fund,
+        report_period,
+        filing_entries=None,
+    ):
+        candidates = []
+        entries = filing_entries
+        if entries is None:
+            entries, _ = self._list_fund_filings(fund)
+        for filing, source_cik, metadata in entries:
+            if metadata["report_period"] != report_period:
+                continue
+            try:
+                report = filing.obj()
+                candidates.append((
+                    report,
+                    source_cik,
+                    metadata["form"],
+                    metadata["filing_date"],
+                    metadata,
+                ))
             except Exception as e:
                 logger.warning(
                     f"Could not inspect {report_period} filing for "
-                    f"{fund['manager']} under CIK {cik}: {e}"
+                    f"{fund['manager']} under CIK {source_cik}: {e}"
                 )
         if not candidates:
-            return None, None
+            return None, None, None
 
         def holding_count(candidate):
             holdings = candidate[0].holdings
@@ -2393,32 +4094,37 @@ class DataService:
         ]
         selected = max(
             complete_candidates,
-            key=lambda candidate: candidate[3]
+            key=lambda candidate: (
+                candidate[3],
+                candidate[4]["accession_number"],
+            )
         )
-        return selected[0], selected[1]
+        return selected[0], selected[1], selected[4]
 
     def _build_cross_cik_fund_result(
         self,
         fund,
         report,
-        include_previous_comparison=True
+        include_previous_comparison=True,
+        filing_metadata=None,
     ):
         result = self._build_fund_result(
             report,
             fund["cik"],
             include_previous_comparison=False,
-            include_comparison=False
+            include_comparison=False,
+            filing_metadata=filing_metadata,
         )
         current_period = pd.Period(str(report.report_period), freq="Q")
         previous_period = (current_period - 1).end_time.date().isoformat()
         older_period = (current_period - 2).end_time.date().isoformat()
-        previous_report, _ = self._find_best_report_for_period(
+        previous_report, _, _ = self._find_best_report_for_period(
             fund,
             previous_period
         )
         older_report = None
         if include_previous_comparison:
-            older_report, _ = self._find_best_report_for_period(
+            older_report, _, _ = self._find_best_report_for_period(
                 fund,
                 older_period
             )
@@ -2438,13 +4144,6 @@ class DataService:
 
     def _fetch_fund_sync(self, cik: str):
         try:
-            filings = Company(cik).get_filings(form='13F-HR')
-            if not filings or len(filings) == 0:
-                filings = Company(cik).get_filings(form='13F-HR/A')
-
-            if not filings or len(filings) == 0:
-                return {"status": "error", "error": "No 13F filings found on EDGAR"}
-
             fund = next(
                 (
                     item
@@ -2453,30 +4152,58 @@ class DataService:
                 ),
                 None
             )
-            if fund:
-                latest_period = str(filings[0].report_date or "")
-                report, _ = self._find_best_report_for_period(
-                    fund,
-                    latest_period
+            if fund is None:
+                return {
+                    "status": "error",
+                    "error": f"CIK {cik} is not in the configured roster",
+                }
+            filing_entries, errors = self._list_fund_filings(fund)
+            report_periods = [
+                metadata["report_period"]
+                for _, _, metadata in filing_entries
+                if metadata["report_period"]
+            ]
+            if not report_periods:
+                message = (
+                    errors[0]["error"]
+                    if errors
+                    else "No 13F filings found on EDGAR"
                 )
-                if report is not None:
-                    return self._build_cross_cik_fund_result(fund, report)
-            return self._build_fund_result(filings[0].obj(), cik)
+                return {"status": "error", "error": message}
+            latest_period = max(report_periods)
+            report, _, filing_metadata = self._find_best_report_for_period(
+                fund,
+                latest_period,
+                filing_entries,
+            )
+            if report is None:
+                return {
+                    "status": "error",
+                    "error": f"No usable 13F filing found for {latest_period}",
+                }
+            return self._build_cross_cik_fund_result(
+                fund,
+                report,
+                filing_metadata=filing_metadata,
+            )
         except Exception as e:
             logger.error(f"Error fetching fund {cik}: {e}")
             return {"status": "error", "error": str(e)}
 
     def _fetch_fund_period_sync(self, fund, report_period: str):
         try:
-            report, _ = self._find_best_report_for_period(
+            filing_entries, _ = self._list_fund_filings(fund)
+            report, _, filing_metadata = self._find_best_report_for_period(
                 fund,
-                report_period
+                report_period,
+                filing_entries,
             )
             if report is not None:
                 return self._build_cross_cik_fund_result(
                     fund,
                     report,
-                    include_previous_comparison=False
+                    include_previous_comparison=False,
+                    filing_metadata=filing_metadata,
                 )
             return {
                 "status": "unavailable",
@@ -2496,23 +4223,57 @@ class DataService:
         loop = asyncio.get_event_loop()
         if cik not in self.cache:
             raise ValueError(f"CIK {cik} is not in the configured roster")
+        previous_cache = self.cache[cik].copy()
         self.cache[cik]["status"] = "loading"
         await self.broadcast_event({"type": "fund_status", "cik": cik, "status": "loading"})
 
         result = await loop.run_in_executor(None, self._fetch_fund_sync, cik)
-
-        self.cache[cik].update(result)
-        self.cache[cik]["last_updated"] = datetime.now(timezone.utc).isoformat()
-
-        # Persist to disk cache
+        refreshed_at = datetime.now(timezone.utc).isoformat()
         if result.get("status") == "loaded":
-            self._save_fund_to_disk_cache(cik)
+            self.cache[cik].update(result)
+            self.cache[cik]["last_updated"] = refreshed_at
+            try:
+                published = self._save_fund_to_disk_cache(cik)
+            except Exception as exc:
+                logger.exception(
+                    "Could not publish fund cache for %s",
+                    cik,
+                )
+                self.cache[cik] = previous_cache
+                self.cache[cik]["status"] = "error"
+                self.cache[cik]["error"] = str(exc)
+                self.cache[cik]["last_updated"] = refreshed_at
+                result = {"status": "error", "error": str(exc)}
+            else:
+                if not published:
+                    self._load_all_from_disk_cache()
+                    result = {
+                        "status": self.cache[cik].get(
+                            "status",
+                            "loaded",
+                        ),
+                        "superseded_by_persisted_cache": True,
+                    }
+                self.manager_adjustment_cache = {
+                    key: value
+                    for key, value in self.manager_adjustment_cache.items()
+                    if not (
+                        isinstance(key, tuple)
+                        and len(key) > 1
+                        and key[1] == cik
+                    )
+                }
+        else:
+            self.cache[cik].update(result)
+            self.cache[cik]["last_updated"] = refreshed_at
 
         await self.broadcast_event({
             "type": "fund_updated",
             "cik": cik,
-            "status": result["status"]
+            "status": result["status"],
+            "timestamp": self.cache[cik]["last_updated"],
         })
+        return result
 
     def sync_roster(self):
         active_by_cik = {fund["cik"]: fund for fund in FUND_MANAGERS}
@@ -2547,11 +4308,11 @@ class DataService:
             if cik in self.cache
         )
         if not self.pending_roster_refresh_ciks:
-            return
+            return False
         refresh_lock = getattr(self, "_refresh_lock", None)
         if refresh_lock is None:
             if self.is_refreshing:
-                return
+                return False
             refresh_lock = asyncio.Lock()
             self._refresh_lock = refresh_lock
 
@@ -2582,6 +4343,7 @@ class DataService:
                 })
             finally:
                 self.is_refreshing = False
+        return True
 
     async def refresh_roster_market_context(self):
         refresh_lock = getattr(self, "_refresh_lock", None)
@@ -2599,11 +4361,7 @@ class DataService:
             })
 
     async def refresh_all(self):
-        if self.is_refreshing or getattr(
-            self,
-            "_full_refresh_pending",
-            False,
-        ):
+        if getattr(self, "_full_refresh_pending", False):
             return False
         self._full_refresh_pending = True
         refresh_lock = getattr(self, "_refresh_lock", None)
@@ -2612,8 +4370,6 @@ class DataService:
             self._refresh_lock = refresh_lock
         try:
             async with refresh_lock:
-                if self.is_refreshing:
-                    return False
                 self.is_refreshing = True
                 logger.info("Starting refresh of all 13F funds...")
                 try:
@@ -2657,9 +4413,7 @@ class DataService:
 
         while True:
             await asyncio.sleep(CACHE_TTL_HOURS * 3600)
-            completed = await self.refresh_all()
-            if after_refresh is not None and completed:
-                await after_refresh()
+            await self.refresh_market_insights()
 
     def _get_high_conviction_tickers(self):
         tickers = set()
