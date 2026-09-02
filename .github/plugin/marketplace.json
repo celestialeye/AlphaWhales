@@ -11,7 +11,7 @@
     {
       "name": "alphawhales-workflow",
       "description": "Close, validate, document, commit, push, and open AlphaWhales work for review",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": ".github/copilot-plugins/alphawhales-workflow",
       "category": "productivity"
     }

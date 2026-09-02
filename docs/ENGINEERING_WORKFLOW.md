@@ -1,8 +1,10 @@
 # Engineering Workflow
 
-This repository is in active development. The delivery boundary is a reviewed
-pull request with passing CI; production deployment and release automation are
-intentionally deferred until a deployment target exists.
+This is currently a single-person or family-use system in active development.
+The workflow should catch regressions without adding team-scale ceremony. A
+lightweight pull request with passing CI is the normal delivery boundary;
+production deployment and release automation are deferred until a deployment
+target exists.
 
 ## Definition of done
 
@@ -16,8 +18,9 @@ when:
 4. The diff contains no secrets, generated application data, temporary
    artifacts, or unrelated user changes.
 5. Logical Conventional Commits are pushed on a focused branch.
-6. A pull request against `main` describes the change, validation, and risk.
-7. The task-owned working tree is clean. CI and review remain the merge gate.
+6. A lightweight pull request against `main` records the change and validation.
+7. The task-owned working tree is clean. Passing CI is the automated merge
+   gate.
 
 The repository provides `/shipit` through the `alphawhales-workflow` Copilot
 CLI plugin. Register the repository marketplace and install the plugin once per
@@ -70,8 +73,9 @@ python -m pytest -q
 ```
 
 GitHub Actions runs this gate on pull requests and pushes to `main` using
-Python 3.11 and Node.js 22. Configure branch protection to require the
-`Offline quality gate` check before merge.
+Python 3.11 and Node.js 22. For the current single-developer workflow, checking
+that this job is green before merge is sufficient; required approvals and
+elaborate branch rules are unnecessary.
 
 ### 3. Browser validation
 
@@ -91,9 +95,9 @@ Use the configured Playwright browser tools to verify:
 - loading, empty, unavailable, error, and populated states affected by the
   change.
 
-Browser checks are currently an engineer-run merge requirement. Add automated
-end-to-end tests when a browser test runner and stable fixtures are introduced;
-do not make live SEC or OpenBB availability a merge dependency.
+Run these browser checks when UI behavior changed. Add automated end-to-end
+tests only when stable fixtures make them reliable; do not make live SEC or
+OpenBB availability a merge dependency.
 
 ### 4. Data and research validation
 
@@ -103,9 +107,10 @@ formula, boundary, or publication behavior. Run live refresh or rebuild
 commands only when the task intentionally changes generated data, and never
 commit generated `cache/` or `data/investor_screening/` content.
 
-## Review expectations
+## Lightweight review practice
 
-Review the complete diff, not only the last edit. Check:
+Every change gets a practical self-review of the complete diff, not only the
+last edit. Check:
 
 - correctness, failure behavior, and backward compatibility;
 - API, DataFrame, JavaScript, template, SSE, and storage contracts;
@@ -114,8 +119,23 @@ Review the complete diff, not only the last edit. Check:
 - deterministic test coverage for regressions;
 - accidental generated files, debug code, screenshots, logs, and secrets.
 
-Fix high-confidence defects before requesting review. Do not combine unrelated
-cleanup or speculative refactors with the task being shipped.
+Use an independent code-review agent only when the change is nontrivial or
+risky, such as:
+
+- financial formulas, methodology, valuation, sentiment, performance, or AWFI;
+- SEC ingestion, cache or database publication, concurrency, or recovery;
+- security-sensitive input, file, URL, credential, or subprocess handling;
+- broad API, template, JavaScript, SSE, or storage contract changes.
+
+Straightforward documentation, copy, configuration, and tiny fixes do not need
+an extra review pass. AI review is advisory unless it identifies a
+high-confidence correctness, security, or data-loss problem. Fix those problems
+before shipping; avoid style-only review churn.
+
+The current offline CI gate is enough for routine work. Do not add required
+human approvals, CODEOWNERS, coverage quotas, CodeQL, dependency-enforcement
+jobs, or other team-scale governance until the repository becomes public,
+multi-user, or production-hosted.
 
 ## Documentation and memory hygiene
 
@@ -143,7 +163,9 @@ personal data, transient task details, or generated-data observations.
   request.
 - Push with upstream tracking and create or update a pull request against
   `main`.
-- Do not merge automatically. Required CI and review are the closeout gate.
+- Treat the pull request as a lightweight change record and CI checkpoint, not
+  an approval ceremony.
+- Do not merge automatically. Confirm CI is green before merging.
 
 ## Worktree cleanup
 

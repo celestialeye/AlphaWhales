@@ -34,9 +34,14 @@ Execute the workflow rather than merely describing it.
 
 - Resolve incomplete task todos, placeholders, debug code, temporary
   instrumentation, and directly related defects.
-- Review the complete change set for correctness, security, error handling,
-  type and data-contract safety, backward compatibility, and repository
-  conventions.
+- Perform a practical self-review of the complete diff for correctness,
+  failure behavior, data contracts, and accidental files.
+- Use an independent code-review agent only for nontrivial code, financial
+  methodology, ingestion/publication, concurrency, security-sensitive, or
+  otherwise risky changes. Skip the extra review pass for straightforward
+  documentation, copy, configuration, or tiny fixes.
+- Treat review findings as advisory unless they identify a high-confidence
+  correctness, security, or data-loss problem.
 - Prefer surgical fixes. Do not introduce speculative infrastructure or
   unrelated refactors.
 
@@ -85,9 +90,10 @@ Execute the workflow rather than merely describing it.
 - Create a pull request against `main`, or update the existing pull request for
   the branch.
 - Use a concise Conventional Commit-style title and a body covering summary,
-  rationale, material changes, validation, risks or caveats, and documentation
-  impact.
-- Do not merge automatically. CI and review remain the merge gate.
+  validation, and any material caveat.
+- Keep the pull request lightweight: it is a change record and CI checkpoint,
+  not a formal approval ceremony.
+- Do not merge automatically. Passing CI is the required automated gate.
 
 ## 7. Leave the workspace clean
 
