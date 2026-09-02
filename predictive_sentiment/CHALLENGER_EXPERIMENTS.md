@@ -186,3 +186,25 @@ The experiments still produced useful constraints:
 
 No challenger in this report is promoted into either the historical v1 control
 or the current Research v2 score.
+
+## Potential AWFI Research v3 candidates from valuation research
+
+The broader valuation review identified several return-prediction factors that
+must remain separate from the ticker fair-value calculator. They are candidates
+for a future, separately versioned AWFI Research v3 or challenger program:
+
+1. Industry-neutralized value composite using forward E/P, FCF/EV, EBIT/EV,
+   and sales/price rather than pure P/B.
+2. Quality and profitability using gross profits/assets, ROIC or adjusted ROE,
+   accrual quality, balance-sheet safety, and a point-in-time F-Score.
+3. Conservative investment or asset-growth signals aligned with the CMA family.
+4. Twelve-minus-one price momentum and immutable earnings-revision momentum.
+5. Low-volatility and distress overlays rather than treating cheapness as a
+   stand-alone buy signal.
+
+These are not approved AWFI components. Any experiment must use accession-level
+point-in-time fundamentals, unadjusted historical prices for valuation ratios,
+immutable prospective analyst snapshots where required, industry
+normalization, walk-forward evaluation, and a multiple-testing hurdle near
+`t > 3`. Fair-value estimates belong in ticker decision support; predictive
+factor evidence belongs in the versioned AWFI research pipeline.

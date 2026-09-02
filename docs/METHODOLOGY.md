@@ -134,7 +134,103 @@ It is most uncertain for positions acquired before the 20-quarter window.
 
 ## Valuation
 
-### Historical P/E
+### Method selection
+
+Valuation is selected by company economics rather than averaging every
+available formula. The service classifies the company from its sector,
+industry, growth, payout, and statement coverage, then recommends a framework:
+
+- Financial institutions: residual income with P/B and ROE context.
+- Regulated utilities and established payers: two-stage dividend discount with
+  a cash-flow cross-check.
+- High-growth operating companies: scenario FCF DCF plus reverse DCF.
+- Cyclical and commodity companies: midcycle FCF DCF plus normalized earnings.
+- Conglomerates: SOTP is identified as the structurally correct method, but no
+  SOTP value is produced without segment-level financials.
+- REITs: NAV and price/AFFO are identified as the structurally correct methods,
+  but no property NAV or AFFO value is produced from generic summary data.
+- Other operating companies: scenario FCF DCF plus normalized historical P/E.
+
+The primary fair-value estimate comes from the first valid calculated method in
+the recommended framework. Incompatible values are not blended into a
+composite. The UI opens with a compact `Decision Set` containing the methods
+selected for the company's profile, then provides separate `Intrinsic`,
+`Relative`, `Graham`, `Asset & Special`, and `All` tabs. Methods that are not
+applicable or require specialized data remain visible in their category. Every
+method card has its own methodology, applicability, and limitation tooltip.
+
+The method-agreement bar counts only models that produce a positive per-share
+value and classifies their individual assessments as undervalued, neutral, or
+overvalued. It is a disagreement diagnostic, not a vote, composite fair value,
+or replacement for the recommended primary method.
+
+Method cards separate internal data readiness from the visible `Method read`.
+The UI must never present `AVAILABLE` as an investment signal:
+
+- Fair-value methods show `MARGIN OF SAFETY`, `NEAR FAIR VALUE`, or
+  `ABOVE METHOD VALUE`.
+- Reverse DCF compares modeled and price-implied growth and shows whether
+  expectations look low, aligned, or demanding.
+- PEG below 1.0 receives a growth-adjusted attractive read; 1.0-2.0 is
+  balanced; above 2.0 is rich. The text still requires confirmation that
+  growth and business quality are durable.
+- P/E, P/B, or enterprise multiples without an adequate comparison set show
+  `PEER BENCHMARK NEEDED`, not cheap or expensive.
+- Inapplicable and unsupported methods show `NOT A FIT` or `MORE DATA NEEDED`.
+
+### Scenario FCF DCF and reverse DCF
+
+Historical free cash flow to the firm is approximated from cash flow after
+restoring after-tax interest:
+
+```text
+FCFF = operating cash flow
+       + interest expense * (1 - tax rate)
+       - absolute capital expenditure
+```
+
+The base cash flow blends the latest observation with the recent full-series
+median, including negative years; cyclical companies use the full recent
+median. FCF growth is calculated only across an uninterrupted positive history.
+Growth also uses available revenue history with profile-sensitive caps. Bear,
+base, and bull cases vary growth, WACC, and terminal growth. Enterprise value
+is converted to equity value by subtracting net debt and dividing by shares
+outstanding.
+
+Reverse DCF solves for the starting FCF growth rate, fading toward the terminal
+rate across five years, that makes the same model equal the current market
+price. It exposes market expectations and does not create a second fair-value
+estimate.
+
+### Residual income
+
+Residual income starts with book value per share and adds discounted future
+earnings above the cost of equity:
+
+```text
+residual income = (ROE - cost of equity) * opening book value
+```
+
+Excess ROE fades across the forecast and terminal periods. This is the primary
+calculated method for banks and other financial institutions, where debt is an
+operating input and generic enterprise DCF is misleading. It is down-weighted
+for intangible-heavy businesses.
+
+### Dividend discount
+
+The two-stage DDM forecasts five years of dividends with growth fading toward a
+2.5% terminal rate. Dividend growth uses at least three annual per-share payment
+observations and sustainable growth from ROE and retention, capped at 6%. It is
+shown only when the reported payout is positive and no more than 85%.
+
+Absolute per-share methods are disabled for foreign issuers or non-USD quotes
+when the summary provider data cannot prove that financial-statement currency,
+ordinary shares, and the traded ADR/share basis are aligned. Per-share
+dimensionless metrics such as P/E or PEG may still be shown with an explicit
+data-basis warning; EV multiples are withheld because their numerator and
+denominator may use different currencies.
+
+### Historical multiple and defensive asset methods
 
 For each positive-EPS fiscal year with at least 200 trading days:
 
@@ -145,27 +241,52 @@ fiscal-year P/E =
 ```
 
 Values above 100x are rejected. At least three observations are required, and
-the displayed multiple is their median.
+the displayed multiple is their median. The normalized P/E value applies this
+multiple to trailing EPS.
 
-### Graham models
+The Graham family is displayed as separate methods rather than a single
+combined value.
 
-The composite can use:
+Graham Number:
 
 ```text
 Graham Number = sqrt(22.5 * trailing EPS * book value per share)
-
-Conservative Graham =
-  trailing EPS * (7 + capped growth)
-  * (20-year average Aaa yield / current Aaa yield)
-
-Normalized P/E value = trailing EPS * historical median P/E
 ```
 
-EPS growth is capped at 15%. At least two models are required. Composite fair
-value is the median of the available models.
+Revised Graham growth formula:
 
 ```text
-purchase price = composite fair value * 0.80
+value = trailing EPS * (8.5 + 2 * capped EPS growth)
+        * 4.4 / current Aaa corporate bond yield
+```
+
+The AlphaWhales conservative Graham adaptation reduces both the base multiple
+and the growth coefficient:
+
+```text
+value = trailing EPS * (7 + capped EPS growth)
+        * (20-year average Aaa yield / current Aaa yield)
+```
+
+NCAV / net-net is shown only when current assets exceed all liabilities:
+
+```text
+NCAV per share = (current assets - total liabilities) / shares outstanding
+Graham net-net buy target = NCAV per share * 2/3
+```
+
+Relative PEG, forward P/E, EV/EBITDA, EV/revenue, and P/B values are context,
+not peer-derived fair values. A relative fair value requires a clean,
+fundamentals-adjusted industry peer set and is not fabricated from a single
+company's multiples.
+
+The catalog also displays tangible book/asset value, SOTP, REIT NAV/AFFO, and
+contingent-claim or real-options valuation. SOTP, property NAV/AFFO, and option
+values remain visibly unavailable until the required segment, property,
+reserve, pipeline, volatility, debt-maturity, or exercise data exists.
+
+```text
+purchase price = primary fair value * 0.80
 ```
 
 Classification:
@@ -173,7 +294,7 @@ Classification:
 - `UNDERVALUED`: at or below the 20% safety price.
 - `NEUTRAL`: above the safety price but no more than 10% above fair value.
 - `OVERVALUED`: more than 10% above fair value.
-- `UNAVAILABLE`: fewer than two valid models.
+- `UNAVAILABLE`: no valid calculated anchor for the recommended framework.
 
 ## Technical timing
 

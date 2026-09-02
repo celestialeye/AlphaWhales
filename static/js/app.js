@@ -13,6 +13,7 @@ let selectedFilingPeriod = null;
 let currentOverviewTab = 'overview';
 let selectedAwfiHorizon = 252;
 let currentTickerTab = 'decision';
+let tickerValuationCategory = 'decision';
 let tickerAwfiScores = {};
 let tickerAwfiMetadata = {};
 let tickerAwfiHistory = [];
@@ -52,6 +53,12 @@ let screeningLoadTimer = null;
 let screeningAbortController = null;
 const screeningSelectedCiks = new Set();
 let screeningRosterBusy = false;
+let filingOperationsOffset = 0;
+let filingOperationsPageSize = 25;
+let filingOperationsTotal = 0;
+let filingOperationsLoadTimer = null;
+let filingOperationsAbortController = null;
+let filingDetailAbortController = null;
 const signalChartColors = Object.freeze({
     new: '#60a5fa',
     increased: '#34d399',
@@ -99,6 +106,8 @@ evtSource.onmessage = function(e) {
                 const parts = window.location.pathname.split('/');
                 if (parts.length > 2 && parts[2]) loadInvestorDetail(parts[2]);
                 else loadInvestorsList();
+            } else if (window.location.pathname === '/filings') {
+                loadFilingOperations();
             }
         } else if (data.type === 'awfi_published') {
             showToast('AWFI history updated');
@@ -107,6 +116,13 @@ evtSource.onmessage = function(e) {
                 if (ticker) loadTickerDetail(ticker);
             } else if (window.location.pathname === '/') {
                 loadOverviewData(selectedFilingPeriod);
+            }
+        } else if (data.type === 'filings_ingested') {
+            showToast(
+                `${formatInt(data.count)} new SEC filing${data.count === 1 ? '' : 's'} recorded`
+            );
+            if (window.location.pathname === '/filings') {
+                loadFilingOperations(true);
             }
         }
     } catch(err) {
@@ -2932,6 +2948,261 @@ function scheduleTickerAwfiHistoryRefresh(ticker) {
     }, 15000);
 }
 
+function formatValuationMethodMetric(method) {
+    const value = method.metric_value;
+    if (value === null || value === undefined || value === '') return 'Unavailable';
+    if (method.metric_format === 'currency') return `$${formatNum(value)}`;
+    if (method.metric_format === 'percent') return formatPct(value);
+    return String(value);
+}
+
+const valuationCategoryDescriptions = Object.freeze({
+    decision: 'The methods selected for this company’s business model and current data.',
+    intrinsic: 'Cash-flow, dividend, and economic-profit methods that estimate value independently of market peers.',
+    relative: 'Market-pricing methods that compare earnings, growth, book value, revenue, or operating profit.',
+    graham: 'Benjamin Graham’s defensive, growth-adjusted, and liquidation-oriented valuation checks.',
+    special: 'Asset, segment, property, and option-based methods used for specialized company structures.',
+    all: 'Every supported valuation method, including unavailable and non-applicable frameworks.',
+});
+
+function valuationMethodsForCategory(methods, framework, category) {
+    const recommendedIds = new Set(framework.recommended_method_ids || []);
+    if (category === 'decision') {
+        return methods.filter(method => recommendedIds.has(method.id));
+    }
+    if (category === 'intrinsic') {
+        return methods.filter(method => (
+            method.family === 'Absolute'
+            || method.family === 'Expectations'
+        ));
+    }
+    if (category === 'relative') {
+        return methods.filter(method => (
+            method.id === 'normalized_pe'
+            || method.id === 'relative_multiples'
+            || method.id === 'enterprise_multiples'
+        ));
+    }
+    if (category === 'graham') {
+        return methods.filter(method => (
+            method.id === 'graham_number'
+            || method.id === 'graham_revised_growth'
+            || method.id === 'graham_conservative_growth'
+            || method.id === 'ncav'
+        ));
+    }
+    if (category === 'special') {
+        return methods.filter(method => (
+            method.id === 'tangible_asset_value'
+            || method.id === 'sotp'
+            || method.id === 'reit_nav_affo'
+            || method.id === 'real_options'
+        ));
+    }
+    return methods;
+}
+
+function renderValuationAgreement(methods, anchorName) {
+    const pricedMethods = methods.filter(method => (
+        method.value !== null
+        && method.value !== undefined
+        && Number(method.value) > 0
+        && ['UNDERVALUED', 'NEUTRAL', 'OVERVALUED'].includes(method.assessment)
+    ));
+    const counts = {
+        UNDERVALUED: pricedMethods.filter(method => method.assessment === 'UNDERVALUED').length,
+        NEUTRAL: pricedMethods.filter(method => method.assessment === 'NEUTRAL').length,
+        OVERVALUED: pricedMethods.filter(method => method.assessment === 'OVERVALUED').length,
+    };
+    const total = pricedMethods.length;
+    const agreementElement = document.getElementById('td-valuation-agreement');
+    const detailElement = document.getElementById('td-valuation-agreement-detail');
+    if (!total) {
+        agreementElement.textContent = 'NO PRICED METHODS';
+        detailElement.textContent = anchorName
+            ? `Diagnostic only · Primary method: ${anchorName}`
+            : 'Diagnostic only · No calculated fair-value methods are available.';
+    } else {
+        const orderedStates = Object.entries(counts)
+            .sort((left, right) => right[1] - left[1]);
+        const dominant = (
+            orderedStates[0][1] > orderedStates[1][1]
+                ? orderedStates[0][0]
+                : 'MIXED'
+        );
+        agreementElement.textContent = dominant === 'MIXED'
+            ? `MIXED · ${total} METHODS`
+            : `${orderedStates[0][1]}/${total} ${dominant}`;
+        detailElement.textContent = (
+            `Diagnostic only · ${counts.UNDERVALUED} undervalued · ${counts.NEUTRAL} neutral · `
+            + `${counts.OVERVALUED} overvalued`
+        );
+    }
+    document.getElementById('td-agreement-undervalued').style.width = (
+        `${total ? (counts.UNDERVALUED / total) * 100 : 0}%`
+    );
+    document.getElementById('td-agreement-neutral').style.width = (
+        `${total ? (counts.NEUTRAL / total) * 100 : 0}%`
+    );
+    document.getElementById('td-agreement-overvalued').style.width = (
+        `${total ? (counts.OVERVALUED / total) * 100 : 0}%`
+    );
+}
+
+function renderValuationMethodCards(valuation) {
+    const framework = valuation.recommended_framework || {};
+    const methods = Array.isArray(valuation.methods) ? valuation.methods : [];
+    const filteredMethods = valuationMethodsForCategory(
+        methods,
+        framework,
+        tickerValuationCategory,
+    );
+    const availableCount = methods.filter(method => method.status === 'AVAILABLE').length;
+    document.getElementById('td-valuation-model-count').textContent = (
+        `${filteredMethods.length} shown · ${availableCount}/${methods.length} data-ready`
+    );
+    document.getElementById('td-valuation-category-description').textContent = (
+        valuationCategoryDescriptions[tickerValuationCategory]
+        || valuationCategoryDescriptions.all
+    );
+    document.querySelectorAll('.valuation-method-tab').forEach(button => {
+        const selected = button.dataset.valuationCategory === tickerValuationCategory;
+        button.classList.toggle('is-active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+    });
+
+    const categoryCounts = {
+        decision: valuationMethodsForCategory(methods, framework, 'decision').length,
+        intrinsic: valuationMethodsForCategory(methods, framework, 'intrinsic').length,
+        relative: valuationMethodsForCategory(methods, framework, 'relative').length,
+        graham: valuationMethodsForCategory(methods, framework, 'graham').length,
+        special: valuationMethodsForCategory(methods, framework, 'special').length,
+        all: methods.length,
+    };
+    Object.entries(categoryCounts).forEach(([category, count]) => {
+        const countElement = document.getElementById(`td-valuation-count-${category}`);
+        if (countElement) countElement.textContent = String(count);
+    });
+
+    const container = document.getElementById('td-valuation-methods');
+    if (!filteredMethods.length) {
+        container.innerHTML = '<div class="valuation-method-empty">No methods belong to this category for the current stock.</div>';
+        return;
+    }
+
+    container.innerHTML = filteredMethods.map(method => {
+        const isAnchor = method.id === framework.anchor_method_id;
+        const methodologyTooltip = [
+            method.methodology || method.summary || 'Methodology unavailable.',
+            method.caveat ? `Main limitation: ${method.caveat}` : '',
+        ].filter(Boolean).join(' ');
+        const decisionTone = (method.decision_tone || 'muted')
+            .toLowerCase()
+            .replaceAll(' ', '-');
+        const rangeText = (
+            method.low !== null
+            && method.low !== undefined
+            && method.high !== null
+            && method.high !== undefined
+        )
+            ? `$${formatNum(method.low)} – $${formatNum(method.high)}`
+            : '';
+        return `
+            <article class="valuation-method ${isAnchor ? 'is-anchor' : ''}">
+                <div class="valuation-method-topline">
+                    <span>${escapeHtml(method.family || 'Valuation')}</span>
+                    <span class="valuation-method-fit">${escapeHtml(String(method.fit || 0))}% fit</span>
+                </div>
+                <div class="valuation-method-title">
+                    <strong>${escapeHtml(method.name)}</strong>
+                    ${isAnchor ? '<span>PRIMARY</span>' : ''}
+                </div>
+                <div class="valuation-method-output">
+                    <span>${escapeHtml(method.metric_label || method.status || 'Result')}</span>
+                    <strong class="font-mono">${escapeHtml(formatValuationMethodMetric(method))}</strong>
+                    ${rangeText ? `<small>${escapeHtml(rangeText)}</small>` : ''}
+                </div>
+                <p>${escapeHtml(method.summary || '')}</p>
+                <div class="valuation-method-footer">
+                    <div class="valuation-method-read">
+                        <span>Method read</span>
+                        <strong class="${escapeHtml(decisionTone)}">${escapeHtml(method.decision_read || 'MORE DATA NEEDED')}</strong>
+                        <small>${escapeHtml(method.decision_detail || 'This method cannot support a reliable conclusion with current data.')}</small>
+                    </div>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="${escapeHtml(method.name)} methodology" data-tooltip="${escapeHtml(methodologyTooltip)}">i</span>
+                </div>
+            </article>
+        `;
+    }).join('');
+}
+
+function setValuationMethodCategory(category) {
+    if (!Object.hasOwn(valuationCategoryDescriptions, category)) return;
+    tickerValuationCategory = category;
+    const valuation = tickerAwfiIntelligence?.market?.valuation;
+    if (valuation) renderValuationMethodCards(valuation);
+}
+
+function renderValuationMethods(valuation) {
+    const framework = valuation.recommended_framework || {};
+    const frameworkName = framework.name || 'No reliable framework available';
+    const anchorName = framework.anchor_method_name;
+    document.getElementById('td-valuation-framework').textContent = frameworkName;
+    document.getElementById('td-valuation-reason').textContent = (
+        framework.reason
+        || 'The available market and statement data do not support a reliable recommendation.'
+    );
+    document.getElementById('td-fair-value-label').textContent = anchorName
+        ? `${anchorName} Fair Value`
+        : 'Primary Fair-Value Estimate';
+
+    const structural = framework.structural_method;
+    const dataWarnings = Array.isArray(framework.data_warnings)
+        ? framework.data_warnings
+        : [];
+    const structuralElement = document.getElementById('td-valuation-structural');
+    const valuationNotes = [];
+    if (structural) {
+        valuationNotes.push(`
+            <div class="valuation-data-note">
+                <strong>${escapeHtml(structural.name)}</strong>
+                <span>${escapeHtml(structural.status)}</span>
+                <p>${escapeHtml(structural.reason)}</p>
+            </div>
+        `);
+    }
+    dataWarnings.forEach(warning => {
+        valuationNotes.push(`
+            <div class="valuation-data-note valuation-data-warning">
+                <strong>Data-basis limitation</strong>
+                <span>VALUES DISABLED</span>
+                <p>${escapeHtml(warning)}</p>
+            </div>
+        `);
+    });
+    if (valuationNotes.length) {
+        structuralElement.hidden = false;
+        structuralElement.innerHTML = valuationNotes.join('');
+    } else {
+        structuralElement.hidden = true;
+        structuralElement.replaceChildren();
+    }
+
+    const range = valuation.valuation_range || {};
+    document.getElementById('td-valuation-range').textContent = (
+        range.low !== null
+        && range.low !== undefined
+        && range.high !== null
+        && range.high !== undefined
+    )
+        ? `Modeled range $${formatNum(range.low)} – $${formatNum(range.high)}`
+        : 'Scenario range unavailable';
+
+    const methods = Array.isArray(valuation.methods) ? valuation.methods : [];
+    renderValuationAgreement(methods, anchorName);
+    renderValuationMethodCards(valuation);
+}
+
 function renderTickerIntelligence(intelligence) {
     tickerAwfiIntelligence = intelligence;
     const market = intelligence.market || {};
@@ -3038,9 +3309,7 @@ function renderTickerIntelligence(intelligence) {
     valuationStatus.textContent = valuation.assessment || 'UNAVAILABLE';
     document.getElementById('td-fair-value').textContent = valuation.fair_value ? `$${formatNum(valuation.fair_value)}` : '—';
     document.getElementById('td-purchase-price').textContent = valuation.purchase_price_20pct_mos ? `$${formatNum(valuation.purchase_price_20pct_mos)}` : '—';
-    document.getElementById('td-graham-number').textContent = valuation.graham_number ? `$${formatNum(valuation.graham_number)}` : '—';
-    document.getElementById('td-graham-conservative').textContent = valuation.graham_conservative_value ? `$${formatNum(valuation.graham_conservative_value)}` : '—';
-    document.getElementById('td-normalized-pe-value').textContent = valuation.normalized_pe_value ? `$${formatNum(valuation.normalized_pe_value)}` : '—';
+    renderValuationMethods(valuation);
 
     const trendStatus = document.getElementById('td-trend-status');
     const trendState = (technical.trend_regime || 'UNAVAILABLE').toLowerCase();
@@ -3188,6 +3457,7 @@ function resetTickerDetailData(ticker) {
     tickerAwfiHistoryRefreshAttempts = 0;
     tickerAwfiHistorySnapshotVersion = null;
     tickerAwfiIntelligence = null;
+    tickerValuationCategory = 'decision';
     const values = {
         'td-ticker': ticker.toUpperCase(),
         'td-issuer': 'Loading ticker data...',
@@ -3216,11 +3486,16 @@ function resetTickerDetailData(ticker) {
         'td-1y-return': '—',
         'td-eps-growth': '—',
         'td-valuation-status': '—',
+        'td-valuation-framework': 'Loading company profile...',
+        'td-valuation-reason': 'Matching valuation methods to the business model and available fundamentals.',
+        'td-fair-value-label': 'Primary Fair-Value Estimate',
         'td-fair-value': '—',
+        'td-valuation-range': 'Scenario range unavailable',
         'td-purchase-price': '—',
-        'td-graham-number': '—',
-        'td-graham-conservative': '—',
-        'td-normalized-pe-value': '—',
+        'td-valuation-agreement': '—',
+        'td-valuation-agreement-detail': 'Waiting for method assessments',
+        'td-valuation-category-description': valuationCategoryDescriptions.decision,
+        'td-valuation-model-count': '—',
         'td-trend-status': 'TREND: —',
         'td-entry-timing': 'Loading...',
         'td-rsi14': '—',
@@ -3257,6 +3532,26 @@ function resetTickerDetailData(ticker) {
         const element = document.getElementById(id);
         if (element) element.textContent = value;
     });
+    ['undervalued', 'neutral', 'overvalued'].forEach(state => {
+        const segment = document.getElementById(`td-agreement-${state}`);
+        if (segment) segment.style.width = '0%';
+    });
+    document.querySelectorAll('.valuation-method-tab').forEach(button => {
+        const selected = button.dataset.valuationCategory === 'decision';
+        button.classList.toggle('is-active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+        const count = button.querySelector('span');
+        if (count) count.textContent = '0';
+    });
+    const valuationMethods = document.getElementById('td-valuation-methods');
+    if (valuationMethods) {
+        valuationMethods.innerHTML = '<div class="valuation-method-empty">Loading valuation methods...</div>';
+    }
+    const structuralValuation = document.getElementById('td-valuation-structural');
+    if (structuralValuation) {
+        structuralValuation.hidden = true;
+        structuralValuation.replaceChildren();
+    }
     const pairPeer = document.getElementById('td-pair-peer');
     if (pairPeer) pairPeer.href = '/ticker';
     const news = document.getElementById('td-news-list');
@@ -4684,4 +4979,587 @@ function changeScreeningPage(direction) {
     screeningPage = Math.max(1, Math.min(pageCount, screeningPage + direction));
     renderScreeningTable();
     document.querySelector('.screening-table-card')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+function filingStatusClass(status) {
+    return {
+        PUBLISHED: 'published',
+        COMPLETE: 'published',
+        NO_CHANGES: 'neutral',
+        RECORDED: 'recorded',
+        BASELINED: 'baseline',
+        HISTORICAL: 'historical',
+        PARTIAL: 'warning',
+        FAILED: 'failed',
+        RUNNING: 'running'
+    }[status] || 'neutral';
+}
+
+function formatOperationTimestamp(value) {
+    if (!value) return 'Unavailable';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return escapeHtml(value);
+    return parsed.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function scheduleFilingOperationsLoad() {
+    clearTimeout(filingOperationsLoadTimer);
+    filingOperationsAbortController?.abort();
+    filingOperationsLoadTimer = setTimeout(
+        () => loadFilingOperations(true),
+        250
+    );
+}
+
+async function loadFilingOperations(reset = false) {
+    if (reset) filingOperationsOffset = 0;
+    const status = document.getElementById('filings-status')?.value || '';
+    const search = document.getElementById('filings-search')?.value.trim() || '';
+    const form = document.getElementById('filings-form-filter')?.value || '';
+    const reportPeriod = document.getElementById('filings-period-filter')?.value || '';
+    const params = new URLSearchParams({
+        limit: String(filingOperationsPageSize),
+        offset: String(filingOperationsOffset)
+    });
+    if (status) params.set('status', status);
+    if (search) params.set('search', search);
+    if (form) params.set('form', form);
+    if (reportPeriod) params.set('report_period', reportPeriod);
+
+    filingOperationsAbortController?.abort();
+    const activeController = new AbortController();
+    filingOperationsAbortController = activeController;
+    setFilingOperationLoading(true);
+
+    try {
+        const response = await fetch(
+            `/api/filings?${params.toString()}`,
+            {signal: activeController.signal}
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        if (activeController !== filingOperationsAbortController) return;
+        filingOperationsTotal = Number(payload.total || 0);
+        syncFilingOperationFilterOptions(payload.filter_options || {});
+        renderFilingOperationSummary(payload.summary || {}, payload.runs || []);
+        renderFilingOperationRuns(payload.runs || []);
+        renderFilingOperationRows(payload.filings || []);
+        renderFilingOperationPagination();
+        renderFilingOperationFilterState(payload.summary || {});
+    } catch (error) {
+        if (error.name === 'AbortError') return;
+        const runsBody = document.getElementById('filings-runs-body');
+        const filingsBody = document.getElementById('filings-table-body');
+        if (runsBody) {
+            runsBody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-red">Could not load run history: ${escapeHtml(error.message)}</td></tr>`;
+        }
+        if (filingsBody) {
+            filingsBody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-red">Could not load filing records: ${escapeHtml(error.message)}</td></tr>`;
+        }
+    } finally {
+        if (activeController === filingOperationsAbortController) {
+            setFilingOperationLoading(false);
+        }
+    }
+}
+
+function renderFilingOperationSummary(summary, runs) {
+    const latestRun = runs[0] || null;
+    const health = document.getElementById('filings-health');
+    const healthDetail = document.getElementById('filings-health-detail');
+    const healthLabels = {
+        COMPLETE: Number(latestRun?.baseline_filings) ? 'Baseline complete' : 'Complete',
+        NO_CHANGES: 'Up to date',
+        PARTIAL: 'Review needed',
+        FAILED: 'Failed',
+        RUNNING: 'Running'
+    };
+    if (health) {
+        const status = latestRun?.status || '';
+        health.textContent = healthLabels[status] || 'Not started';
+        health.className = status === 'PARTIAL' || status === 'RUNNING'
+            ? 'text-orange'
+            : status === 'FAILED'
+                ? 'text-red'
+                : status
+                    ? 'text-green'
+                    : '';
+    }
+    if (healthDetail) {
+        healthDetail.textContent = latestRun
+            ? `${formatInt(latestRun.managers_checked)} managers checked · ${formatOperationTimestamp(latestRun.completed_at || latestRun.started_at)}`
+            : 'No operational runs recorded';
+    }
+
+    setFilingMetric(
+        'filings-new',
+        latestRun?.new_filings,
+        'filings-new-detail',
+        latestRun
+            ? `${formatInt(latestRun.filings_seen)} filings observed in the latest scan`
+            : 'No operational runs recorded'
+    );
+    setFilingMetric(
+        'filings-refreshed',
+        latestRun?.refreshed_managers,
+        'filings-refreshed-detail',
+        Number(latestRun?.refreshed_managers)
+            ? 'Manager caches rebuilt after detected work'
+            : 'No cache rebuild was needed'
+    );
+    setFilingMetric(
+        'filings-retry',
+        summary.retry_queue,
+        'filings-retry-detail',
+        `${formatInt(summary.discovered_filings || 0)} pending · ${formatInt(summary.failed_filings || 0)} failed`,
+        Number(summary.retry_queue) ? 'text-red' : ''
+    );
+    setFilingMetric(
+        'filings-source-errors',
+        latestRun?.error_count,
+        'filings-source-errors-detail',
+        Number(latestRun?.error_count)
+            ? 'SEC source lookups need review'
+            : 'No SEC source lookup errors',
+        Number(latestRun?.error_count) ? 'text-orange' : ''
+    );
+
+    const inventorySummary = document.getElementById('filings-inventory-summary');
+    if (inventorySummary) {
+        inventorySummary.textContent = `${formatInt(summary.known_accessions || 0)} accessions across ${formatInt(summary.report_period_count || 0)} quarters · ${formatInt(summary.historical_accessions || 0)} from the historical archive · ${formatInt(summary.operational_accessions || 0)} from daily operations`;
+    }
+
+    const lastRun = document.getElementById('filings-last-run');
+    if (lastRun) {
+        lastRun.textContent = runs.length
+            ? `Last run ${formatOperationTimestamp(runs[0].started_at)}`
+            : 'No operational runs recorded';
+    }
+}
+
+function setFilingMetric(valueId, value, detailId, detail, className = '') {
+    const valueElement = document.getElementById(valueId);
+    const detailElement = document.getElementById(detailId);
+    if (valueElement) {
+        valueElement.textContent = formatInt(value || 0);
+        valueElement.className = className;
+    }
+    if (detailElement) detailElement.textContent = detail;
+}
+
+function syncFilingOperationFilterOptions(options) {
+    syncFilingOperationSelect(
+        'filings-form-filter',
+        options.forms || [],
+        'All forms',
+        value => value
+    );
+    syncFilingOperationSelect(
+        'filings-period-filter',
+        options.report_periods || [],
+        'All periods',
+        value => formatCalendarDate(value)
+    );
+}
+
+function syncFilingOperationSelect(id, values, emptyLabel, labelFormatter) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    const selectedValue = select.value;
+    select.innerHTML = [
+        `<option value="">${escapeHtml(emptyLabel)}</option>`,
+        ...values.map(value => (
+            `<option value="${escapeHtml(value)}">${escapeHtml(labelFormatter(value))}</option>`
+        ))
+    ].join('');
+    select.value = values.includes(selectedValue) ? selectedValue : '';
+}
+
+function renderFilingOperationFilterState(summary) {
+    const search = document.getElementById('filings-search')?.value.trim() || '';
+    const status = document.getElementById('filings-status')?.value || '';
+    const form = document.getElementById('filings-form-filter')?.value || '';
+    const reportPeriod = document.getElementById('filings-period-filter')?.value || '';
+    const hasFilters = Boolean(search || status || form || reportPeriod);
+    const clearButton = document.getElementById('filings-clear-filters');
+    const resultSummary = document.getElementById('filings-results-summary');
+
+    if (clearButton) clearButton.disabled = !hasFilters;
+    if (resultSummary) {
+        resultSummary.textContent = hasFilters
+            ? `${formatInt(filingOperationsTotal)} matching of ${formatInt(summary.known_accessions || 0)} ledger filings`
+            : `${formatInt(filingOperationsTotal)} filing records`;
+    }
+}
+
+function clearFilingOperationsFilters() {
+    const search = document.getElementById('filings-search');
+    const status = document.getElementById('filings-status');
+    const form = document.getElementById('filings-form-filter');
+    const reportPeriod = document.getElementById('filings-period-filter');
+    if (search) search.value = '';
+    if (status) status.value = '';
+    if (form) form.value = '';
+    if (reportPeriod) reportPeriod.value = '';
+    loadFilingOperations(true);
+}
+
+function setFilingOperationLoading(loading) {
+    const results = document.getElementById('filings-results');
+    const previous = document.getElementById('filings-prev');
+    const next = document.getElementById('filings-next');
+    if (results) results.setAttribute('aria-busy', String(loading));
+    if (previous) previous.disabled = loading || filingOperationsOffset === 0;
+    if (next) {
+        next.disabled = loading
+            || filingOperationsOffset + filingOperationsPageSize >= filingOperationsTotal;
+    }
+}
+
+function renderFilingOperationRuns(runs) {
+    const body = document.getElementById('filings-runs-body');
+    if (!body) return;
+    if (!runs.length) {
+        body.innerHTML = '<tr><td colspan="9" class="text-center py-4">No daily checks have run yet.</td></tr>';
+        return;
+    }
+    body.innerHTML = runs.map(run => `
+        <tr>
+            <td>${escapeHtml(formatOperationTimestamp(run.started_at))}</td>
+            <td><span class="filings-status ${filingStatusClass(run.status)}">${escapeHtml(run.status)}</span></td>
+            <td>${escapeHtml(run.trigger)}</td>
+            <td>${formatInt(run.managers_checked)}</td>
+            <td>${formatInt(run.filings_seen)}</td>
+            <td>${formatInt(run.new_filings)}</td>
+            <td class="text-green">${formatInt(run.published_filings)}</td>
+            <td>${formatInt(run.refreshed_managers)}</td>
+            <td class="${Number(run.error_count) ? 'text-red' : ''}">${formatInt(run.error_count)}</td>
+        </tr>
+    `).join('');
+}
+
+function renderFilingOperationRows(filings) {
+    const body = document.getElementById('filings-table-body');
+    if (!body) return;
+    if (!filings.length) {
+        body.innerHTML = '<tr><td colspan="8" class="text-center py-4">No filing records match the current filters.</td></tr>';
+        return;
+    }
+    body.innerHTML = filings.map(filing => {
+        const accession = escapeHtml(filing.accession_number);
+        return `
+            <tr>
+                <td>${escapeHtml(formatCalendarDate(filing.filing_date))}</td>
+                <td>
+                    <a href="/investor/${escapeHtml(filing.canonical_cik)}">
+                        <strong>${escapeHtml(filing.manager_name)}</strong>
+                    </a>
+                    <span class="filings-manager-cik font-mono">${escapeHtml(filing.canonical_cik)}</span>
+                </td>
+                <td><span class="filings-form">${escapeHtml(filing.form)}</span></td>
+                <td>${escapeHtml(formatCalendarDate(filing.report_period))}</td>
+                <td class="font-mono">
+                    <button type="button"
+                            class="filings-accession-button"
+                            onclick="openFilingDetail('${accession}')"
+                            aria-label="Open readable filing detail for ${accession}">
+                        ${accession}
+                    </button>
+                </td>
+                <td class="font-mono">${escapeHtml(filing.source_cik)}</td>
+                <td><span class="filings-status ${filingStatusClass(filing.status)}">${escapeHtml(filing.status)}</span></td>
+                <td>${escapeHtml(formatOperationTimestamp(filing.first_seen_at))}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function openFilingDetail(accession) {
+    const dialog = document.getElementById('filing-detail-dialog');
+    const title = document.getElementById('filing-detail-title');
+    const accessionLabel = document.getElementById('filing-detail-accession');
+    const body = document.getElementById('filing-detail-body');
+    const footer = document.getElementById('filing-detail-footer');
+    const status = document.getElementById('filing-detail-status');
+    if (!dialog || !title || !accessionLabel || !body || !footer || !status) return;
+
+    filingDetailAbortController?.abort();
+    filingDetailAbortController = new AbortController();
+    title.textContent = 'Filing detail';
+    accessionLabel.textContent = accession;
+    body.innerHTML = '<div class="filing-detail-loading">Loading filing detail...</div>';
+    body.setAttribute('aria-busy', 'true');
+    status.textContent = `Loading filing ${accession}`;
+    footer.hidden = true;
+    if (!dialog.open) dialog.showModal();
+
+    try {
+        const params = new URLSearchParams({accession});
+        const response = await fetch(
+            `/api/filings/detail?${params.toString()}`,
+            {signal: filingDetailAbortController.signal}
+        );
+        const payload = await response.json();
+        if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        renderFilingDetail(payload.data || {});
+    } catch (error) {
+        if (error.name === 'AbortError') return;
+        body.setAttribute('aria-busy', 'false');
+        status.textContent = `Could not load filing ${accession}`;
+        body.innerHTML = `
+            <div class="filing-detail-empty">
+                <strong>Could not load this filing.</strong>
+                <span>${escapeHtml(error.message)}</span>
+            </div>`;
+    }
+}
+
+function renderFilingDetail(filing) {
+    const title = document.getElementById('filing-detail-title');
+    const body = document.getElementById('filing-detail-body');
+    const footer = document.getElementById('filing-detail-footer');
+    const sourceLink = document.getElementById('filing-detail-source');
+    const status = document.getElementById('filing-detail-status');
+    if (!title || !body || !footer || !sourceLink || !status) return;
+
+    const summary = filing.summary || {};
+    const sourceUrl = safeExternalNewsUrl(filing.source_url);
+    const flags = [
+        `<span class="filings-form">${escapeHtml(filing.form || '13F')}</span>`,
+        `<span class="filings-status ${filingStatusClass(filing.status)}">${escapeHtml(filing.status || 'RECORDED')}</span>`,
+        (summary.is_amendment ?? String(filing.form || '').endsWith('/A'))
+            ? '<span class="filing-detail-flag amendment">AMENDMENT</span>'
+            : '',
+        summary.is_confidential_omitted
+            ? '<span class="filing-detail-flag warning">CONFIDENTIAL HOLDINGS OMITTED</span>'
+            : ''
+    ].filter(Boolean).join('');
+    const amendmentDetail = [
+        summary.amendment_type,
+        summary.amendment_number !== null && summary.amendment_number !== undefined
+            ? `Amendment ${summary.amendment_number}`
+            : null
+    ].filter(Boolean).join(' · ');
+    const signature = [summary.signer_name, summary.signer_title]
+        .filter(Boolean)
+        .map(escapeHtml)
+        .join(' · ');
+
+    title.textContent = filing.manager_name || 'Filing detail';
+    body.innerHTML = `
+        <section class="filing-detail-overview">
+            <div class="filing-detail-flags">${flags}</div>
+            <p>
+                Reported for <strong>${escapeHtml(formatCalendarDate(filing.report_period))}</strong>
+                and filed <strong>${escapeHtml(formatCalendarDate(filing.filing_date))}</strong>.
+            </p>
+            ${amendmentDetail
+                ? `<p class="filing-detail-note">${escapeHtml(amendmentDetail)}</p>`
+                : ''}
+        </section>
+        <section class="filing-detail-metrics" aria-label="Filing summary">
+            ${filingDetailMetric('Reported value', formatFilingDollarValue(summary.total_value_usd))}
+            ${filingDetailMetric('Information-table entries', formatFilingCount(summary.holding_count))}
+            ${filingDetailMetric('Source CIK', filing.source_cik || 'Unavailable', true)}
+            ${filingDetailMetric('Data source', filing.detail_source || 'Ledger')}
+            ${filingDetailMetric('Put entries', formatFilingCount(summary.put_count))}
+            ${filingDetailMetric('Call entries', formatFilingCount(summary.call_count))}
+            ${filingDetailMetric(
+                'Confidential holdings',
+                summary.is_confidential_omitted === true
+                    ? 'Omitted'
+                    : summary.is_confidential_omitted === false
+                        ? 'No omission reported'
+                        : 'Unavailable'
+            )}
+        </section>
+        ${signature
+            ? `
+                <section class="filing-detail-signature">
+                    <span>Signed by</span>
+                    <strong>${signature}</strong>
+                    ${summary.signature_date
+                        ? `<small>${escapeHtml(formatCalendarDate(summary.signature_date))}</small>`
+                        : ''}
+                </section>
+            `
+            : ''}
+        ${renderFilingTopHoldings(filing)}
+        ${summary.additional_information
+            ? `
+                <section class="filing-detail-additional">
+                    <h3>Additional filing information</h3>
+                    <p>${escapeHtml(summary.additional_information)}</p>
+                </section>
+            `
+            : ''}
+    `;
+    body.setAttribute('aria-busy', 'false');
+    status.textContent = `Filing detail loaded for ${filing.manager_name || filing.accession_number}`;
+
+    if (sourceUrl) {
+        sourceLink.href = sourceUrl;
+        footer.hidden = false;
+    } else {
+        footer.hidden = true;
+    }
+}
+
+function filingDetailMetric(label, value, mono = false) {
+    return `
+        <div>
+            <span>${escapeHtml(label)}</span>
+            <strong class="${mono ? 'font-mono' : ''}">${escapeHtml(value)}</strong>
+        </div>`;
+}
+
+function renderFilingTopHoldings(filing) {
+    const holdings = filing.top_holdings || [];
+    if (!filing.holdings_available || !holdings.length) {
+        return `
+            <section class="filing-detail-empty">
+                <strong>Holdings detail is not available locally.</strong>
+                <span>${escapeHtml(filing.availability_note || 'The filing metadata remains available above.')}</span>
+            </section>`;
+    }
+    return `
+        <section class="filing-detail-holdings">
+            <div class="filing-detail-section-heading">
+                <div>
+                    <h3>Largest reported positions</h3>
+                    <p>Top ${formatInt(holdings.length)} information-table positions by reported value.</p>
+                </div>
+            </div>
+            <div class="table-container filing-detail-table-wrap">
+                <table class="data-table filing-detail-table">
+                    <thead>
+                        <tr>
+                            <th>Position</th>
+                            <th>Security</th>
+                            <th>Class / CUSIP</th>
+                            <th>Reported value</th>
+                            <th>Weight</th>
+                            <th>Shares / principal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${holdings.map((holding, index) => `
+                            <tr>
+                                <td class="font-mono">${formatInt(index + 1)}</td>
+                                <td>
+                                    <strong>${escapeHtml(holding.ticker || holding.issuer || 'Unavailable')}</strong>
+                                    <span>${escapeHtml(holding.issuer || '')}</span>
+                                    ${holding.put_call
+                                        ? `<small>${escapeHtml(holding.put_call)}</small>`
+                                        : ''}
+                                </td>
+                                <td>
+                                    ${escapeHtml(holding.title_of_class || '—')}
+                                    <span class="font-mono">${escapeHtml(holding.cusip || '—')}</span>
+                                </td>
+                                <td class="font-mono">${escapeHtml(formatFilingDollarValue(holding.value_usd))}</td>
+                                <td class="font-mono">${holding.portfolio_weight === null || holding.portfolio_weight === undefined
+                                    ? '—'
+                                    : `${Number(holding.portfolio_weight).toFixed(2)}%`}</td>
+                                <td class="font-mono">
+                                    ${formatFilingQuantity(holding.shares_or_principal)}
+                                    ${escapeHtml(holding.shares_or_principal_type || '')}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </section>`;
+}
+
+function formatFilingDollarValue(value) {
+    if (value === null || value === undefined || value === '') {
+        return 'Unavailable';
+    }
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 'Unavailable';
+    const absolute = Math.abs(number);
+    if (absolute >= 1_000_000_000_000) return `$${(number / 1_000_000_000_000).toFixed(2)}T`;
+    if (absolute >= 1_000_000_000) return `$${(number / 1_000_000_000).toFixed(2)}B`;
+    if (absolute >= 1_000_000) return `$${(number / 1_000_000).toFixed(2)}M`;
+    if (absolute >= 1_000) return `$${(number / 1_000).toFixed(2)}K`;
+    return `$${number.toFixed(0)}`;
+}
+
+function formatFilingCount(value) {
+    return value === null || value === undefined
+        ? 'Unavailable'
+        : formatInt(value);
+}
+
+function formatFilingQuantity(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '—';
+    return number.toLocaleString(undefined, {maximumFractionDigits: 2});
+}
+
+function closeFilingDetail() {
+    filingDetailAbortController?.abort();
+    document.getElementById('filing-detail-dialog')?.close();
+}
+
+function closeFilingDetailFromBackdrop(event) {
+    if (event.target === event.currentTarget) closeFilingDetail();
+}
+
+function renderFilingOperationPagination() {
+    const summary = document.getElementById('filings-page-summary');
+    const indicator = document.getElementById('filings-page-indicator');
+    const previous = document.getElementById('filings-prev');
+    const next = document.getElementById('filings-next');
+    const start = filingOperationsTotal ? filingOperationsOffset + 1 : 0;
+    const end = Math.min(
+        filingOperationsOffset + filingOperationsPageSize,
+        filingOperationsTotal
+    );
+    const pageCount = Math.max(
+        1,
+        Math.ceil(filingOperationsTotal / filingOperationsPageSize)
+    );
+    const page = Math.min(
+        pageCount,
+        Math.floor(filingOperationsOffset / filingOperationsPageSize) + 1
+    );
+    if (summary) {
+        summary.textContent = `${formatInt(start)}-${formatInt(end)} of ${formatInt(filingOperationsTotal)}`;
+    }
+    if (indicator) {
+        indicator.textContent = `Page ${formatInt(page)} of ${formatInt(pageCount)}`;
+    }
+    if (previous) previous.disabled = filingOperationsOffset === 0;
+    if (next) {
+        next.disabled = filingOperationsOffset + filingOperationsPageSize >= filingOperationsTotal;
+    }
+}
+
+function changeFilingOperationsPage(direction) {
+    const nextOffset = filingOperationsOffset
+        + direction * filingOperationsPageSize;
+    if (nextOffset < 0 || nextOffset >= filingOperationsTotal) return;
+    filingOperationsOffset = nextOffset;
+    loadFilingOperations();
+    document.querySelector('.filings-record-header')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+    });
+}
+
+function changeFilingOperationsPageSize() {
+    const value = Number(document.getElementById('filings-page-size')?.value);
+    filingOperationsPageSize = [25, 50, 100].includes(value) ? value : 25;
+    loadFilingOperations(true);
 }

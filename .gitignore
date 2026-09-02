@@ -16,6 +16,7 @@ venv/
 # Generated SEC and market data
 cache/
 data/investor_screening/
+data/operations/
 
 # Browser and frontend tooling artifacts
 .playwright-mcp/

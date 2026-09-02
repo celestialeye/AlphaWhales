@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Filing Operations - Alpha Whales Intelligence{% endblock %}
+
+{% block content %}
+<section class="filings-header">
+    <div>
+        <div class="filings-eyebrow">SEC DATA OPERATIONS</div>
+        <h1>Filing Ingestion Record</h1>
+        <p class="text-muted">
+            Full tracked-manager accession history plus daily 13F discovery,
+            cache publication, and operational run records. The local history
+            archive supplies older accessions while the daily pipeline
+            captures new filings.
+        </p>
+    </div>
+    <div class="filings-schedule">
+        <span>OPERATING MODEL</span>
+        <strong>Daily external schedule</strong>
+        <small>120-day rolling SEC discovery window</small>
+    </div>
+</section>
+
+<section class="filings-kpi-grid" aria-label="Filing operation summary">
+    <article class="card filings-kpi filings-kpi-health">
+        <span>Latest daily check</span>
+        <strong id="filings-health">--</strong>
+        <small id="filings-health-detail">Loading run status...</small>
+    </article>
+    <article class="card filings-kpi">
+        <span>New accessions</span>
+        <strong id="filings-new">--</strong>
+        <small id="filings-new-detail">Latest check</small>
+    </article>
+    <article class="card filings-kpi">
+        <span>Managers refreshed</span>
+        <strong id="filings-refreshed">--</strong>
+        <small id="filings-refreshed-detail">Latest check</small>
+    </article>
+    <article class="card filings-kpi">
+        <span>Retry queue</span>
+        <strong id="filings-retry">--</strong>
+        <small id="filings-retry-detail">Pending or failed accessions</small>
+    </article>
+    <article class="card filings-kpi">
+        <span>SEC source errors</span>
+        <strong id="filings-source-errors">--</strong>
+        <small id="filings-source-errors-detail">Latest check</small>
+    </article>
+</section>
+
+<section class="card filings-section">
+    <div class="filings-section-header">
+        <div>
+            <span class="filings-step">01</span>
+            <div>
+                <h2>Daily runs</h2>
+                <p>Scheduler executions, discovery counts, and publication outcomes.</p>
+            </div>
+        </div>
+        <span id="filings-last-run" class="filings-last-run">Loading...</span>
+    </div>
+    <div class="table-container">
+        <table class="data-table filings-runs-table">
+            <thead>
+                <tr>
+                    <th>Started</th>
+                    <th>Status</th>
+                    <th>Trigger</th>
+                    <th>Managers</th>
+                    <th>Seen</th>
+                    <th>New</th>
+                    <th>Published</th>
+                    <th>Refreshed</th>
+                    <th>Errors</th>
+                </tr>
+            </thead>
+            <tbody id="filings-runs-body">
+                <tr><td colspan="9" class="text-center py-4">Loading run history...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card filings-section">
+    <div class="filings-section-header filings-record-header">
+        <div>
+            <span class="filings-step">02</span>
+            <div>
+                <h2>Ingested filings</h2>
+                <p id="filings-inventory-summary">Loading accession inventory...</p>
+            </div>
+        </div>
+    </div>
+    <form class="filings-filter-form"
+          role="search"
+          onsubmit="return false;">
+        <label class="filings-search-field">
+            <span>Search filings</span>
+            <input id="filings-search"
+                   type="search"
+                   placeholder="Manager, CIK, or accession"
+                   oninput="scheduleFilingOperationsLoad()">
+        </label>
+        <label>
+            <span>Status</span>
+            <select id="filings-status"
+                    onchange="loadFilingOperations(true)">
+                <option value="">All statuses</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="RECORDED">Recorded, not selected</option>
+                <option value="BASELINED">Initial baseline</option>
+                <option value="HISTORICAL">Historical archive</option>
+                <option value="DISCOVERED">Pending outcome</option>
+                <option value="FAILED">Failed</option>
+            </select>
+        </label>
+        <label>
+            <span>Form</span>
+            <select id="filings-form-filter"
+                    onchange="loadFilingOperations(true)">
+                <option value="">All forms</option>
+            </select>
+        </label>
+        <label>
+            <span>Report period</span>
+            <select id="filings-period-filter"
+                    onchange="loadFilingOperations(true)">
+                <option value="">All periods</option>
+            </select>
+        </label>
+        <button id="filings-clear-filters"
+                class="btn btn-secondary filings-clear-filters"
+                type="button"
+                onclick="clearFilingOperationsFilters()"
+                disabled>
+            Clear filters
+        </button>
+    </form>
+    <div class="filings-results-bar">
+        <span id="filings-results-summary">Loading filing records...</span>
+    </div>
+    <div id="filings-results"
+         class="table-container filings-records-container"
+         tabindex="-1"
+         aria-live="polite">
+        <table class="data-table filings-table">
+            <caption class="sr-only">Ingested SEC filing records</caption>
+            <thead>
+                <tr>
+                    <th>Filing date</th>
+                    <th>Manager</th>
+                    <th>Form</th>
+                    <th>Report period</th>
+                    <th>Accession</th>
+                    <th>Source CIK</th>
+                    <th>Status</th>
+                    <th>Ledger added</th>
+                </tr>
+            </thead>
+            <tbody id="filings-table-body">
+                <tr><td colspan="8" class="text-center py-4">Loading filing records...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="filings-pagination">
+        <div class="filings-pagination-meta">
+            <label>
+                Rows per page
+                <select id="filings-page-size"
+                        onchange="changeFilingOperationsPageSize()">
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </label>
+            <span id="filings-page-summary">--</span>
+        </div>
+        <div class="filings-pagination-controls">
+            <button id="filings-prev"
+                    class="btn btn-secondary"
+                    type="button"
+                    onclick="changeFilingOperationsPage(-1)">
+                Previous
+            </button>
+            <span id="filings-page-indicator">Page -- of --</span>
+            <button id="filings-next"
+                    class="btn btn-secondary"
+                    type="button"
+                    onclick="changeFilingOperationsPage(1)">
+                Next
+            </button>
+        </div>
+    </div>
+</section>
+
+<dialog id="filing-detail-dialog"
+        class="filing-detail-dialog"
+        aria-labelledby="filing-detail-title"
+        onclick="closeFilingDetailFromBackdrop(event)">
+    <div class="filing-detail-shell">
+        <header class="filing-detail-header">
+            <div>
+                <span class="filings-eyebrow">SEC 13F FILING</span>
+                <h2 id="filing-detail-title">Filing detail</h2>
+                <p id="filing-detail-accession" class="font-mono"></p>
+            </div>
+            <button class="filing-detail-close"
+                    type="button"
+                    aria-label="Close filing detail"
+                    onclick="closeFilingDetail()">
+                &times;
+            </button>
+        </header>
+        <div id="filing-detail-body" class="filing-detail-body">
+            <div class="filing-detail-loading">Loading filing detail...</div>
+        </div>
+        <div id="filing-detail-status"
+             class="sr-only"
+             role="status"
+             aria-live="polite"
+             aria-atomic="true"></div>
+        <footer id="filing-detail-footer" class="filing-detail-footer" hidden>
+            <span>Readable view generated from locally stored SEC filing data.</span>
+            <a id="filing-detail-source"
+               class="btn btn-secondary"
+               target="_blank"
+               rel="noopener">
+                Open SEC source
+            </a>
+        </footer>
+    </div>
+</dialog>
+
+<section class="card filings-methodology">
+    <span class="filings-step">03</span>
+    <div>
+        <h2>Record semantics</h2>
+        <p>
+            <strong>Published</strong> means the accession was selected and
+            durably written during that processing run; it is a historical
+            outcome, not proof that it remains the current source.
+            <strong>Recorded</strong> means the filing was retained but not
+            selected. <strong>Historical</strong> identifies accession
+            metadata copied from the local SEC archive.
+            <strong>Baselined</strong> identifies the recent inventory
+            captured when daily operations were first deployed.
+        </p>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('nav-filings').classList.add('active');
+    loadFilingOperations(true);
+});
+</script>
+{% endblock %}

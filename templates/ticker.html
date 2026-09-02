@@ -297,25 +297,85 @@
     </article>
 
     <div class="ticker-decision-grid mt-2" id="ticker-decision-grid">
-        <article class="card ticker-decision-card">
+        <article class="card ticker-decision-card ticker-valuation-card">
             <div class="card-header">
                 <div>
-                    <span class="stats-eyebrow">MULTI-MODEL VALUE</span>
+                    <span class="stats-eyebrow">STOCK-SPECIFIC VALUATION</span>
                     <h3>Valuation Assessment</h3>
                 </div>
                 <div class="decision-header-actions">
-                    <span class="stats-info" tabindex="0" role="img" aria-label="Valuation methodology" data-tooltip="Composite fair value is the median of available Graham Number, conservative Graham growth value adjusted by current versus 20-year average AAA yields, and historical median P/E multiplied by trailing EPS. At least two models are required. The purchase price applies a 20% margin of safety. Growth is capped at 15%.">i</span>
+                    <span class="stats-info" tabindex="0" role="img" aria-label="Valuation methodology" data-tooltip="The recommended framework is selected from the company's sector, industry, growth profile, payout, cash-flow quality, and available statement data. The primary estimate comes from the best-fit calculated method rather than averaging incompatible models. Every estimate remains assumption-sensitive and educational.">i</span>
                     <span class="decision-status" id="td-valuation-status">—</span>
                 </div>
             </div>
-            <div class="decision-price-pair">
-                <div><span>Composite Fair Value</span><strong class="font-mono" id="td-fair-value">—</strong></div>
-                <div class="purchase-price"><span>Buy At / Below (20% Safety)</span><strong class="font-mono" id="td-purchase-price">—</strong></div>
+            <div class="valuation-framework">
+                <span>Recommended framework for this stock</span>
+                <strong id="td-valuation-framework">Loading company profile...</strong>
+                <p id="td-valuation-reason">Matching valuation methods to the business model and available fundamentals.</p>
+                <div class="valuation-structural-note" id="td-valuation-structural" hidden></div>
             </div>
-            <div class="decision-model-grid">
-                <div><span>Graham Number</span><strong class="font-mono" id="td-graham-number">—</strong></div>
-                <div><span>Conservative Graham</span><strong class="font-mono" id="td-graham-conservative">—</strong></div>
-                <div><span>5Y P/E Value</span><strong class="font-mono" id="td-normalized-pe-value">—</strong></div>
+            <div class="decision-price-pair valuation-price-summary">
+                <div>
+                    <span id="td-fair-value-label">Primary Fair-Value Estimate</span>
+                    <strong class="font-mono" id="td-fair-value">—</strong>
+                    <small id="td-valuation-range">Scenario range unavailable</small>
+                </div>
+                <div class="purchase-price"><span>Buy At / Below (20% Safety)</span><strong class="font-mono" id="td-purchase-price">—</strong></div>
+                <div class="valuation-agreement-summary">
+                    <span>Priced-Method Agreement</span>
+                    <strong id="td-valuation-agreement">—</strong>
+                    <div class="valuation-agreement-bar" aria-hidden="true">
+                        <i class="undervalued" id="td-agreement-undervalued"></i>
+                        <i class="neutral" id="td-agreement-neutral"></i>
+                        <i class="overvalued" id="td-agreement-overvalued"></i>
+                    </div>
+                    <small id="td-valuation-agreement-detail">Waiting for method assessments</small>
+                </div>
+            </div>
+            <div class="valuation-method-heading">
+                <div>
+                    <span class="stats-eyebrow">VALUATION WORKBENCH</span>
+                    <h4>Start with the decision set, then inspect supporting families</h4>
+                </div>
+                <span id="td-valuation-model-count">—</span>
+            </div>
+            <div class="valuation-method-tabs" aria-label="Valuation method categories">
+                <button class="valuation-method-tab is-active" type="button"
+                        aria-pressed="true" data-valuation-category="decision"
+                        onclick="setValuationMethodCategory('decision')">
+                    Decision Set <span id="td-valuation-count-decision">0</span>
+                </button>
+                <button class="valuation-method-tab" type="button"
+                        aria-pressed="false" data-valuation-category="intrinsic"
+                        onclick="setValuationMethodCategory('intrinsic')">
+                    Intrinsic <span id="td-valuation-count-intrinsic">0</span>
+                </button>
+                <button class="valuation-method-tab" type="button"
+                        aria-pressed="false" data-valuation-category="relative"
+                        onclick="setValuationMethodCategory('relative')">
+                    Relative <span id="td-valuation-count-relative">0</span>
+                </button>
+                <button class="valuation-method-tab" type="button"
+                        aria-pressed="false" data-valuation-category="graham"
+                        onclick="setValuationMethodCategory('graham')">
+                    Graham <span id="td-valuation-count-graham">0</span>
+                </button>
+                <button class="valuation-method-tab" type="button"
+                        aria-pressed="false" data-valuation-category="special"
+                        onclick="setValuationMethodCategory('special')">
+                    Asset &amp; Special <span id="td-valuation-count-special">0</span>
+                </button>
+                <button class="valuation-method-tab" type="button"
+                        aria-pressed="false" data-valuation-category="all"
+                        onclick="setValuationMethodCategory('all')">
+                    All <span id="td-valuation-count-all">0</span>
+                </button>
+            </div>
+            <p class="valuation-category-description" id="td-valuation-category-description">
+                The methods selected for this company's business model and current data.
+            </p>
+            <div class="valuation-method-grid" id="td-valuation-methods">
+                <div class="valuation-method-empty">Loading valuation methods...</div>
             </div>
         </article>
 

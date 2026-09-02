@@ -47,6 +47,115 @@ Latest refresh plus both optional warm-ups:
 python prefetch.py --history --ticker-intelligence
 ```
 
+## Daily SEC filing operations
+
+`daily_pipeline.py` is the authoritative recurring SEC operation. It checks
+the configured roster and every manager's historical CIK chain for both
+`13F-HR` and `13F-HR/A`, records accessions in a SQLite ledger, refreshes only
+affected manager caches, invalidates dependent historical periods, refreshes
+market context, and runs the normal AWFI freshness check.
+
+```powershell
+python daily_pipeline.py
+```
+
+The command prints one JSON result and uses scheduler-friendly exit codes:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Complete or no new filings |
+| `20` | Partial completion; inspect the filing operations page |
+| `30` | Another daily filing operation owns the cross-process lock |
+| `1` | Failed operation |
+
+The first run creates `data/operations/filing_ingestion.sqlite3`, records the
+recent 120-day filing inventory as `BASELINED`, and rebuilds the corresponding
+manager caches so future checks have accession-aware source metadata. Later
+runs are idempotent by SEC accession number. Use a wider recovery window after
+a long outage:
+
+```powershell
+python daily_pipeline.py --lookback-days 365 --trigger repair
+```
+
+Populate the ledger with the complete accession inventory available in the
+existing local Investor Screening archive:
+
+```powershell
+python daily_pipeline.py --backfill-history
+```
+
+This metadata-only operation reads the local DuckDB archive, follows current
+and historical manager CIK chains, inserts missing `13F-HR` and `13F-HR/A`
+accessions as `HISTORICAL`, and does not fetch SEC data, rebuild holdings, or
+change manager caches. It is idempotent and remains separate from the Daily
+runs table. To intentionally limit the import to the newest periods, pass
+`--history-quarters <count>`.
+
+The operation atomically publishes `cache/filing_publication.json`. A running
+web process checks this manifest every 15 seconds, reloads externally
+published cache files, clears invalidated historical periods, and emits local
+SSE notifications. The audit ledger and publication manifest are generated
+state and are excluded from Git.
+
+### Windows Task Scheduler
+
+Run the task once daily after the SEC filing day has ended. Task Scheduler
+interprets `-At` in the host's local time zone; the example uses 11:00 p.m.
+local time. From an elevated PowerShell prompt at the repository root:
+
+```powershell
+$repo = (Get-Location).Path
+$python = (Get-Command python).Source
+$action = New-ScheduledTaskAction `
+    -Execute $python `
+    -Argument "`"$repo\daily_pipeline.py`"" `
+    -WorkingDirectory $repo
+$trigger = New-ScheduledTaskTrigger -Daily -At 11:00pm
+$settings = New-ScheduledTaskSettingsSet `
+    -StartWhenAvailable `
+    -MultipleInstances IgnoreNew
+Register-ScheduledTask `
+    -TaskName "AlphaWhales Daily SEC Filings" `
+    -Action $action `
+    -Trigger $trigger `
+    -Settings $settings `
+    -Description "Check SEC 13F filings and publish AlphaWhales caches"
+```
+
+Task Scheduler inherits the account's user environment. Configure a real
+`EDGAR_IDENTITY` user environment variable before registering the task, and
+run the task under the same account that owns the repository and Python
+environment.
+
+### Cron
+
+Example for a host configured in Eastern time:
+
+```cron
+0 23 * * * cd /path/to/AlphaWhales && /path/to/python daily_pipeline.py >> /path/to/logs/alphawhales-filings.log 2>&1
+```
+
+Use one scheduler on one host. The lock is local-filesystem and
+cross-process-safe, but it is not a distributed lock for shared network
+storage.
+
+### Monitoring and recovery
+
+Open `/filings` to review the latest 20 runs and the accession-level record.
+
+- `PUBLISHED`: the filing became the active normalized manager cache source.
+- `RECORDED`: the filing was retained, but a more complete or later filing
+  remained the active source.
+- `BASELINED`: initial inventory captured at deployment.
+- `FAILED`: the affected manager cache did not publish successfully.
+
+A run can be `PARTIAL` when one source CIK was unavailable while other
+managers completed. Rerun the same command; known accessions are skipped and
+failed or missing work is reconsidered. Do not delete the lock file to break a
+live run. The operating-system lock, not the diagnostic text in the file, is
+authoritative.
+
 ## Loading behavior
 
 ### QoQ period selector
@@ -112,6 +221,7 @@ Generated cache data is excluded from Git.
 | Latest manager snapshot | Run `python prefetch.py` |
 | Historical periods | Run `python prefetch.py --history-only` |
 | Popular ticker intelligence | Run `python prefetch.py --ticker-intelligence-only` |
+| Daily filing ledger and targeted cache publication | Run `python daily_pipeline.py` |
 | One ticker market cache | Delete `cache/ticker_market/<ticker>.json` |
 | One ticker pair cache | Delete `cache/pair_signals/<ticker>.json` |
 
@@ -227,6 +337,7 @@ screening methodology.
 
 ```powershell
 python -m compileall -q config.py roster_store.py data_service.py main.py pair_service.py prefetch.py run.py
+python -m compileall -q filing_operations.py daily_pipeline.py
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
 python -m compileall -q investor_screening
 python -m compileall -q predictive_sentiment awfi_service.py
@@ -241,6 +352,7 @@ python -m pytest tests/test_market_insights.py -q
 python -m pytest tests/test_investor_history.py -q
 python -m pytest tests/test_sentiment_conviction.py -q
 python -m pytest tests/test_investor_screening.py -q
+python -m pytest tests/test_filing_operations.py -q
 python -m pytest tests/test_awfi.py tests/test_awfi_service.py tests/test_awfi_period_view.py tests/test_predictive_sentiment.py tests/test_predictive_sentiment_cli.py -q
 ```
 
