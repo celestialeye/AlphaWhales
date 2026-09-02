@@ -1,0 +1,19 @@
+{
+  "name": "alphawhales",
+  "owner": {
+    "name": "AlphaWhales contributors"
+  },
+  "metadata": {
+    "description": "Repository-specific Copilot CLI workflows for AlphaWhales",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "alphawhales-workflow",
+      "description": "Close, validate, document, commit, push, and open AlphaWhales work for review",
+      "version": "1.0.1",
+      "source": ".github/copilot-plugins/alphawhales-workflow",
+      "category": "productivity"
+    }
+  ]
+}
