@@ -1,0 +1,9 @@
+{
+  "name": "alphawhales-workflow",
+  "description": "Repository closeout workflow for AlphaWhales",
+  "version": "1.0.0",
+  "author": {
+    "name": "AlphaWhales contributors"
+  },
+  "commands": "commands/"
+}

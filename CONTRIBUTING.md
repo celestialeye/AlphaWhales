@@ -47,23 +47,31 @@ The application runs at `http://127.0.0.1:8000`.
 
 ## Validation
 
-Run the existing smoke checks:
+Run focused tests for the changed behavior, then the complete offline merge
+gate:
 
 ```powershell
-python -m compileall -q config.py roster_store.py data_service.py awfi_service.py main.py pair_service.py prefetch.py run.py predictive_sentiment
+python -m compileall -q config.py roster_store.py data_service.py awfi_service.py main.py pair_service.py prefetch.py run.py predictive_sentiment investor_screening
 python -c "import main; print(type(main.app).__name__, len(main.data_service.cache))"
-python -m pytest tests/test_sentiment_conviction.py -q
-python -m pytest tests/test_investor_screening.py -q
-python -m pytest tests/test_awfi.py tests/test_awfi_service.py tests/test_awfi_period_view.py tests/test_predictive_sentiment.py tests/test_predictive_sentiment_cli.py -q
+node --check static/js/app.js
+python -m pytest -q
 ```
 
 For frontend changes:
 
-1. Start the application.
+1. Start the application on port 8010.
 2. Use the workspace Playwright MCP tools.
 3. Check desktop and 390-pixel mobile widths.
 4. Check browser console errors.
 5. Confirm there is no page-level horizontal overflow.
+6. Confirm static-asset cache busting and cache-warm behavior.
+
+See [Engineering Workflow](docs/ENGINEERING_WORKFLOW.md) for the definition of
+done, focused test groups, documentation and memory hygiene, pull-request
+requirements, and worktree cleanup procedure. Install the repository plugin
+once with `copilot plugin marketplace add celestialeye/AlphaWhales` followed
+by `copilot plugin install alphawhales-workflow@alphawhales`, then run
+`/shipit` in a new Copilot CLI session to execute that closeout workflow.
 
 ## Commit style
 
