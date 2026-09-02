@@ -248,7 +248,7 @@ def build_npx_vote_lake(
     ]
     if paths:
         sql_paths = ", ".join(
-            f"'{str(path).replace("'", "''")}'"
+            "'" + str(path).replace("'", "''") + "'"
             for path in paths
         )
         connection.execute(
