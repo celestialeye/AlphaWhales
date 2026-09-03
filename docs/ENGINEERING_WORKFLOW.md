@@ -23,16 +23,11 @@ when:
    gate.
 
 The repository provides `/shipit` through the `alphawhales-workflow` Copilot
-CLI plugin. Register the repository marketplace and install the plugin once per
-workstation:
-
-```powershell
-copilot plugin marketplace add celestialeye/AlphaWhales
-copilot plugin install alphawhales-workflow@alphawhales
-```
-
-Use `/shipit` in a new Copilot CLI session to execute the closeout workflow.
-Optional text after the command is treated as additional scope, for example:
+CLI plugin. `.github/copilot/settings.json` registers and enables the plugin
+only while Copilot CLI is running in this repository. Start or restart a
+session from the repository root, then use `/shipit` to execute the closeout
+workflow. Optional text after the command is treated as additional scope, for
+example:
 
 ```text
 /shipit close the valuation work and reference issue 42

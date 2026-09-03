@@ -68,10 +68,10 @@ For frontend changes:
 
 See [Engineering Workflow](docs/ENGINEERING_WORKFLOW.md) for the definition of
 done, focused test groups, documentation and memory hygiene, pull-request
-requirements, and worktree cleanup procedure. Install the repository plugin
-once with `copilot plugin marketplace add celestialeye/AlphaWhales` followed
-by `copilot plugin install alphawhales-workflow@alphawhales`, then run
-`/shipit` in a new Copilot CLI session to execute that closeout workflow.
+requirements, and worktree cleanup procedure. Repository-local Copilot
+settings enable the AlphaWhales workflow only in this repository. Start or
+restart Copilot CLI from the repository root, then run `/shipit` to execute
+that closeout workflow.
 
 ## Commit style
 

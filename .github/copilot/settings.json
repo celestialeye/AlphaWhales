@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "alphawhales-workflow@alphawhales": true
+  },
+  "extraKnownMarketplaces": {
+    "alphawhales": {
+      "source": {
+        "source": "directory",
+        "path": "."
+      }
+    }
+  }
+}
