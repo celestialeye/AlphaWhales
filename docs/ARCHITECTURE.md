@@ -226,6 +226,64 @@ history payload.
 See [`AWFI_DATA_LINEAGE.md`](AWFI_DATA_LINEAGE.md) for the complete lineage,
 publication, integrity, and incident-recovery design.
 
+## NautilusTrader adoption boundary
+
+**Decision:** retain pandas, DuckDB, NumPy, SciPy, and statsmodels as the AWFI
+research and statistical-validation layer. Do not rewrite signal discovery,
+point-in-time feature construction, cross-sectional normalization, nested
+walk-forward selection, or multiple-testing controls in NautilusTrader.
+
+[NautilusTrader](https://nautilustrader.io/docs/latest/concepts/overview/) is
+reserved for a downstream portfolio and execution-simulation layer after a
+candidate passes the AWFI promotion gates.
+
+```text
+SEC/XBRL + immutable analyst snapshots + prices
+  -> pandas/DuckDB point-in-time features
+  -> AWFI cross-sectional and walk-forward research
+  -> statistical, coverage, mapping, and provenance gates
+  -> frozen target actions and portfolio weights
+  -> NautilusTrader event-driven portfolio simulation
+  -> execution-aware CAGR, drawdown, turnover, cost, and exposure results
+```
+
+The existing research layer remains responsible for:
+
+- amendment-aware filing reconstruction and historical information cutoffs;
+- historical security identity and universe membership;
+- factor and valuation-method calculation;
+- industry normalization and cross-sectional ranking;
+- 126-, 252-, 378-, and 504-session forward outcomes;
+- purged inner selection and untouched outer-quarter evaluation;
+- HAC, block-bootstrap, multiple-testing, and promotion decisions.
+
+The future NautilusTrader layer may own:
+
+- portfolio cash and capital allocation;
+- simultaneous-signal prioritization;
+- explicit `ENTER`, `INCREASE`, `HOLD`, `DECREASE`, and `EXIT` position sizes;
+- orders, fills, delays, slippage, commissions, and liquidity constraints;
+- corporate-action-aware position accounting;
+- turnover, concentration, exposure, CAGR, drawdown, and risk statistics;
+- eventual research/live execution parity if live automation is approved.
+
+NautilusTrader does not solve missing point-in-time fundamentals, analyst
+history, survivorship, security mapping, or statistical overfitting. It must
+not be used to make an unvalidated signal appear more credible through a more
+detailed execution simulation.
+
+Integration should begin only when a candidate has:
+
+1. passed its prespecified `t > 3`, Holm, block-robustness, coverage, and
+   minimum-outer-quarter requirements;
+2. resolved effective-dated security mapping and data-provenance blockers;
+3. defined deterministic target weights for all five portfolio actions; and
+4. published an immutable action artifact that can be replayed without
+   recalculating research features inside NautilusTrader.
+
+There is currently no NautilusTrader runtime or development dependency in this
+repository.
+
 ## Investor screening data flow
 
 Investor Screening is a separate data subsystem inside the repository:

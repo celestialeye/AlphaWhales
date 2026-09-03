@@ -14,6 +14,7 @@ An interactive web application powered by **FastAPI**, **edgartools**, **OpenBB*
 - [Universe-wide investor screening data project](investor_screening/README.md)
 - [Investor screening data quality report](docs/INVESTOR_SCREENING_DATA_QUALITY.md)
 - [Investor performance methodology comparison](docs/INVESTOR_PERFORMANCE_METHODOLOGY.md)
+- [AWFI challenger experiments](predictive_sentiment/CHALLENGER_EXPERIMENTS.md)
 - [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 

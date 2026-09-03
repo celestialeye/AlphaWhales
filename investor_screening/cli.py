@@ -54,7 +54,9 @@ def _identity(args) -> str:
 def _bulk_family(args) -> str:
     family = args.bulk_family or args.family
     if not family:
-        raise ValueError("Choose a bulk family: insider, nport, or nmfp")
+        raise ValueError(
+            "Choose a bulk family: fundamentals, insider, nport, or nmfp"
+        )
     return family
 
 
@@ -82,7 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_bulk_parser = subparsers.add_parser(
         "list-bulk-datasets",
-        help="List official SEC Insider, N-PORT, or N-MFP flattened archives",
+        help=(
+            "List official SEC financial statement, Insider, N-PORT, "
+            "or N-MFP flattened archives"
+        ),
     )
     list_bulk_parser.add_argument("family", nargs="?", choices=sorted(BULK_FAMILIES))
     list_bulk_parser.add_argument(
@@ -377,23 +382,6 @@ def main() -> int:
                 datasets = datasets[: args.limit]
             results = []
             for dataset in datasets:
-                prior = connection.execute(
-                    """
-                    SELECT status
-                    FROM bulk_datasets
-                    WHERE family = ? AND dataset_id = ?
-                    """,
-                    [dataset.family, dataset.dataset_id],
-                ).fetchone()
-                if prior and prior[0] == "IMPORTED":
-                    results.append(
-                        {
-                            "family": dataset.family,
-                            "dataset_id": dataset.dataset_id,
-                            "status": "skipped",
-                        }
-                    )
-                    continue
                 archive = download_bulk_dataset(
                     dataset,
                     identity,

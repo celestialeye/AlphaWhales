@@ -42,6 +42,13 @@ class BulkDataset:
 
 
 BULK_FAMILIES = {
+    "fundamentals": BulkFamily(
+        "fundamentals",
+        "https://www.sec.gov/data-research/sec-markets-data/"
+        "financial-statement-data-sets",
+        "",
+        date(2009, 1, 1),
+    ),
     "insider": BulkFamily(
         "insider",
         "https://www.sec.gov/data-research/sec-markets-data/"
@@ -65,6 +72,9 @@ BULK_FAMILIES = {
 }
 
 _FAMILY_ALIASES = {
+    "financial-statements": "fundamentals",
+    "financial_statements": "fundamentals",
+    "xbrl": "fundamentals",
     "form345": "insider",
     "insider_transactions": "insider",
     "insider-transactions": "insider",
@@ -109,8 +119,9 @@ def _last_day(year: int, month: int) -> date:
 
 def _dataset_period(dataset_id: str, suffix: str) -> tuple[date, date] | None:
     escaped_suffix = re.escape(suffix)
+    suffix_fragment = rf"_{escaped_suffix}" if suffix else ""
     quarter = re.fullmatch(
-        rf"(\d{{4}})q([1-4])_{escaped_suffix}\.zip",
+        rf"(\d{{4}})q([1-4]){suffix_fragment}\.zip",
         dataset_id,
         flags=re.IGNORECASE,
     )
@@ -163,9 +174,18 @@ def discover_bulk_datasets(family: str, identity: str) -> list[BulkDataset]:
     with urllib.request.urlopen(_request(config.page_url, identity), timeout=60) as response:
         page = response.read().decode("utf-8", errors="replace")
 
-    suffix = re.escape(config.archive_suffix)
+    archive_name = (
+        (
+            r"(?:\d{4}q[1-4]|"
+            r"\d{2}[a-z]{3}\d{4}-\d{2}[a-z]{3}\d{4}|"
+            r"\d{8}-\d{8}|\d{4}[_-]\d{2})_"
+            rf"{re.escape(config.archive_suffix)}"
+        )
+        if config.archive_suffix
+        else r"\d{4}q[1-4]"
+    )
     links = re.findall(
-        rf"""href\s*=\s*["']([^"']*_{suffix}\.zip(?:\?[^"']*)?)["']""",
+        rf"""href\s*=\s*["']([^"']*{archive_name}\.zip(?:\?[^"']*)?)["']""",
         page,
         flags=re.IGNORECASE,
     )
@@ -594,8 +614,10 @@ def import_flattened_archive(
     staged_parquet = staging_root / "parquet"
     staged_metadata = staging_root / "metadata"
     moved_paths: list[Path] = []
+    backup_paths: list[tuple[Path, Path]] = []
     transaction_open = False
     manifest_committed = False
+    was_imported = bool(existing and existing[1] == "IMPORTED")
 
     try:
         staged_source.mkdir(parents=True, exist_ok=False)
@@ -617,7 +639,12 @@ def import_flattened_archive(
                         f"Archive contains duplicate case-insensitive member: {info.filename}"
                     )
                 seen_member_paths.add(folded_path)
-                if member_path.suffix.casefold() == ".tsv":
+                table_suffixes = (
+                    {".txt", ".tsv"}
+                    if family_name == "fundamentals"
+                    else {".tsv"}
+                )
+                if member_path.suffix.casefold() in table_suffixes:
                     table_name = _table_name(member_path)
                     if table_name in seen_tables:
                         raise ValueError(
@@ -630,7 +657,9 @@ def import_flattened_archive(
                     metadata_members.append((member_path, info))
 
             if not table_members:
-                raise ValueError(f"Archive contains no TSV source tables: {archive.name}")
+                raise ValueError(
+                    f"Archive contains no tabular source tables: {archive.name}"
+                )
 
             file_manifests = []
             for index, (table_name, member_path, info) in enumerate(
@@ -713,10 +742,20 @@ def import_flattened_archive(
             [family_name, dataset_id],
         )
 
-        for item in [*file_manifests, *metadata_manifests]:
+        for item_index, item in enumerate(
+            [*file_manifests, *metadata_manifests]
+        ):
             final_path = item["final_path"]
             final_path.parent.mkdir(parents=True, exist_ok=True)
-            final_path.unlink(missing_ok=True)
+            if final_path.exists():
+                backup_path = (
+                    staging_root
+                    / "backup"
+                    / f"{item_index:04d}-{final_path.name}"
+                )
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                final_path.replace(backup_path)
+                backup_paths.append((final_path, backup_path))
             item["staged_path"].replace(final_path)
             moved_paths.append(final_path)
 
@@ -829,14 +868,28 @@ def import_flattened_archive(
                 pass
         for path in moved_paths:
             path.unlink(missing_ok=True)
-        connection.execute(
-            """
-            UPDATE bulk_datasets
-            SET status = 'FAILED', last_error = ?
-            WHERE family = ? AND dataset_id = ?
-            """,
-            [str(exc), family_name, dataset_id],
-        )
+        for final_path, backup_path in reversed(backup_paths):
+            if backup_path.exists():
+                final_path.parent.mkdir(parents=True, exist_ok=True)
+                backup_path.replace(final_path)
+        if was_imported:
+            connection.execute(
+                """
+                UPDATE bulk_datasets
+                SET status = 'IMPORTED', last_error = ?
+                WHERE family = ? AND dataset_id = ?
+                """,
+                [str(exc), family_name, dataset_id],
+            )
+        else:
+            connection.execute(
+                """
+                UPDATE bulk_datasets
+                SET status = 'FAILED', last_error = ?
+                WHERE family = ? AND dataset_id = ?
+                """,
+                [str(exc), family_name, dataset_id],
+            )
         raise
     finally:
         shutil.rmtree(staging_root, ignore_errors=True)
@@ -915,6 +968,50 @@ def refresh_bulk_views(connection: duckdb.DuckDBPyConnection) -> list[str]:
 
     available = set(views)
     analysis_views = {
+        "silver_xbrl_submissions": (
+            {"bronze_fundamentals_sub"},
+            """
+            SELECT
+                adsh AS accession_number,
+                lpad(cik, 10, '0') AS issuer_cik,
+                name AS company_name,
+                try_cast(sic AS INTEGER) AS sic,
+                countryinc AS country_incorporation,
+                countryba AS business_country,
+                form,
+                try_strptime(period, '%Y%m%d')::DATE AS report_period,
+                try_cast(fy AS INTEGER) AS fiscal_year,
+                fp AS fiscal_period,
+                try_strptime(filed, '%Y%m%d')::DATE AS filing_date,
+                coalesce(
+                    try_cast(accepted AS TIMESTAMP),
+                    try_strptime(accepted, '%Y%m%d%H%M%S')
+                ) AS accepted_at,
+                instance AS instance_document,
+                source_dataset_id,
+                source_row_number
+            FROM bronze_fundamentals_sub
+            """,
+        ),
+        "silver_xbrl_facts": (
+            {"bronze_fundamentals_num"},
+            """
+            SELECT
+                adsh AS accession_number,
+                tag,
+                version AS taxonomy_version,
+                try_strptime(ddate, '%Y%m%d')::DATE AS period_end,
+                try_cast(qtrs AS INTEGER) AS duration_quarters,
+                uom AS unit,
+                segments,
+                coreg,
+                try_cast(value AS DOUBLE) AS fact_value,
+                footnote,
+                source_dataset_id,
+                source_row_number
+            FROM bronze_fundamentals_num
+            """,
+        ),
         "silver_insider_filings": (
             {"bronze_insider_submission"},
             """
