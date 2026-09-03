@@ -41,6 +41,59 @@ Popular ticker market, valuation, timing, and pair caches:
 python prefetch.py --ticker-intelligence-only
 ```
 
+Official accession-vintage SEC financial statement archives:
+
+```powershell
+python -m investor_screening.cli list-bulk-datasets fundamentals --start-date 2012-01-01
+python -m investor_screening.cli backfill-bulk fundamentals --start-date 2012-01-01
+python -m investor_screening.cli refresh-bulk-views
+```
+
+The `fundamentals` family imports the SEC Financial Statement Data Sets without
+semantic deduplication. Original filings, amendments, concepts, units,
+contexts, acceptance timestamps, source row numbers, and archive hashes remain
+available in the bronze Parquet lake. Research code must select only facts
+accepted by the historical feature date.
+
+Run the portfolio-action challenger against a completed AWFI Research v2
+snapshot:
+
+```powershell
+python -m predictive_sentiment.cli action-backtest
+python -m predictive_sentiment.cli action-report
+```
+
+Freeze the current AWFI Research v2 score and sweep only portfolio-action
+thresholds:
+
+```powershell
+python -m predictive_sentiment.cli action-backtest --current-awfi-only
+```
+
+Reconstruct and test the actual historical valuation methods:
+
+```powershell
+python -m predictive_sentiment.cli valuation-backtest --replace
+python -m predictive_sentiment.cli valuation-report
+
+# Exploratory lower-coverage pass for sparse methods
+python -m predictive_sentiment.cli valuation-backtest `
+  --minimum-feature-availability 0.20 `
+  --replace
+```
+
+After the SEC fundamentals backfill and bronze-view refresh:
+
+```powershell
+python -m predictive_sentiment.cli action-backtest `
+  --fundamentals-db data\investor_screening\investor_screening.duckdb `
+  --replace
+```
+
+Action experiments write to
+`data/investor_screening/awfi_action_experiments.duckdb` and do not modify the
+published AWFI Research v2 database or runtime signals.
+
 Latest refresh plus both optional warm-ups:
 
 ```powershell

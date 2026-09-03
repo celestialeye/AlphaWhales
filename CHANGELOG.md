@@ -1,5 +1,43 @@
 # Changelog
 
+## 2026-09-02 - AWFI action challenger and SEC fundamentals
+
+### Added
+
+- A standalone 6-, 12-, 18-, and 24-month AWFI action experiment that
+  evaluates `ENTER`, `INCREASE`, `HOLD`, `DECREASE`, and `EXIT` separately.
+- A current-AWFI-only mode that freezes the Research v2 score formula while
+  testing state-aware five-action thresholds against the production policy.
+- Leakage-safe two-stage profile and threshold sweeps with prior-disclosed
+  ownership state, five-session embargoes, a fixed 25-basis-point transaction
+  cost,
+  quarter-balanced metrics, HAC diagnostics, Holm correction, and moving-block
+  robustness checks.
+- Lossless ingestion for all 56 SEC Financial Statement Data Set archives from
+  2012 through 2025, including accession and acceptance timing, original XBRL
+  concepts and units, source row lineage, archive hashes, and reconciled
+  Parquet row counts.
+- Point-in-time annual quality, conservative-investment, and balance-sheet
+  safety factor snapshots plus horizon-specific rank-IC diagnostics.
+- Historical reconstruction and parameter testing of the actual valuation
+  catalog: recommended anchor, scenario and reverse DCF, residual income, DDM,
+  normalized P/E, Graham variants, NCAV, and tangible value.
+
+### Research result
+
+- Entry remains the most promising action cohort, while decrease signals are
+  not supported. Quality strengthens at 18-24 months but no fundamental factor
+  clears the prespecified `t > 3` hurdle.
+- Fundamental experiments remain non-promotable because the current
+  CUSIP/ticker-to-issuer bridge is not effective-dated and historical analyst
+  estimate vintages remain unavailable.
+
+### Architecture decision
+
+- Retain pandas and DuckDB for point-in-time AWFI signal research and reserve
+  NautilusTrader for downstream portfolio and execution simulation only after
+  a candidate passes the statistical and data-integrity promotion gates.
+
 ## 2026-09-02 - Stock-specific valuation workbench
 
 ### Added

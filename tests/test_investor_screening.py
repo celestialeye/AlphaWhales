@@ -318,6 +318,71 @@ class InvestorScreeningTests(unittest.TestCase):
         self.assertEqual(datasets[0].family, "nport")
         self.assertEqual(datasets[0].period_start, date(2019, 7, 1))
 
+    def test_fundamental_bulk_discovery_accepts_bare_quarter_archives(self):
+        page = b"""
+        <a href="/files/dera/data/financial-statement-data-sets/2009q1.zip">old</a>
+        <a href="/files/dera/data/financial-statement-data-sets/2026q2.zip">new</a>
+        """
+        with mock.patch(
+            "investor_screening.flattened_bulk.urllib.request.urlopen",
+            return_value=io.BytesIO(page),
+        ):
+            datasets = discover_bulk_datasets(
+                "xbrl",
+                "Tester test@example.com",
+            )
+
+        self.assertEqual(
+            [item.dataset_id for item in datasets],
+            ["2009q1.zip", "2026q2.zip"],
+        )
+        self.assertEqual(datasets[0].family, "fundamentals")
+        self.assertEqual(datasets[0].period_start, date(2009, 1, 1))
+
+    def test_fundamental_bulk_import_accepts_sec_txt_tables(self):
+        archive = self.root / "2024q1.zip"
+        with zipfile.ZipFile(archive, "w") as output:
+            output.writestr(
+                "sub.txt",
+                "adsh\tcik\tname\tsic\tcountryinc\tcountryba\t"
+                "form\tperiod\tfy\tfp\tfiled\t"
+                "accepted\tinstance\n"
+                "0000000000-24-000001\t42\tTEST INC\t3571\tUS\tUS\t10-K\t"
+                "20231231\t2023\tFY\t20240201\t"
+                "2024-02-01 12:00:00.000\t"
+                "test-20231231.htm\n",
+            )
+            output.writestr(
+                "num.txt",
+                "adsh\ttag\tversion\tddate\tqtrs\tuom\tsegments\tcoreg\t"
+                "value\tfootnote\n"
+                "0000000000-24-000001\tAssets\tus-gaap/2023\t"
+                "20231231\t0\tUSD\t\t\t100\t\n",
+            )
+
+        result = import_flattened_archive(
+            self.connection,
+            archive,
+            "fundamentals",
+            lake_dir=self.root / "lake",
+        )
+        views = flattened_bulk.refresh_bulk_views(self.connection)
+
+        self.assertEqual(result["table_count"], 2)
+        self.assertIn("silver_xbrl_submissions", views)
+        self.assertIn("silver_xbrl_facts", views)
+        self.assertEqual(
+            self.connection.execute(
+                "SELECT issuer_cik FROM silver_xbrl_submissions"
+            ).fetchone()[0],
+            "0000000042",
+        )
+        self.assertIsNotNone(
+            self.connection.execute(
+                "SELECT accepted_at FROM silver_xbrl_submissions"
+            ).fetchone()[0]
+        )
+
     def test_flattened_bulk_is_idempotent_and_union_by_name_queryable(self):
         lake = self.root / "lake"
         first = self.root / "2024q1_form345.zip"
@@ -445,6 +510,80 @@ class InvestorScreeningTests(unittest.TestCase):
             (lake / "nport" / "owner" / "2024q1_nport.zip.parquet").exists()
         )
         self.assertTrue(archive.exists())
+
+    def test_flattened_bulk_failed_repair_restores_prior_generation(self):
+        archive = self.root / "2024q1_form345.zip"
+        create_flattened_archive(archive)
+        lake = self.root / "lake"
+        import_flattened_archive(
+            self.connection,
+            archive,
+            "insider",
+            lake_dir=lake,
+        )
+        original_files = {
+            Path(path): Path(path).read_bytes()
+            for (path,) in self.connection.execute(
+                """
+                SELECT output_path
+                FROM bulk_dataset_files
+                WHERE family = 'insider'
+                  AND dataset_id = '2024q1_form345.zip'
+                ORDER BY table_name
+                """
+            ).fetchall()
+        }
+        original_replace = Path.replace
+        moved_parquet = 0
+
+        def fail_second_staged_parquet(source, target):
+            nonlocal moved_parquet
+            source_path = Path(source)
+            if (
+                ".staging" in source_path.parts
+                and "parquet" in source_path.parts
+            ):
+                moved_parquet += 1
+                if moved_parquet == 2:
+                    raise OSError("simulated repair move failure")
+            return original_replace(source, target)
+
+        with (
+            mock.patch.object(
+                flattened_bulk,
+                "_import_is_intact",
+                return_value=False,
+            ),
+            mock.patch.object(
+                Path,
+                "replace",
+                fail_second_staged_parquet,
+            ),
+        ):
+            with self.assertRaisesRegex(
+                OSError,
+                "simulated repair move failure",
+            ):
+                import_flattened_archive(
+                    self.connection,
+                    archive,
+                    "insider",
+                    lake_dir=lake,
+                )
+
+        self.assertEqual(
+            self.connection.execute(
+                """
+                SELECT status
+                FROM bulk_datasets
+                WHERE family = 'insider'
+                  AND dataset_id = '2024q1_form345.zip'
+                """
+            ).fetchone()[0],
+            "IMPORTED",
+        )
+        for path, content in original_files.items():
+            self.assertEqual(path.read_bytes(), content)
 
     def test_flattened_bulk_deletes_archive_only_after_success(self):
         archive = self.root / "2024q1_nmfp.zip"

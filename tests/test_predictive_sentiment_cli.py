@@ -299,3 +299,55 @@ def test_run_cli_forwards_application_cache_directory(
 
     assert captured["application_cache_dir"] == cache_dir
     assert '"status": "COMPLETE"' in capsys.readouterr().out
+
+
+def test_action_backtest_cli_uses_separate_output(monkeypatch, tmp_path, capsys):
+    captured = {}
+    output = tmp_path / "actions.duckdb"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "predictive_sentiment",
+            "action-backtest",
+            "--output-db",
+            str(output),
+        ],
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_action_experiment",
+        lambda **kwargs: captured.update(kwargs) or {"status": "COMPLETE"},
+    )
+
+    cli.main()
+
+    assert captured["output_db"] == output
+    assert captured["parent_db"] == cli.DEFAULT_OUTPUT_DB
+    assert '"status": "COMPLETE"' in capsys.readouterr().out
+
+
+def test_action_backtest_cli_can_freeze_current_awfi_profile(
+    monkeypatch,
+    capsys,
+):
+    captured = {}
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "predictive_sentiment",
+            "action-backtest",
+            "--current-awfi-only",
+        ],
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_action_experiment",
+        lambda **kwargs: captured.update(kwargs) or {"status": "COMPLETE"},
+    )
+
+    cli.main()
+
+    assert captured["config"].profile_mode == "AWFI_V2_ONLY"
+    assert '"status": "COMPLETE"' in capsys.readouterr().out
