@@ -11,13 +11,32 @@ import time
 from contextlib import contextmanager
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
+from types import SimpleNamespace
 from urllib.parse import urlparse
+from xml.etree import ElementTree
 import pandas as pd
 from edgar import set_identity, Company
+from edgar.httprequests import TooManyRequestsError
 from config import FUND_MANAGERS, SEC_IDENTITY, CACHE_DIR, CACHE_TTL_HOURS
 from roster_store import fund_fingerprint
 
 logger = logging.getLogger(__name__)
+
+FILING_RECONSTRUCTION_VERSION = 2
+MARKET_SYMBOL_ALIASES = {
+    "BRKA": "BRK-A",
+    "BRKB": "BRK-B",
+    "HEIA": "HEI-A",
+}
+
+
+def is_sec_rate_limit_error(error):
+    return (
+        isinstance(error, TooManyRequestsError)
+        or getattr(error, "code", None) == 429
+        or getattr(getattr(error, "response", None), "status_code", None) == 429
+    )
 
 
 @contextmanager
@@ -432,13 +451,16 @@ class DataService:
         safe_ticker = "".join(char for char in ticker.upper() if char.isalnum() or char in {"-", "."})
         return os.path.join(market_dir, f"{safe_ticker}.json")
 
-    def _load_ticker_market_data_from_disk(self, ticker: str):
+    def _load_ticker_market_data_from_disk(self, ticker: str, profile_only=False):
         path = self._get_ticker_market_cache_path(ticker)
         if not os.path.exists(path):
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
                 payload = json.load(f)
+            if profile_only:
+                # Classification metadata remains useful after market quotes expire.
+                return {"profile": payload.get("profile", {})}
             if payload.get("cache_version") != 10:
                 return None
             quote = payload.get("quote", {})
@@ -2230,11 +2252,7 @@ class DataService:
     def _fetch_ticker_market_sync(self, ticker: str):
         from openbb import obb
 
-        symbol_aliases = {
-            "BRKA": "BRK-A",
-            "BRKB": "BRK-B",
-            "HEIA": "HEI-A"
-        }
+        symbol_aliases = MARKET_SYMBOL_ALIASES
         market_symbol = symbol_aliases.get(ticker, ticker)
         periods = self.get_available_periods(count=20)
         start_date = (
@@ -2633,6 +2651,11 @@ class DataService:
 
             period_cache = {}
             fund_payloads = payload.get("funds", {})
+            if any(
+                data.get("status") == "error"
+                for data in fund_payloads.values()
+            ):
+                return None
             for fund in FUND_MANAGERS:
                 data = fund_payloads.get(fund["cik"], {})
                 holdings = (
@@ -2671,6 +2694,9 @@ class DataService:
         period_cache,
         roster_fingerprint=None,
     ):
+        if any(item.get("status") == "error" for item in period_cache.values()):
+            logger.warning("Not persisting incomplete historical period %s", report_period)
+            return False
         payload = {
             "report_period": report_period,
             "last_updated": datetime.now(timezone.utc).isoformat(),
@@ -2721,6 +2747,7 @@ class DataService:
                     os.unlink(temporary_path)
         except Exception as e:
             logger.error(f"Failed to save historical cache for {report_period}: {e}")
+            raise
 
     async def get_period_cache(self, report_period: str):
         available_periods = self.get_available_periods()
@@ -2811,9 +2838,14 @@ class DataService:
                     period_cache,
                     roster_fingerprint,
                 )
-                self.period_caches[report_period] = period_cache
+                has_errors = any(
+                    item.get("status") == "error"
+                    for item in period_cache.values()
+                )
+                if not has_errors:
+                    self.period_caches[report_period] = period_cache
                 self.period_cache_progress[report_period] = {
-                    "state": "ready",
+                    "state": "partial" if has_errors else "ready",
                     "source": "sec",
                     "completed_funds": len(period_cache),
                     "total_funds": len(roster_snapshot)
@@ -3985,6 +4017,14 @@ class DataService:
         entries = []
         errors = []
         seen_accessions = set()
+        if time.monotonic() < getattr(self, "_sec_retry_after", 0):
+            return [], [{
+                "canonical_cik": fund["cik"],
+                "source_cik": fund["cik"],
+                "manager_name": fund["manager"],
+                "error": "SEC rate-limit cooldown active; filing discovery deferred",
+                "rate_limited": True,
+            }]
         for source_cik in [fund["cik"], *fund.get("historical_ciks", [])]:
             try:
                 filings = Company(source_cik).get_filings(
@@ -4018,14 +4058,21 @@ class DataService:
                     "source_cik": str(source_cik).zfill(10),
                     "manager_name": fund["manager"],
                     "error": str(exc),
+                    "rate_limited": is_sec_rate_limit_error(exc),
                 })
+                if is_sec_rate_limit_error(exc):
+                    self._sec_retry_after = time.monotonic() + 600
+                    break
         return entries, errors
 
     def discover_recent_filings(self, since_date):
         discoveries = []
         errors = []
-        for fund in deepcopy(FUND_MANAGERS):
+        roster = deepcopy(FUND_MANAGERS)
+        managers_checked = 0
+        for index, fund in enumerate(roster):
             entries, fund_errors = self._list_fund_filings(fund)
+            managers_checked += 1
             errors.extend(fund_errors)
             for _, _, metadata in entries:
                 try:
@@ -4036,6 +4083,15 @@ class DataService:
                     continue
                 if filing_date >= since_date:
                     discoveries.append(metadata)
+            if any(error.get("rate_limited") for error in fund_errors):
+                errors.extend({
+                    "canonical_cik": remaining["cik"],
+                    "source_cik": remaining["cik"],
+                    "manager_name": remaining["manager"],
+                    "error": "Discovery deferred after SEC rate limit",
+                    "rate_limited": True,
+                } for remaining in roster[index + 1:])
+                break
         discoveries.sort(
             key=lambda item: (
                 item["filing_date"],
@@ -4046,8 +4102,15 @@ class DataService:
         return {
             "filings": discoveries,
             "errors": errors,
-            "managers_checked": len(FUND_MANAGERS),
+            "managers_checked": managers_checked,
         }
+
+    @staticmethod
+    def _raise_discovery_errors(errors):
+        if errors:
+            raise RuntimeError("; ".join(
+                str(error["error"]) for error in errors
+            ))
 
     def _find_best_report_for_period(
         self,
@@ -4058,48 +4121,100 @@ class DataService:
         candidates = []
         entries = filing_entries
         if entries is None:
-            entries, _ = self._list_fund_filings(fund)
+            entries, errors = self._list_fund_filings(fund)
+            self._raise_discovery_errors(errors)
         for filing, source_cik, metadata in entries:
             if metadata["report_period"] != report_period:
                 continue
             try:
                 report = filing.obj()
+                if report is None or report.holdings is None:
+                    raise ValueError("Filing has no usable holdings table")
+                metadata = dict(metadata)
+                if metadata["form"] == "13F-HR/A":
+                    amendment_type = metadata.get("amendment_type")
+                    if not amendment_type:
+                        root = ElementTree.fromstring(filing.xml())
+                        amendment_type = next(
+                            (
+                                node.text for node in root.iter()
+                                if node.tag.rsplit("}", 1)[-1] == "amendmentType"
+                            ),
+                            None,
+                        )
+                    metadata["amendment_type"] = amendment_type
                 candidates.append((
                     report,
                     source_cik,
-                    metadata["form"],
-                    metadata["filing_date"],
                     metadata,
                 ))
             except Exception as e:
-                logger.warning(
-                    f"Could not inspect {report_period} filing for "
-                    f"{fund['manager']} under CIK {source_cik}: {e}"
-                )
+                if is_sec_rate_limit_error(e):
+                    self._sec_retry_after = time.monotonic() + 600
+                raise RuntimeError(
+                    f"Could not inspect {report_period} filing "
+                    f"{metadata['accession_number']} for {fund['manager']}: {e}"
+                ) from e
+        return self._assemble_period_reports(fund, report_period, candidates)
+
+    @staticmethod
+    def _assemble_period_reports(fund, report_period, candidates):
         if not candidates:
             return None, None, None
-
-        def holding_count(candidate):
-            holdings = candidate[0].holdings
-            return len(holdings) if holdings is not None else 0
-
-        max_holding_count = max(
-            holding_count(candidate)
-            for candidate in candidates
-        )
-        complete_candidates = [
-            candidate
-            for candidate in candidates
-            if holding_count(candidate) == max_holding_count
-        ]
-        selected = max(
-            complete_candidates,
-            key=lambda candidate: (
-                candidate[3],
-                candidate[4]["accession_number"],
+        effective = []
+        for candidate in sorted(
+            candidates,
+            key=lambda item: (
+                item[2]["filing_date"], item[2]["accession_number"]
+            ),
+        ):
+            metadata = candidate[2]
+            amendment = str(metadata.get("amendment_type") or "").upper()
+            if metadata["form"] == "13F-HR" or "RESTATEMENT" in amendment:
+                effective = [candidate]
+            elif "NEW HOLDINGS" in amendment:
+                if not effective:
+                    raise ValueError(
+                        f"Additive amendment has no base: {metadata['accession_number']}"
+                    )
+                effective.append(candidate)
+            else:
+                raise ValueError(
+                    f"Unknown amendment type: {metadata['accession_number']}"
+                )
+        report, source_cik, metadata = effective[-1]
+        metadata = {
+            **metadata,
+            "effective_accessions": [
+                item[2]["accession_number"] for item in effective
+            ],
+            "filing_reconstruction_version": FILING_RECONSTRUCTION_VERSION,
+        }
+        if len(effective) > 1:
+            frames = [
+                DataService._normalize_holdings_values(item[0].holdings)[0]
+                for item in effective
+            ]
+            combined = pd.concat(frames, ignore_index=True)
+            numeric = {
+                "Value", "SharesPrnAmount", "SoleVoting",
+                "SharedVoting", "NonVoting",
+            }
+            combined = combined.groupby("Cusip", as_index=False).agg({
+                column: "sum" if column in numeric else "first"
+                for column in combined.columns
+                if column not in {"Cusip", "PortfolioWeight"}
+            })
+            report = SimpleNamespace(
+                holdings=combined,
+                report_period=report_period,
+                filing_date=metadata["filing_date"],
+                management_company_name=getattr(
+                    effective[0][0], "management_company_name", fund["manager"]
+                ),
+                total_holdings=len(combined),
             )
-        )
-        return selected[0], selected[1], selected[4]
+        return report, source_cik, metadata
 
     def _build_cross_cik_fund_result(
         self,
@@ -4107,6 +4222,7 @@ class DataService:
         report,
         include_previous_comparison=True,
         filing_metadata=None,
+        filing_entries=None,
     ):
         result = self._build_fund_result(
             report,
@@ -4120,13 +4236,15 @@ class DataService:
         older_period = (current_period - 2).end_time.date().isoformat()
         previous_report, _, _ = self._find_best_report_for_period(
             fund,
-            previous_period
+            previous_period,
+            filing_entries,
         )
         older_report = None
         if include_previous_comparison:
             older_report, _, _ = self._find_best_report_for_period(
                 fund,
-                older_period
+                older_period,
+                filing_entries,
             )
         if previous_report is not None:
             result["comparison"] = self._compare_report_holdings(
@@ -4158,6 +4276,7 @@ class DataService:
                     "error": f"CIK {cik} is not in the configured roster",
                 }
             filing_entries, errors = self._list_fund_filings(fund)
+            self._raise_discovery_errors(errors)
             report_periods = [
                 metadata["report_period"]
                 for _, _, metadata in filing_entries
@@ -4185,6 +4304,7 @@ class DataService:
                 fund,
                 report,
                 filing_metadata=filing_metadata,
+                filing_entries=filing_entries,
             )
         except Exception as e:
             logger.error(f"Error fetching fund {cik}: {e}")
@@ -4192,7 +4312,8 @@ class DataService:
 
     def _fetch_fund_period_sync(self, fund, report_period: str):
         try:
-            filing_entries, _ = self._list_fund_filings(fund)
+            filing_entries, errors = self._list_fund_filings(fund)
+            self._raise_discovery_errors(errors)
             report, _, filing_metadata = self._find_best_report_for_period(
                 fund,
                 report_period,
@@ -4204,6 +4325,7 @@ class DataService:
                     report,
                     include_previous_comparison=False,
                     filing_metadata=filing_metadata,
+                    filing_entries=filing_entries,
                 )
             return {
                 "status": "unavailable",
@@ -4215,7 +4337,7 @@ class DataService:
                 f"{fund['manager']}: {e}"
             )
             return {
-                "status": "unavailable",
+                "status": "error",
                 "error": str(e)
             }
 
@@ -4451,11 +4573,7 @@ class DataService:
             if quarter_periods
             else end_date - timedelta(days=370)
         )
-        symbol_aliases = {
-            "BRKA": "BRK-A",
-            "BRKB": "BRK-B",
-            "HEIA": "HEI-A"
-        }
+        symbol_aliases = MARKET_SYMBOL_ALIASES
         market_symbols = [symbol_aliases.get(symbol, symbol) for symbol in symbols]
         original_symbols = {
             market_symbol: original_symbol
@@ -4638,8 +4756,60 @@ class DataService:
             "is_refreshing": self.is_refreshing if cache is self.cache else False
         }
 
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _security_classifications():
+        path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data", "reference", "full_universe.csv",
+        )
+        frame = pd.read_csv(
+            path, usecols=["ticker", "sector", "industry"], keep_default_na=False
+        )
+        return {
+            row.ticker.strip().upper(): {
+                "sector": row.sector.strip() or "Unclassified",
+                "industry": row.industry.strip() or None,
+            }
+            for row in frame.itertuples(index=False)
+            if row.ticker.strip()
+        }
+
+    def _get_security_classification(self, ticker):
+        normalized = ticker.strip().upper()
+        cached = getattr(self, "ticker_market_cache", {}).get(normalized) or {}
+        classification = self._classification_from_profile(cached.get("profile"))
+        if classification is not None:
+            return classification
+        disk_cached = self._load_ticker_market_data_from_disk(
+            normalized, profile_only=True
+        ) or {}
+        classification = self._classification_from_profile(disk_cached.get("profile"))
+        if classification is not None:
+            return classification
+        return self._security_classifications().get(
+            MARKET_SYMBOL_ALIASES.get(normalized, normalized),
+            {"sector": "Unclassified", "industry": None},
+        )
+
+    @staticmethod
+    def _classification_from_profile(profile):
+        if not isinstance(profile, dict):
+            return None
+        sector = profile.get("sector")
+        if not isinstance(sector, str) or sector.strip().lower() in {
+            "", "unknown", "unclassified", "n/a", "nan", "none",
+        }:
+            return None
+        industry = profile.get("industry_category") or profile.get("industry")
+        return {
+            "sector": sector.strip(),
+            "industry": industry.strip() if isinstance(industry, str) and industry.strip() else None,
+        }
+
     def get_qoq_changes(self, include_unchanged=False, fund_cache=None, ticker=None):
         cache = fund_cache if fund_cache is not None else self.cache
+        classifications = {}
         target_ticker = ticker.strip().upper() if ticker else None
         changes = []
         for c in cache.values():
@@ -4763,6 +4933,8 @@ class DataService:
                         else 0.0
                     )
 
+                    if ticker not in classifications:
+                        classifications[ticker] = self._get_security_classification(ticker)
                     changes.append({
                         "fund_name": c["fund_info"]["name"],
                         "manager": c["fund_info"]["manager"],
@@ -4770,6 +4942,7 @@ class DataService:
                         "annotation": c["fund_info"].get("annotation", ""),
                         "cik": c["fund_info"]["cik"],
                         "ticker": ticker,
+                        **classifications[ticker],
                         "issuer": str(row.get('Issuer', '')).title(),
                         "status": status,
                         "value_change": round(val_change_raw / 1_000_000.0, 2), # In $M
@@ -4791,6 +4964,12 @@ class DataService:
                         "manager_typical_position_weight": (
                             round(manager_typical_position_weight, 4)
                             if manager_typical_position_weight is not None
+                            else None
+                        ),
+                        "position_size_vs_normal": (
+                            round(portfolio_weight / manager_typical_position_weight, 4)
+                            if manager_typical_position_weight is not None
+                            and manager_typical_position_weight > 0
                             else None
                         ),
                         "manager_typical_share_change_pct": (

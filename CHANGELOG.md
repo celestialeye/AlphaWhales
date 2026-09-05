@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-09-04 - QoQ Signal Desk and ingestion integrity
+
+### Added
+
+- An action-first QoQ Signal Desk with a clickable Sector × Action matrix for
+  meaningful buys, increases, decreases, unchanged-share holdings, and exits.
+- Adjustable significance thresholds, ticker/manager search, manager-relative
+  position context, and full qualifying lists without a hard top-ten cutoff.
+- Sector and industry classification that reuses cached ticker company profiles
+  before falling back to the bundled universe snapshot; missing coverage remains
+  explicitly `Unclassified`.
+- Offline performance-source reconciliation for legacy screening runs whose
+  frozen filing inputs can be proven identical to the current archive.
+
+### Changed
+
+- Consensus, concentration, reported-value rankings, and market charts now live
+  under Context instead of competing with the default filing-action view.
+- Historical filing reconstruction now applies originals, restatements, and
+  additive amendments in filing chronology and retains effective accessions.
+- Screening performance compatibility ignores roster display and ordering
+  changes while continuing to invalidate genuine identity or source changes.
+
+### Fixed
+
+- QoQ sector labels now match ticker detail pages, including cached-profile
+  classifications such as MOD as Consumer Cyclical / Auto Parts.
+- SEC rate-limit and transient retrieval failures no longer masquerade as
+  complete snapshots or confirmed filing absence.
+- Publication manifests retain the last changed generation so web processes do
+  not repeatedly invalidate already-rebuilt historical periods.
+
 ## 2026-09-02 - AWFI action challenger and SEC fundamentals
 
 ### Added

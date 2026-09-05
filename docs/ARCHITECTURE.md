@@ -169,10 +169,23 @@ Pershing Square uses its current CIK first and falls back to its former CIK
 when that chain provides the usable comparison.
 
 SEC ingestion normalizes legacy dollar/thousand-dollar value scales from
-implied per-share prices, rebuilds portfolio totals and weights from holdings,
-and selects the latest complete filing among original/amended submissions.
-QoQ comparisons are then constructed from the normalized current and previous
-snapshots.
+implied per-share prices and rebuilds portfolio totals and weights from holdings.
+Originals and restatements replace the period's base; subsequent additive
+amendments are combined with that base. Effective accession chains remain in
+cache metadata. Unknown amendment types and transient retrieval failures are
+errors, not complete snapshots or confirmed filing absences. QoQ comparisons
+use the reconstructed current and previous snapshots.
+
+The default QoQ UI is an action-first Signal Desk. `DataService.get_qoq_changes`
+returns all five share-action statuses plus manager-relative position context
+and sector/industry classification. Classification prefers an already-cached
+ticker company profile, including profile metadata from an expired quote cache,
+then falls back to `data/reference/full_universe.csv`; it never performs a live
+market request while building the period view. The browser renders a clickable
+Sector × Action matrix whose cells contain notable/total position counts.
+Significance thresholds and search are client-side filters over the selected
+period response. Consensus, market context, AWFI, manager views, and the complete
+changed-position table remain separate presentation surfaces.
 
 ## Concurrency
 

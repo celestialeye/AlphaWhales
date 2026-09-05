@@ -5,9 +5,11 @@ import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.error import HTTPError
 
 import duckdb
 import pandas as pd
+import pytest
 
 import data_service as data_service_module
 from data_service import DataService
@@ -981,6 +983,7 @@ def test_later_complete_filing_wins_period_selection():
                     report_period="2026-06-30",
                     form="13F-HR/A",
                 ),
+                "amendment_type": "RESTATEMENT",
             },
         ),
     ]
@@ -1038,3 +1041,278 @@ def test_refresh_fund_does_not_report_failed_disk_publication():
     }
     assert service.cache["0000000001"]["status"] == "error"
     assert events[-1]["status"] == "error"
+
+
+def report_candidate(accession, holdings, *, form="13F-HR", amendment_type=None):
+    frame = pd.DataFrame([
+        {
+            "Cusip": cusip, "Ticker": cusip, "Issuer": cusip,
+            "SharesPrnAmount": shares, "Value": shares * 50,
+        }
+        for cusip, shares in holdings
+    ])
+    report = SimpleNamespace(
+        holdings=frame, total_holdings=len(frame),
+        report_period="2026-06-30", management_company_name="Example",
+    )
+    metadata = {
+        **filing(accession, filing_date="2026-08-14", report_period="2026-06-30", form=form),
+        "amendment_type": amendment_type,
+    }
+    return report, "0000000001", metadata
+
+
+def test_additive_amendment_preserves_base_and_aggregates_overlap():
+    candidates = [
+        report_candidate("1", [("A", 10), ("B", 20)]),
+        report_candidate("2", [("B", 5), ("C", 15)],
+                         form="13F-HR/A", amendment_type="NEW HOLDINGS"),
+    ]
+    report, _, metadata = DataService._assemble_period_reports(
+        {"manager": "Example"}, "2026-06-30", candidates[::-1]
+    )
+    assert report.holdings.set_index("Cusip")["SharesPrnAmount"].to_dict() == {
+        "A": 10, "B": 25, "C": 15,
+    }
+    assert metadata["effective_accessions"] == ["1", "2"]
+    assert metadata["accession_number"] == "2"
+
+
+def test_smaller_restatement_replaces_base_and_prior_additions():
+    candidates = [
+        report_candidate("1", [("A", 10), ("B", 20)]),
+        report_candidate("2", [("C", 15)],
+                         form="13F-HR/A", amendment_type="NEW HOLDINGS"),
+        report_candidate("3", [("D", 25)],
+                         form="13F-HR/A", amendment_type="RESTATEMENT"),
+    ]
+    report, _, metadata = DataService._assemble_period_reports(
+        {"manager": "Example"}, "2026-06-30", candidates
+    )
+    assert report.holdings["Cusip"].tolist() == ["D"]
+    assert metadata["effective_accessions"] == ["3"]
+
+
+@pytest.mark.parametrize("amendment_type", ["NEW HOLDINGS", None])
+def test_amendment_without_usable_base_or_type_is_not_a_complete_snapshot(amendment_type):
+    with pytest.raises(ValueError):
+        DataService._assemble_period_reports(
+            {"manager": "Example"}, "2026-06-30",
+            [report_candidate("2", [("A", 10)],
+                              form="13F-HR/A", amendment_type=amendment_type)],
+        )
+
+
+def test_amendment_type_is_read_from_namespaced_primary_xml():
+    service = DataService.__new__(DataService)
+    base = report_candidate("1", [("A", 10)])
+    addition = report_candidate("2", [("B", 20)], form="13F-HR/A")
+    entries = [
+        (SimpleNamespace(obj=lambda: base[0]), base[1], base[2]),
+        (SimpleNamespace(
+            obj=lambda: addition[0],
+            xml=lambda: '<edgarSubmission xmlns="urn:sec"><amendmentType>'
+                        'NEW HOLDINGS</amendmentType></edgarSubmission>',
+        ), addition[1], addition[2]),
+    ]
+    report, _, _ = service._find_best_report_for_period(
+        {"manager": "Example"}, "2026-06-30", entries
+    )
+    assert set(report.holdings["Cusip"]) == {"A", "B"}
+
+
+def test_failed_amendment_does_not_silently_fall_back_to_original():
+    service = DataService.__new__(DataService)
+    base = report_candidate("1", [("A", 10)])
+
+    def failed():
+        raise TimeoutError("SEC timed out")
+
+    entries = [
+        (SimpleNamespace(obj=lambda: base[0]), base[1], base[2]),
+        (SimpleNamespace(obj=failed), base[1], {
+            **base[2], "accession_number": "2", "form": "13F-HR/A",
+        }),
+    ]
+    with pytest.raises(RuntimeError, match="SEC timed out"):
+        service._find_best_report_for_period(
+            {"manager": "Example"}, "2026-06-30", entries
+        )
+
+
+def test_discovery_failure_remains_retryable_not_confirmed_absence():
+    from prefetch import is_retryable_failure
+
+    service = DataService.__new__(DataService)
+    service._list_fund_filings = lambda fund: ([], [{"error": "HTTP 429"}])
+    result = service._fetch_fund_period_sync(
+        {"cik": "1", "manager": "Example"}, "2026-03-31"
+    )
+    assert result["status"] == "error"
+    assert "HTTP 429" in result["error"]
+    assert is_retryable_failure(result)
+    service._list_fund_filings = lambda fund: ([], [])
+    absent = service._fetch_fund_period_sync(
+        {"cik": "1", "manager": "Example"}, "2026-03-31"
+    )
+    assert absent["status"] == "unavailable"
+    assert not is_retryable_failure(absent)
+
+
+def test_discovery_stops_on_throttling_and_defers_remaining_managers(monkeypatch):
+    roster = [{"cik": str(i), "manager": str(i)} for i in range(1, 4)]
+    calls = []
+
+    def company(cik):
+        calls.append(cik)
+        if cik == "2":
+            raise HTTPError("https://data.sec.gov", 429, "Rate limited", {}, None)
+        return SimpleNamespace(get_filings=lambda **kwargs: [])
+
+    monkeypatch.setattr(data_service_module, "FUND_MANAGERS", roster)
+    monkeypatch.setattr(data_service_module, "Company", company)
+    service = DataService.__new__(DataService)
+    result = service.discover_recent_filings(pd.Timestamp("2026-01-01").date())
+    assert calls == ["1", "2"]
+    assert result["managers_checked"] == 2
+    assert len(result["errors"]) == 2
+    assert all(error["rate_limited"] for error in result["errors"])
+    service._list_fund_filings(roster[0])
+    assert calls == ["1", "2"]
+
+
+def test_throttled_daily_run_does_not_refresh_discovered_accessions(tmp_path):
+    service = FakeDataService([
+        filing("1", filing_date="2026-08-14", report_period="2026-06-30")
+    ])
+    service.errors = [{"error": "SEC throttled", "rate_limited": True}]
+    operations = FilingOperations(
+        service, ledger_path=tmp_path / "ledger.sqlite3",
+        publication_path=tmp_path / "publication.json",
+    )
+    result = asyncio.run(operations.run())
+    assert result["status"] == "PARTIAL"
+    assert result["failed_filings"] == 1
+    assert result["refreshed_managers"] == 0
+    assert service.refreshed == []
+
+
+def test_partial_history_is_not_persisted_or_memoized(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_service_module, "CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(data_service_module, "FUND_MANAGERS", [
+        {"cik": "1", "manager": "Example"}
+    ])
+    service = DataService.__new__(DataService)
+    service.get_available_periods = lambda: ["2026-06-30", "2026-03-31"]
+    service.period_caches = {}
+    service.period_cache_locks = {}
+    service.period_cache_progress = {}
+    service.period_cache_generations = {}
+    service._fetch_fund_period_sync = lambda *args: {
+        "status": "error", "error": "HTTP 429",
+    }
+    result = asyncio.run(service.get_period_cache("2026-03-31"))
+    assert result["1"]["status"] == "error"
+    assert service.period_caches == {}
+    assert not (tmp_path / "history" / "2026-03-31.json").exists()
+    assert service.period_cache_progress["2026-03-31"]["state"] == "partial"
+
+
+def test_publication_generations_apply_only_unseen_invalidations(tmp_path):
+    service = FakeDataService([])
+    service.manager_adjustment_cache = {}
+    service._load_all_from_disk_cache = lambda: None
+    service._load_market_insights_from_disk = lambda: None
+    invalidated = []
+    service.invalidate_exact_filing_periods = lambda periods: invalidated.extend(periods)
+    paths = {
+        "ledger_path": tmp_path / "ledger.sqlite3",
+        "publication_path": tmp_path / "publication.json",
+    }
+    writer = FilingOperations(service, **paths)
+    reader = FilingOperations(service, **paths)
+    writer._publish_manifest({
+        "run_id": "1", "affected_ciks": ["1"], "invalidated_periods": ["2025-03-31"],
+    })
+    asyncio.run(reader._apply_publication(reader._read_publication()))
+    writer._publish_manifest({
+        "run_id": "2", "affected_ciks": [], "invalidated_periods": [],
+    })
+    asyncio.run(reader._apply_publication(reader._read_publication()))
+    assert invalidated == ["2025-03-31"]
+    writer._publish_manifest({
+        "run_id": "3", "affected_ciks": ["1"], "invalidated_periods": ["2025-06-30"],
+    })
+    writer._publish_manifest({
+        "run_id": "4", "affected_ciks": ["1"], "invalidated_periods": ["2025-09-30"],
+    })
+    asyncio.run(reader._apply_publication(reader._read_publication()))
+    assert invalidated == ["2025-03-31", "2025-06-30", "2025-09-30"]
+    assert reader._last_publication_generation == 4
+
+
+def test_repaired_period_notification_keeps_new_disk_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_service_module, "CACHE_DIR", str(tmp_path))
+    service = DataService.__new__(DataService)
+    service.period_caches = {"2025-03-31": {"stale": True}}
+    service.period_cache_progress = {"2025-03-31": {"state": "ready"}}
+    service.period_cache_generations = {}
+    service.manager_adjustment_cache = {}
+
+    async def broadcast(event):
+        pass
+
+    service.broadcast_event = broadcast
+    service._load_all_from_disk_cache = lambda: None
+    service._load_market_insights_from_disk = lambda: None
+    path = Path(service._get_period_cache_path("2025-03-31"))
+    path.write_text('{"repaired": true}')
+    operations = FilingOperations(
+        service, ledger_path=tmp_path / "ledger.sqlite3",
+        publication_path=tmp_path / "publication.json",
+    )
+    asyncio.run(operations._apply_publication({
+        "run_id": "repair", "generation": 2,
+        "invalidated_period_generations": {"2025-03-31": 1},
+        "refreshed_period_generations": {"2025-03-31": 2},
+    }))
+    assert path.read_text() == '{"repaired": true}'
+    assert service.period_caches == {}
+    assert service.period_cache_generations["2025-03-31"] == 1
+
+
+def test_legacy_publication_history_is_not_replayed_on_upgrade(tmp_path):
+    service = FakeDataService([])
+    paths = {
+        "ledger_path": tmp_path / "ledger.sqlite3",
+        "publication_path": tmp_path / "publication.json",
+    }
+    paths["publication_path"].write_text(json.dumps({
+        "run_id": "legacy", "generation": 5,
+        "cumulative_invalidated_periods": ["2025-03-31"],
+        "cumulative_affected_ciks": ["1"],
+    }))
+    writer = FilingOperations(service, **paths)
+    reader = FilingOperations(service, **paths)
+    writer._publish_manifest({
+        "run_id": "no-changes", "invalidated_periods": [], "affected_ciks": [],
+    })
+    asyncio.run(reader._apply_publication(reader._read_publication()))
+    assert reader._last_publication_generation == 6
+    assert service.events == []
+
+
+def test_historical_publication_failure_is_not_silently_accepted(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_service_module, "CACHE_DIR", str(tmp_path))
+    service = DataService.__new__(DataService)
+    service._roster_fingerprint = lambda: "roster"
+
+    def fail_replace(*args):
+        raise PermissionError("publication locked")
+
+    service._replace_file_with_retry = fail_replace
+    with pytest.raises(PermissionError, match="publication locked"):
+        service._save_period_cache_to_disk(
+            "2026-03-31", {"1": {"status": "loaded"}}
+        )
+    assert not list((tmp_path / "history").glob("*.tmp"))

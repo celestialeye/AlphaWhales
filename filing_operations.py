@@ -756,7 +756,9 @@ class FilingOperations:
         self.historical_database_path = Path(historical_database_path)
         self.after_refresh = after_refresh
         self._run_lock = asyncio.Lock()
-        self._last_publication_run_id = self._read_publication_run_id()
+        publication = self._read_publication() or {}
+        self._last_publication_run_id = publication.get("run_id")
+        self._last_publication_generation = int(publication.get("generation") or 0)
 
     async def run(self, *, trigger="scheduler", lookback_days=120):
         if self._run_lock.locked():
@@ -1291,6 +1293,9 @@ class FilingOperations:
                 baseline=baseline,
             )
             inserted = observation["work_items"]
+            rate_limited = any(
+                error.get("rate_limited") for error in discovery["errors"]
+            )
             current_roster_fingerprint = self.data_service._roster_fingerprint(
                 load_roster(ROSTER_PATH)
             )
@@ -1303,12 +1308,12 @@ class FilingOperations:
                 filing["canonical_cik"]
                 for filing in inserted
             })
-            if inserted and not baseline:
+            if inserted and not baseline and not rate_limited:
                 invalidated = self.data_service.invalidate_filing_periods(
                     filing.get("report_period")
                     for filing in inserted
                 )
-            if affected_ciks:
+            if affected_ciks and not rate_limited:
                 await self.data_service.refresh_funds(affected_ciks)
                 current_roster_fingerprint = (
                     self.data_service._roster_fingerprint(
@@ -1327,6 +1332,13 @@ class FilingOperations:
 
             for filing in inserted:
                 accession_number = filing["accession_number"]
+                if rate_limited:
+                    outcomes.append({
+                        "accession_number": accession_number,
+                        "status": "FAILED",
+                        "error": "Manager refresh deferred after SEC rate limit",
+                    })
+                    continue
                 if baseline:
                     fund_data = self.data_service.cache.get(
                         filing["canonical_cik"],
@@ -1426,7 +1438,7 @@ class FilingOperations:
                 "published_filings": published,
                 "recorded_filings": recorded,
                 "failed_filings": failed,
-                "refreshed_managers": len(affected_ciks),
+                "refreshed_managers": len(affected_ciks) if not rate_limited else 0,
                 "invalidated_periods": invalidated,
                 "error_count": len(discovery["errors"]),
                 "awfi_published": awfi_published,
@@ -1434,7 +1446,7 @@ class FilingOperations:
             self._publish_manifest(
                 {
                     **result,
-                    "affected_ciks": affected_ciks,
+                    "affected_ciks": affected_ciks if not rate_limited else [],
                     "timestamp": _utc_now(),
                     "roster_fingerprint": roster_fingerprint,
                 }
@@ -1444,7 +1456,7 @@ class FilingOperations:
                 run_id,
                 status=status,
                 managers_checked=managers_checked,
-                refreshed_managers=len(affected_ciks),
+                refreshed_managers=result["refreshed_managers"],
                 invalidated_periods=len(invalidated),
                 published_filings=published,
                 recorded_filings=recorded,
@@ -1486,9 +1498,32 @@ class FilingOperations:
     def _publish_manifest(self, payload):
         self.publication_path.parent.mkdir(parents=True, exist_ok=True)
         previous = self._read_publication() or {}
+        previous_generation = int(previous.get("generation") or 0)
+        generation = previous_generation + 1
+        period_generations = previous.get("invalidated_period_generations", {
+            period: previous_generation
+            for period in previous.get("cumulative_invalidated_periods", [])
+        })
+        manager_generations = previous.get("affected_manager_generations", {
+            cik: previous_generation
+            for cik in previous.get("cumulative_affected_ciks", [])
+        })
+        refreshed_generations = previous.get("refreshed_period_generations", {})
         payload = {
             **payload,
-            "generation": int(previous.get("generation") or 0) + 1,
+            "generation": generation,
+            "invalidated_period_generations": {
+                **period_generations,
+                **{period: generation for period in payload.get("invalidated_periods", [])},
+            },
+            "affected_manager_generations": {
+                **manager_generations,
+                **{cik: generation for cik in payload.get("affected_ciks", [])},
+            },
+            "refreshed_period_generations": {
+                **refreshed_generations,
+                **{period: generation for period in payload.get("refreshed_periods", [])},
+            },
             "cumulative_affected_ciks": sorted({
                 *previous.get("cumulative_affected_ciks", []),
                 *payload.get("affected_ciks", []),
@@ -1522,6 +1557,7 @@ class FilingOperations:
                     time.sleep(0.1)
             temporary_path = None
             self._last_publication_run_id = payload["run_id"]
+            self._last_publication_generation = generation
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
@@ -1545,12 +1581,36 @@ class FilingOperations:
                 or publication["run_id"] == self._last_publication_run_id
             ):
                 continue
-            self._last_publication_run_id = publication["run_id"]
+            await self._apply_publication(publication)
+
+    async def _apply_publication(self, publication):
+        last_generation = self._last_publication_generation
+        generation = int(publication.get("generation") or 0)
+        refreshed_generations = publication.get("refreshed_period_generations", {})
+        affected_ciks = {
+            cik for cik, changed_at in publication.get(
+                "affected_manager_generations",
+                {
+                    cik: generation
+                    for cik in publication.get("cumulative_affected_ciks", [])
+                },
+            ).items()
+            if changed_at > last_generation
+        }
+        invalidated_periods = [
+            period for period, changed_at in publication.get(
+                "invalidated_period_generations",
+                {
+                    period: generation
+                    for period in publication.get("cumulative_invalidated_periods", [])
+                },
+            ).items()
+            if changed_at > last_generation
+            and changed_at > refreshed_generations.get(period, -1)
+        ]
+        if affected_ciks:
             self.data_service._load_all_from_disk_cache()
             self.data_service._load_market_insights_from_disk()
-            affected_ciks = set(
-                publication.get("cumulative_affected_ciks", [])
-            )
             self.data_service.manager_adjustment_cache = {
                 key: value
                 for key, value in (
@@ -1562,36 +1622,38 @@ class FilingOperations:
                     and key[1] in affected_ciks
                 )
             }
-            self.data_service.invalidate_exact_filing_periods(
-                publication.get(
-                    "cumulative_invalidated_periods",
-                    [],
-                )
+        if invalidated_periods:
+            self.data_service.invalidate_exact_filing_periods(invalidated_periods)
+        refreshed_periods = [
+            period for period, changed_at in refreshed_generations.items()
+            if changed_at > last_generation and period not in invalidated_periods
+        ]
+        for period in refreshed_periods:
+            self.data_service.period_caches.pop(period, None)
+            self.data_service.period_cache_progress.pop(period, None)
+            self.data_service.period_cache_generations[period] = (
+                self.data_service.period_cache_generations.get(period, 0) + 1
             )
-            if affected_ciks:
-                await self.data_service.broadcast_event({
-                    "type": "data_refresh",
-                    "timestamp": publication.get("timestamp") or _utc_now(),
-                })
-            if publication.get("new_filings"):
-                await self.data_service.broadcast_event({
-                    "type": "filings_ingested",
-                    "run_id": publication["run_id"],
-                    "count": publication["new_filings"],
-                    "published": publication.get(
-                        "published_filings",
-                        0,
-                    ),
-                    "timestamp": publication.get("timestamp") or _utc_now(),
-                })
-            locally_published_awfi = False
-            if affected_ciks and self.after_refresh is not None:
-                locally_published_awfi = bool(await self.after_refresh())
-            if (
-                publication.get("awfi_published")
-                and not locally_published_awfi
-            ):
-                await self.data_service.broadcast_event({
-                    "type": "awfi_published",
-                    "timestamp": publication.get("timestamp") or _utc_now(),
-                })
+        if affected_ciks or invalidated_periods or refreshed_periods:
+            await self.data_service.broadcast_event({
+                "type": "data_refresh",
+                "timestamp": publication.get("timestamp") or _utc_now(),
+            })
+        if publication.get("new_filings"):
+            await self.data_service.broadcast_event({
+                "type": "filings_ingested",
+                "run_id": publication["run_id"],
+                "count": publication["new_filings"],
+                "published": publication.get("published_filings", 0),
+                "timestamp": publication.get("timestamp") or _utc_now(),
+            })
+        locally_published_awfi = False
+        if affected_ciks and self.after_refresh is not None:
+            locally_published_awfi = bool(await self.after_refresh())
+        if publication.get("awfi_published") and not locally_published_awfi:
+            await self.data_service.broadcast_event({
+                "type": "awfi_published",
+                "timestamp": publication.get("timestamp") or _utc_now(),
+            })
+        self._last_publication_run_id = publication["run_id"]
+        self._last_publication_generation = generation

@@ -28,6 +28,7 @@ from investor_screening.flattened_bulk import (
     import_flattened_archive,
 )
 from investor_screening import flattened_bulk
+from investor_screening import screener
 from investor_screening.forms import family_for_form, forms_for_family
 from investor_screening.quality import validate_database
 from investor_screening.screener import SNAPSHOT_SCHEMA, ScreeningService
@@ -100,6 +101,64 @@ def create_archive(path: Path, filings: list[dict], prefix: str = "") -> None:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, content in rows.items():
             archive.writestr(f"{prefix}{name}", "".join(content))
+
+
+def test_bulk_snapshot_publication_preserves_typed_rows(tmp_path, monkeypatch):
+    source_path = tmp_path / "source.duckdb"
+    archive = tmp_path / "fixture.zip"
+    create_archive(archive, [
+        {
+            "accession": f"0000000001-26-00000{index}",
+            "filing_date": filed, "form": "13F-HR", "cik": "1",
+            "period": period,
+            "holdings": [{
+                "issuer": "Example Corporation", "cusip": "123456789",
+                "value": value, "shares": 100,
+            }],
+        }
+        for index, (period, filed, value) in enumerate([
+            (
+                quarter.end_time.date().isoformat(),
+                (quarter.end_time + pd.Timedelta(days=45)).date().isoformat(),
+                8000,
+            )
+            for quarter in pd.period_range("2023Q2", "2025Q3", freq="Q")
+        ] + [
+            ("2025-12-31", "2026-02-13", 10000),
+            ("2026-03-31", "2026-05-15", 12000),
+        ], start=1)
+    ])
+    source = connect_database(source_path)
+    import_archive(source, archive)
+    source.close()
+    monkeypatch.setattr(screener, "FUND_MANAGERS", [
+        {"cik": "0000000001", "manager": "Example Manager"},
+    ])
+    monkeypatch.setattr(screener, "ROSTER_PATH", tmp_path / "roster.json")
+    pointer = tmp_path / "snapshot.json"
+    result = screener.build_screening_snapshot(
+        source_path, pointer, tmp_path / "absent-performance.duckdb"
+    )
+    assert result["manager_count"] == 1
+    assert result["position_quarter_count"] == 12
+    snapshot = duckdb.connect(str(screener.resolve_snapshot_path(pointer)), read_only=True)
+    try:
+        assert snapshot.execute(
+            """
+            SELECT cik, report_period, reported_value, weight_nonoption_pct
+            FROM manager_position_quarters
+            WHERE report_period >= DATE '2025-12-31'
+            ORDER BY report_period
+            """
+        ).fetchall() == [
+            ("0000000001", date(2025, 12, 31), 10000, 100),
+            ("0000000001", date(2026, 3, 31), 12000, 100),
+        ]
+        assert snapshot.execute(
+            "SELECT is_current_roster FROM manager_metrics"
+        ).fetchone()[0] is True
+    finally:
+        snapshot.close()
 
 
 def create_flattened_archive(

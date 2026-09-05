@@ -35,9 +35,10 @@ future refinement, so turnover is labeled an estimate.
   or with a 1,000x amendment error. Values are normalized using the median
   implied price (`Value / Shares`), and portfolio totals and weights are rebuilt
   from normalized holdings rather than trusting inconsistent summary totals.
-- When original and amended filings share a report date, the application keeps
-  candidates with the largest holdings count and selects the latest complete
-  submission.
+- For each report date, originals and explicit restatements replace the
+  portfolio base in filing chronology. Subsequent `NEW HOLDINGS` amendments
+  supplement that base. Effective accessions are retained; unknown amendment
+  types and missing bases are errors rather than guessed complete portfolios.
 - A holder is one configured manager with a positive reported position.
 - Holder counts use funds, not holding rows.
 - Mean weight is calculated among holders only.
@@ -62,6 +63,74 @@ appreciation offsets the lower share count. The UI therefore separates share
 action from reported value change.
 
 Net owner change is `new holders - closed holders` among comparable filings.
+
+### QoQ Signal Desk
+
+The default Signals view uses selected-period comparison rows and keeps individual
+manager actions separate from AWFI research, ticker consensus, and existing Big
+Bets concentration rankings. Buy and increase previews appear together by
+default; the Sector x Action matrix focuses on buy (`NEW`), increase, decrease,
+hold (`UNCHANGED`), or exit (`CLOSED`). Exact ticker search takes precedence; otherwise
+search matches ticker, issuer, manager, or fund by case-insensitive substring.
+The matrix has sector rows, five action columns, and an All sectors total row.
+Each cell shows notable / reported position counts for the current search and
+significance thresholds. Sector rows partition the total counts, including
+Unclassified. Clicking a cell selects both sector and action for the detail
+lists; clicking a sector name preserves the current action (including the
+combined buy + increase view). The matrix keeps other sectors visible for
+comparison instead of filtering itself to the selected sector. Reset filters
+restores all sectors. Column headers, the total row, and sector names remain
+visible while scrolling within the matrix.
+Rows reuse the ticker page's cached company-profile sector and industry, first
+from memory and then disk, before falling back to the bundled
+`data/reference/full_universe.csv` snapshot. Classification metadata remains
+usable after the quote cache expires; this does not make expired prices usable.
+Each ticker is resolved once per QoQ aggregation, without market-data requests.
+The reference snapshot is loaded once per process. SEC share-class ticker aliases
+use the same mapping as market lookups. Only missing coverage in both sources,
+including funds without a corporate sector, is Unclassified; classifications
+are not inferred from issuer names or holdings.
+These are cached-profile or reference classifications, not point-in-time historical
+sectors; they do not enter sentiment or AWFI calculations. A selected sector
+with no positions is retained with an empty result when switching filing periods.
+Matrix counts show qualifying positions against all reported positions of that
+action in the search results, not unique manager counts. Adjustable defaults are:
+
+- Meaningful initiations: `NEW` positions with at least 2% ending portfolio weight.
+- Major build-ups: `INCREASED` positions with at least 2% ending weight, at least
+  50% share growth, and at least 1 percentage point of portfolio-weight growth.
+- Meaningful reductions: `DECREASED` positions with at least 2% previous weight
+  and a share cut of at least 25%. A fall in weight or reported value is not
+  required because appreciation can offset a share reduction.
+- Hold: `UNCHANGED` reported shares with at least 2% ending weight. This is not
+  an AWFI HOLD recommendation or evidence of an intention to continue holding.
+- Meaningful exits: `CLOSED` positions with at least 2% previous weight. Current
+  weight is zero, so filtering on ending weight would hide these exits.
+
+Initiations default to descending reported position value; build-ups default to
+descending portfolio-weight growth. Decreases rank largest share cuts first;
+holds rank ending weight; exits rank previous weight. Active positions also
+support ending-weight, manager-relative-size, and reported-value ordering;
+reductions and exits support previous-weight and previous-value ordering.
+Each category previews five
+positions and exposes the complete qualifying list with a count and View all.
+Missing required metrics cannot qualify; missing ranking metrics sort last.
+Missing filings cannot imply a hold or exit. The Changes log intentionally
+excludes unchanged positions and does not apply the Signal Desk's significance
+thresholds.
+
+Consensus, existing concentration, reported-dollar rankings, and market charts
+live in Context rather than competing with the default action view. AWFI has its
+own research view and 6-24 month horizon selector. All views share the selected
+filing period. Changing discovery filters does not request new filing data.
+
+Manager-relative size is current reported portfolio weight divided by the
+manager's median positive prior-quarter position weight, or unavailable without
+a positive baseline. This uncapped descriptive ratio is not the sentiment score.
+Reported dollars are position values, not cash spent; weight changes also reflect
+security prices and changes elsewhere in the reported portfolio. These are
+discovery heuristics, not validated return predictors, and do not modify
+sentiment, AWFI, or their participation thresholds.
 
 ## Estimated institutional flow
 
