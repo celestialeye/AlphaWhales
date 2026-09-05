@@ -29,6 +29,8 @@
   classifications such as MOD as Consumer Cyclical / Auto Parts.
 - SEC rate-limit and transient retrieval failures no longer masquerade as
   complete snapshots or confirmed filing absence.
+- Additive amendments preserve distinct stock and option positions that share
+  a CUSIP instead of combining them into one holding.
 - Publication manifests retain the last changed generation so web processes do
   not repeatedly invalidate already-rebuilt historical periods.
 
