@@ -4200,10 +4200,20 @@ class DataService:
                 "Value", "SharesPrnAmount", "SoleVoting",
                 "SharedVoting", "NonVoting",
             }
-            combined = combined.groupby("Cusip", as_index=False).agg({
+            identity_columns = [
+                column for column in ("Cusip", "PutCall", "Class", "Type")
+                if column in combined.columns
+            ]
+            for column in identity_columns:
+                combined[column] = combined[column].fillna("")
+            combined = combined.groupby(
+                identity_columns,
+                as_index=False,
+                dropna=False,
+            ).agg({
                 column: "sum" if column in numeric else "first"
                 for column in combined.columns
-                if column not in {"Cusip", "PortfolioWeight"}
+                if column not in {*identity_columns, "PortfolioWeight"}
             })
             report = SimpleNamespace(
                 holdings=combined,

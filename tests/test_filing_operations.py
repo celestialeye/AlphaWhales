@@ -1078,6 +1078,26 @@ def test_additive_amendment_preserves_base_and_aggregates_overlap():
     assert metadata["accession_number"] == "2"
 
 
+def test_additive_amendment_preserves_security_identity_for_shared_cusip():
+    base = report_candidate("1", [("A", 10)])
+    addition = report_candidate(
+        "2", [("A", 5)],
+        form="13F-HR/A", amendment_type="NEW HOLDINGS",
+    )
+    for candidate, put_call in ((base, ""), (addition, "PUT")):
+        candidate[0].holdings["Class"] = "COM"
+        candidate[0].holdings["Type"] = "Shares"
+        candidate[0].holdings["PutCall"] = put_call
+
+    report, _, _ = DataService._assemble_period_reports(
+        {"manager": "Example"}, "2026-06-30", [base, addition]
+    )
+
+    holdings = report.holdings.set_index("PutCall")
+    assert holdings["SharesPrnAmount"].to_dict() == {"": 10, "PUT": 5}
+    assert holdings["Value"].to_dict() == {"": 500, "PUT": 250}
+
+
 def test_smaller_restatement_replaces_base_and_prior_additions():
     candidates = [
         report_candidate("1", [("A", 10), ("B", 20)]),
