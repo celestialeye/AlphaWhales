@@ -88,6 +88,24 @@ def load_roster(path: str | Path) -> list[dict]:
     )
 
 
+def canonical_cik_aliases(roster: list[dict], archive_path: str | Path) -> dict[str, str]:
+    """Retain reporting-entity continuity independently of tracked membership."""
+    path = Path(archive_path)
+    archived = load_roster(path) if path.is_file() else []
+    by_cik = {fund["cik"]: fund for fund in archived}
+    by_cik.update({fund["cik"]: fund for fund in roster})
+    aliases = {}
+    for fund in by_cik.values():
+        canonical = fund["cik"]
+        for source in fund.get("historical_ciks", []):
+            if source in by_cik and source != canonical:
+                raise ValueError(f"Historical CIK {source} is also a canonical manager")
+            if source in aliases and aliases[source] != canonical:
+                raise ValueError(f"Historical CIK {source} has conflicting managers")
+            aliases[source] = canonical
+    return dict(sorted(aliases.items()))
+
+
 class RosterStore:
     def __init__(
         self,

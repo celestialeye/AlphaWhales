@@ -59,9 +59,11 @@ Exception status is displayed separately from investment style.
 
 ## 📊 Core Dashboards
 
-### 1. QoQ Changes Across The Board (`/`)
-- **Actionable Signal KPIs**: Leading consensus buy and sell with separate increased/new and decreased/exited counts, largest net aggregate reported value inflow and outflow, broadest new idea, highest median conviction with a five-holder floor, and the closest high-conviction holding to its latest OpenBB-derived 52-week low. Each card links directly to its ticker detail.
-- **Symmetric QoQ Trade Panels**: Current-quarter buy and sell rankings by reported value change, plus largest additions and reductions by portfolio/share percentage.
+### 1. QoQ Signal Desk (`/`)
+- **Sector × Action Matrix**: Crosses sector with `NEW`, `INCREASED`, `DECREASED`, `UNCHANGED`, and `CLOSED` filing actions. Each cell shows notable versus reported positions and drills into manager-level evidence without hiding the other sectors.
+- **Action-First Discovery**: Defaults to meaningful initiations and major build-ups, with dedicated views for reductions, unchanged-share holdings, and complete exits. Significance thresholds are adjustable and separate from AWFI.
+- **Consistent Classifications**: Reuses cached ticker-profile sector and industry first, then the bundled reference universe. Missing coverage is explicitly labeled `Unclassified`.
+- **Separated Context**: Consensus, existing concentration, reported-value rankings, and market charts remain available under Context rather than competing with the default action view.
 - **Manager Activity Matrix**: One row per tracked manager with the five largest share buys and sells, each labeled with the change in portfolio weight in percentage points.
 - **Alpha Whale Forward Index (AWFI)**: Most Owned, Highest Median Portfolio, and forward-ranking views show distinct 6-, 12-, 18-, and 24-month AWFI Research v2 scores using profiles selected from the stored production candidate study. The 6-month profile is action-heavy with technical support, 12 months is balanced with technical support, 18 months is balanced without technical timing, and 24 months uses the tested Alpha-only profile rather than duplicating 18 months. Historical periods use exact persisted v2 research scores; a newer current filing period keeps filing inputs fixed while refreshing technical inputs through the latest cached market session. The selected thresholds are ±75 for 6/12/18 months and ±25 for the distinct 24-month Alpha-only profile. See the [model specification](predictive_sentiment/ALPHA_WHALE_FORWARD_INDEX.md) and [data-lineage runbook](docs/AWFI_DATA_LINEAGE.md).
 - **20-Quarter Filing History**: The QoQ dashboard defaults to the latest quarter and can switch among the latest 20 quarter-ends. Historical cross-fund snapshots are fetched lazily through edgartools and persisted under `cache/history/<period>.json`.
@@ -84,7 +86,7 @@ When switching periods, the dashboard shows whether it is loading the latest cac
 - **Interactive Visualizations**:
   - Breakdown of New Buys, Increases, Decreases, Closed by Fund Group (Plotly).
   - Top 10 Dollar Value Shifts ($M) horizontal bar chart (Plotly).
-- **Master QoQ Table**: Multi-column sortable, real-time search, filter by investment style, Action Status (NEW, INCREASED, DECREASED, CLOSED), Min $M move, pagination, and one-click CSV export.
+- **Master QoQ Table**: Multi-column sortable, real-time search, filter by investment style, Action Status (NEW, INCREASED, DECREASED, CLOSED), Min $M move, pagination, and one-click CSV export. `UNCHANGED` remains available through the Signal Desk's Hold column rather than this changed-position log.
 
 ### 2. Ticker Level Intelligence (`/ticker` & `/ticker/{ticker}`)
 - **Market Snapshot**: OpenBB/yfinance current price, daily move, latest 52-week-low price and percentage above that low, market cap, trailing and forward P/E, 52-week range, beta, one-year return, sector, industry, and exchange.

@@ -4,6 +4,7 @@
 
 // Global State
 let globalQoQData = [];
+let globalPeriodQoQData = [];
 let filteredQoQData = [];
 let currentSortColumn = 'value_change';
 let currentSortAsc = false;
@@ -11,6 +12,16 @@ let currentPage = 1;
 let pageSize = 50;
 let selectedFilingPeriod = null;
 let currentOverviewTab = 'overview';
+const notableActions = Object.freeze({
+    NEW: {key: 'new', badge: 'NEW'},
+    INCREASED: {key: 'adds', badge: 'INCREASE'},
+    DECREASED: {key: 'cuts', badge: 'DECREASE'},
+    UNCHANGED: {key: 'holds', badge: 'UNCHANGED SHARES'},
+    CLOSED: {key: 'exits', badge: 'EXIT'}
+});
+const notableBetsExpanded = {NEW: false, INCREASED: false, DECREASED: false, UNCHANGED: false, CLOSED: false};
+let notableAction = 'opportunities';
+let notableSector = '';
 let selectedAwfiHorizon = 252;
 let currentTickerTab = 'decision';
 let tickerValuationCategory = 'decision';
@@ -314,9 +325,9 @@ function formatFilingPeriodLabel(period) {
 }
 
 const overviewTabDescriptions = Object.freeze({
-    overview: 'Consensus ownership, conviction, market context, and the quarter’s broadest signals.',
+    overview: 'Find meaningful buys, build-ups, reductions, unchanged holdings, and exits.',
     sentiment: 'AWFI ranks forward-looking opportunity and avoidance signals for the selected investment horizon.',
-    positioning: 'Largest reported accumulation and reduction signals, separated by dollars, weight, and shares.',
+    positioning: 'Supporting context: consensus, existing concentration, reported-value shifts, and market prices.',
     managers: 'Scan each manager’s largest portfolio-weight additions and reductions without leaving the period view.',
     changes: 'Filter, sort, paginate, and export every comparable quarter-over-quarter position change.'
 });
@@ -340,8 +351,9 @@ function switchOverviewTab(tabName, updateHash = true) {
 
     if (updateHash) {
         window.history.replaceState(null, '', `#${tabName}`);
+        document.getElementById('overview-workspace')?.scrollIntoView({block: 'start'});
     }
-    if (tabName === 'overview' && window.Plotly) {
+    if (tabName === 'positioning' && window.Plotly) {
         window.requestAnimationFrame(() => {
             ['summary-chart', 'top-moves-chart'].forEach(id => {
                 const chart = document.getElementById(id);
@@ -354,6 +366,19 @@ function switchOverviewTab(tabName, updateHash = true) {
 function initializeOverviewTabs() {
     const tabs = [...document.querySelectorAll('[data-overview-tab]')];
     if (!tabs.length) return;
+    const workspace = document.querySelector('.qoq-workspace');
+    const navbar = document.querySelector('.navbar');
+    const tabShell = document.getElementById('overview-workspace');
+    if (workspace && navbar && tabShell) {
+        const updateStickyOffsets = () => {
+            workspace.style.setProperty('--qoq-nav-offset', `${navbar.getBoundingClientRect().height + 8}px`);
+            workspace.style.setProperty('--qoq-tabs-height', `${tabShell.getBoundingClientRect().height}px`);
+        };
+        const observer = new ResizeObserver(updateStickyOffsets);
+        observer.observe(navbar);
+        observer.observe(tabShell);
+        updateStickyOffsets();
+    }
 
     const requestedTab = window.location.hash.slice(1);
     switchOverviewTab(
@@ -568,7 +593,9 @@ async function loadOverviewData(period = selectedFilingPeriod) {
         if (awfiSelect) awfiSelect.value = String(selectedAwfiHorizon);
 
         const allQoQData = result.changes || [];
+        globalPeriodQoQData = allQoQData;
         globalQoQData = allQoQData.filter(change => change.status !== 'UNCHANGED');
+        renderNotableBets();
         if (result.overview) updateTimestamp(result.overview.last_updated);
         applyFilters();
         renderOverviewCharts(allQoQData);
@@ -604,6 +631,251 @@ async function loadOverviewData(period = selectedFilingPeriod) {
             await new Promise(resolve => window.setTimeout(resolve, remainingLoaderTime));
         }
         hidePeriodLoader();
+    }
+}
+
+function searchNotableChanges(changes, query, sector = '') {
+    const search = query.trim().toLowerCase();
+    let matches = changes;
+    if (search) {
+        const exactTicker = changes.filter(move => move.ticker.toLowerCase() === search);
+        matches = exactTicker.length ? exactTicker : changes.filter(move => [
+            move.ticker, move.issuer, move.manager, move.fund_name
+        ].some(value => String(value || '').toLowerCase().includes(search)));
+    }
+    return matches.filter(move => !sector || (move.sector || 'Unclassified') === sector);
+}
+
+function getNotableBets(changes, criteria, status, sortBy) {
+    return changes.filter(move => {
+        if (move.status !== status) return false;
+        const weight = ['DECREASED', 'CLOSED'].includes(status)
+            ? move.previous_portfolio_weight : move.portfolio_weight;
+        if (!Number.isFinite(weight) || weight < criteria.minWeight) return false;
+        if (status === 'INCREASED') {
+            return Number.isFinite(move.shares_change_pct)
+                && move.shares_change_pct >= criteria.minShareIncrease
+                && Number.isFinite(move.portfolio_weight_change_raw)
+                && move.portfolio_weight_change_raw >= criteria.minWeightIncrease;
+        }
+        if (status === 'DECREASED') {
+            return Number.isFinite(move.shares_change_pct)
+                && move.shares_change_pct <= -criteria.minShareCut;
+        }
+        return ['NEW', 'UNCHANGED', 'CLOSED'].includes(status);
+    }).sort((a, b) => {
+        const left = a[sortBy];
+        const right = b[sortBy];
+        if (Number.isFinite(left) !== Number.isFinite(right)) {
+            return Number.isFinite(left) ? -1 : 1;
+        }
+        if (Number.isFinite(left) && left !== right) {
+            return status === 'DECREASED' && sortBy === 'shares_change_pct'
+                ? left - right : right - left;
+        }
+        return a.ticker.localeCompare(b.ticker)
+            || a.manager.localeCompare(b.manager)
+            || a.cik.localeCompare(b.cik);
+    });
+}
+
+function getSectorActionMatrix(changes, criteria, valid = true, sectorNames = []) {
+    const sectors = [...new Set([
+        ...sectorNames,
+        ...changes.map(move => move.sector || 'Unclassified')
+    ])].filter(Boolean).sort((a, b) => (
+        (a === 'Unclassified') - (b === 'Unclassified') || a.localeCompare(b)
+    ));
+    const rows = ['', ...sectors].map(sector => ({
+        sector,
+        actions: Object.fromEntries(Object.keys(notableActions).map(status => [
+            status, {total: 0, notable: valid ? 0 : null}
+        ]))
+    }));
+    const bySector = new Map(rows.map(row => [row.sector, row]));
+    const qualifying = valid ? new Set(Object.keys(notableActions).flatMap(status =>
+        getNotableBets(changes, criteria, status, 'portfolio_weight')
+    )) : new Set();
+    for (const move of changes) {
+        if (!Object.hasOwn(notableActions, move.status)) continue;
+        for (const row of [rows[0], bySector.get(move.sector || 'Unclassified')]) {
+            row.actions[move.status].total += 1;
+            if (qualifying.has(move)) row.actions[move.status].notable += 1;
+        }
+    }
+    return rows;
+}
+
+function renderNotableSectorMatrix(changes, criteria, valid) {
+    const rows = getSectorActionMatrix(changes, criteria, valid, [
+        ...globalPeriodQoQData.map(move => move.sector || 'Unclassified'),
+        notableSector
+    ]);
+    const labels = {NEW: 'Buy', INCREASED: 'Increase', DECREASED: 'Decrease', UNCHANGED: 'Hold', CLOSED: 'Exit'};
+    document.getElementById('signal-matrix-body').innerHTML = rows.map(row => {
+        const sectorLabel = row.sector || 'All sectors';
+        return `<tr class="${row.sector ? '' : 'signal-matrix-total'}">
+            <th scope="row"><button type="button" class="signal-matrix-sector"
+                data-sector="${escapeHtml(row.sector)}" aria-pressed="${notableSector === row.sector}"
+                aria-controls="notable-lanes">${escapeHtml(sectorLabel)}</button></th>
+            ${Object.entries(notableActions).map(([status, {key}]) => {
+                const {total, notable} = row.actions[status];
+                const selected = notableSector === row.sector && (
+                    notableAction === status
+                    || (notableAction === 'opportunities' && ['NEW', 'INCREASED'].includes(status))
+                );
+                const read = notable === null ? 'Notable count unavailable' : `${notable} notable`;
+                return `<td class="signal-tone-${key}">
+                    <button type="button" class="signal-matrix-cell${notable === 0 ? ' is-zero' : ''}"
+                        data-sector="${escapeHtml(row.sector)}" data-action="${status}"
+                        aria-pressed="${selected}" aria-controls="notable-${key}-lane"
+                        aria-label="${escapeHtml(`${sectorLabel}, ${labels[status]}: ${read} of ${total} reported positions. Filter details.`)}">
+                        <strong class="font-mono">${notable ?? '—'}</strong>
+                        <span class="signal-matrix-denominator">/ ${total}</span>
+                    </button>
+                </td>`;
+            }).join('')}
+        </tr>`;
+    }).join('');
+}
+
+function selectNotableMatrixCell(event) {
+    const button = event.target.closest('button[data-sector]');
+    if (!button) return;
+    notableSector = button.dataset.sector;
+    const action = button.dataset.action;
+    if (action) notableAction = action;
+    const hadFocus = document.activeElement === button;
+    renderNotableBets(true);
+    if (hadFocus) {
+        const replacement = [...document.querySelectorAll('#signal-matrix-body button')].find(item => (
+            item.dataset.sector === notableSector && item.dataset.action === action
+        ));
+        replacement?.focus({preventScroll: true});
+    }
+}
+
+function selectNotableAction(action) {
+    if (action !== 'opportunities' && !Object.hasOwn(notableActions, action)) {
+        showToast('Unknown filing action', 'error');
+        return;
+    }
+    notableAction = action;
+    renderNotableBets();
+    const section = document.getElementById('notable-bets');
+    if (section && section.getBoundingClientRect().top < 0) {
+        section.scrollIntoView({block: 'start'});
+    }
+}
+
+function resetNotableFilters() {
+    notableSector = '';
+    for (const [id, value] of Object.entries({
+        'notable-min-weight': '2',
+        'notable-min-shares': '50',
+        'notable-min-delta': '1',
+        'notable-min-cut': '25',
+        'notable-search': ''
+    })) {
+        document.getElementById(id).value = value;
+    }
+    for (const {key} of Object.values(notableActions)) {
+        document.getElementById(`notable-${key}-sort`).selectedIndex = 0;
+    }
+    renderNotableBets(true);
+}
+
+function toggleNotableBets(status) {
+    notableBetsExpanded[status] = !notableBetsExpanded[status];
+    renderNotableBets();
+}
+
+function renderNotableBets(resetExpanded = false) {
+    const section = document.getElementById('notable-bets');
+    if (!section) return;
+    if (resetExpanded) {
+        for (const status of Object.keys(notableActions)) notableBetsExpanded[status] = false;
+    }
+    const minWeight = document.getElementById('notable-min-weight').valueAsNumber;
+    const minShareIncrease = document.getElementById('notable-min-shares').valueAsNumber;
+    const minWeightIncrease = document.getElementById('notable-min-delta').valueAsNumber;
+    const minShareCut = document.getElementById('notable-min-cut').valueAsNumber;
+    const valid = [minWeight, minShareIncrease, minWeightIncrease, minShareCut]
+        .every(value => Number.isFinite(value) && value >= 0) && minShareCut <= 100;
+    const search = document.getElementById('notable-search').value.trim().toLowerCase();
+    const sector = notableSector;
+    const criteria = {minWeight, minShareIncrease, minWeightIncrease, minShareCut};
+    renderNotableSectorMatrix(searchNotableChanges(globalPeriodQoQData, search), criteria, valid);
+    const matchingChanges = searchNotableChanges(globalPeriodQoQData, search, sector);
+    const summary = document.getElementById('notable-bets-summary');
+    const criteriaText = {
+        opportunities: `New positions ≥${formatPct(minWeight)}; increases also need shares +${formatNum(minShareIncrease)}% and weight +${formatNum(minWeightIncrease)}pp.`,
+        NEW: `New positions ≥${formatPct(minWeight)} of the reported portfolio.`,
+        INCREASED: `Ending weight ≥${formatPct(minWeight)}, shares +${formatNum(minShareIncrease)}% or more, and weight +${formatNum(minWeightIncrease)}pp or more.`,
+        DECREASED: `Previous weight ≥${formatPct(minWeight)} and shares cut by at least ${formatPct(minShareCut)}. Weight can still rise when prices change.`,
+        UNCHANGED: `Unchanged reported shares and ending weight ≥${formatPct(minWeight)}. This is not an AWFI HOLD recommendation.`,
+        CLOSED: `Full exits from positions previously ≥${formatPct(minWeight)} of the reported portfolio.`
+    };
+    summary.textContent = valid
+        ? `${selectedFilingPeriod || 'Selected period'} · ${sector || 'All sectors'} · ${criteriaText[notableAction]}${search ? ` Search: "${search}".` : ''}`
+        : 'Enter non-negative thresholds; the shares-cut threshold must be between 0 and 100%.';
+    document.getElementById('signal-opportunities').setAttribute('aria-pressed', String(notableAction === 'opportunities'));
+    document.getElementById('notable-lanes').classList.toggle('is-focused', notableAction !== 'opportunities');
+
+    for (const [status, {key, badge}] of Object.entries(notableActions)) {
+        const list = document.getElementById(`notable-${key}-list`);
+        const button = document.getElementById(`notable-${key}-toggle`);
+        const sortBy = document.getElementById(`notable-${key}-sort`).value;
+        document.getElementById(`notable-${key}-lane`).hidden = notableAction === 'opportunities'
+            ? !['NEW', 'INCREASED'].includes(status) : notableAction !== status;
+        const bets = valid
+            ? getNotableBets(matchingChanges, criteria, status, sortBy)
+            : [];
+        document.getElementById(`notable-${key}-count`).textContent = valid ? bets.length : '—';
+        const visibleBets = notableBetsExpanded[status] ? bets : bets.slice(0, 5);
+        list.innerHTML = visibleBets.length ? visibleBets.map(move => {
+            const relativeSize = Number.isFinite(move.position_size_vs_normal)
+                ? `${formatNum(move.position_size_vs_normal)}x normal holding`
+                : 'Normal holding size unavailable';
+            const previousWeight = Number.isFinite(move.previous_portfolio_weight)
+                ? formatPct(move.previous_portfolio_weight) : 'Unavailable';
+            const positionValue = status === 'CLOSED' ? move.prev_value : move.value;
+            const reportedValue = Number.isFinite(positionValue)
+                ? `$${formatNum(positionValue)}M ${status === 'CLOSED' ? 'previous' : 'reported'} position` : 'Reported value unavailable';
+            const shareText = status === 'NEW' ? 'Initiated this quarter'
+                : status === 'CLOSED' ? 'Fully exited'
+                : status === 'UNCHANGED' ? 'Shares unchanged'
+                : `Shares <span class="${move.shares_change_pct > 0 ? 'text-green' : 'text-red'}">${move.shares_change_pct > 0 ? '+' : ''}${formatNum(move.shares_change_pct)}%</span>`;
+            const delta = move.portfolio_weight_change;
+            const deltaClass = delta > 0 ? 'text-green' : delta < 0 ? 'text-red' : 'text-muted';
+            const deltaText = Number.isFinite(delta)
+                ? `${delta > 0 ? '+' : ''}${formatNum(delta)}pp` : 'Weight change unavailable';
+            return `
+                <li class="notable-bet">
+                    <div class="notable-bet-identity">
+                        <a class="notable-bet-ticker font-mono" href="/ticker/${encodeURIComponent(move.ticker)}">${escapeHtml(move.ticker)}</a>
+                        <span class="notable-bet-action">${badge}</span>
+                        <a class="notable-bet-manager" href="/investor/${encodeURIComponent(move.cik)}">${escapeHtml(move.manager)}</a>
+                    </div>
+                    <div class="notable-bet-classification" title="Sector and industry reuse cached company profiles, with the local reference snapshot as fallback. Not historical 13F classifications.">
+                        ${escapeHtml(move.sector || 'Unclassified')}${move.industry ? ` · ${escapeHtml(move.industry)}` : ''}
+                    </div>
+                    <div class="notable-bet-evidence">
+                        <strong class="font-mono">${previousWeight} &rarr; ${formatPct(move.portfolio_weight)}</strong>
+                        <strong class="font-mono ${deltaClass}">${deltaText}</strong>
+                    </div>
+                    <div class="notable-bet-context">
+                        <span>${reportedValue}</span>
+                        <span>${shareText}</span>
+                        ${status === 'CLOSED' ? '' : `<span title="Current reported portfolio weight divided by the manager's median positive prior-quarter position weight. Not a return forecast or the sentiment score.">${relativeSize}</span>`}
+                    </div>
+                </li>`;
+        }).join('') : `<li class="stats-loading">${valid ? 'No positions match. Try another action, lower thresholds, or reset filters.' : 'Correct the thresholds above to show positions.'}</li>`;
+        document.getElementById(`notable-${key}-shown`).textContent = valid
+            ? `Showing ${visibleBets.length} of ${bets.length}` : '';
+        button.hidden = bets.length <= 5;
+        button.setAttribute('aria-expanded', String(notableBetsExpanded[status]));
+        button.textContent = notableBetsExpanded[status] ? 'Show fewer' : `View all ${bets.length}`;
     }
 }
 
@@ -5297,7 +5569,10 @@ async function openFilingDetail(accession) {
     body.setAttribute('aria-busy', 'true');
     status.textContent = `Loading filing ${accession}`;
     footer.hidden = true;
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) {
+        document.documentElement.classList.add('filing-detail-open');
+        dialog.showModal();
+    }
 
     try {
         const params = new URLSearchParams({accession});
@@ -5510,6 +5785,11 @@ function formatFilingQuantity(value) {
 function closeFilingDetail() {
     filingDetailAbortController?.abort();
     document.getElementById('filing-detail-dialog')?.close();
+}
+
+function handleFilingDetailClosed() {
+    filingDetailAbortController?.abort();
+    document.documentElement.classList.remove('filing-detail-open');
 }
 
 function closeFilingDetailFromBackdrop(event) {

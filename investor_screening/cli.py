@@ -24,7 +24,7 @@ from .forms import FORM_FAMILIES
 from .quality import coverage_summary, validate_database
 from .integrity import run_integrity_audit, write_integrity_report
 from .npx_votes import build_npx_vote_lake
-from .performance import performance_status, refresh_performance
+from .performance import performance_status, reconcile_performance_source, refresh_performance
 from .screener import build_screening_snapshot
 from .sec_bulk import discover_datasets, download_dataset, import_archive
 
@@ -69,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("init", help="Create or upgrade the DuckDB schema")
+    reconcile = subparsers.add_parser(
+        "reconcile-performance-source",
+        help="Verify frozen filing inputs before migrating a legacy performance fingerprint",
+    )
+    reconcile.add_argument("--run-id", required=True)
 
     list_parser = subparsers.add_parser("list-datasets", help="List official SEC archives")
     list_parser.add_argument("--start-date", type=date.fromisoformat, default=DEFAULT_START_DATE)
@@ -430,6 +435,10 @@ def main() -> int:
             connection.close()
             connection = None
             _print(build_screening_snapshot(args.database))
+        elif args.command == "reconcile-performance-source":
+            connection.close()
+            connection = None
+            _print(reconcile_performance_source(args.run_id, source_path=args.database))
         elif args.command == "refresh-performance":
             connection.close()
             connection = None

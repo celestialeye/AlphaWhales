@@ -37,6 +37,127 @@ from investor_screening.screener import (
     _compatible_performance_rows,
 )
 from investor_screening.performance import _mark_manager_failed
+from investor_screening import performance as performance_module, screener
+
+
+def test_source_fingerprint_ignores_roster_display_and_retains_archived_aliases(tmp_path, monkeypatch):
+    import hashlib
+
+    source = connect_database(tmp_path / "source.duckdb")
+    fund = {
+        "cik": "0000000002", "historical_ciks": ["0000000001"],
+        "manager": "Example", "name": "Example", "group": "Quality Growth",
+    }
+    other = {
+        "cik": "0000000003", "manager": "Other", "name": "Other",
+        "group": "Quality Growth",
+    }
+    monkeypatch.setattr(screener, "ROSTER_PATH", tmp_path / "roster.json")
+    monkeypatch.setattr(screener, "FUND_MANAGERS", [fund])
+    original = screener.compute_source_fingerprint(source)
+    monkeypatch.setattr(screener, "FUND_MANAGERS", [other, {**fund, "manager": "Renamed"}])
+    assert screener.compute_source_fingerprint(source) == original
+    (tmp_path / "roster_archive.json").write_text(json.dumps([fund]))
+    monkeypatch.setattr(screener, "FUND_MANAGERS", [other])
+    assert screener.compute_source_fingerprint(source) == original
+    assert "'0000000001','0000000002',NULL" in screener._alias_values()
+    (tmp_path / "roster_archive.json").write_text("[]")
+    assert screener.compute_source_fingerprint(source) != original
+    source.execute(
+        "INSERT INTO datasets (dataset_id,local_path,source_sha256,status) VALUES ('new','x',?,'IMPORTED')",
+        [hashlib.sha256(b"changed").hexdigest()],
+    )
+    assert screener.compute_source_fingerprint(source) != original
+    source.close()
+
+
+def test_legacy_fingerprint_migration_requires_exact_source_inputs(tmp_path, monkeypatch):
+    import hashlib
+
+    source = connect_database(tmp_path / "source.duckdb")
+    monkeypatch.setattr(screener, "ROSTER_PATH", tmp_path / "roster.json")
+    monkeypatch.setattr(screener, "FUND_MANAGERS", [
+        {"cik": "0000000001", "manager": "Example"},
+    ])
+    legacy = hashlib.sha256(json.dumps({
+        "datasets": [], "methodology": "screening-source-v2",
+        "fund_pattern": screener.FUND_LIKE_PATTERN,
+        "canonical_aliases": screener._alias_values(legacy=True),
+    }, sort_keys=True, default=str).encode()).hexdigest()
+    path = tmp_path / "performance.duckdb"
+    store = duckdb.connect(str(path))
+    store.execute("CREATE TABLE performance_runs (run_id VARCHAR, screening_source_fingerprint VARCHAR)")
+    store.executemany("INSERT INTO performance_runs VALUES (?,?)", [
+        ("compatible", legacy), ("different-source", "unknown"),
+    ])
+    store.close()
+    assert screener._upgrade_legacy_performance_fingerprints(source, path) == 1
+    assert screener._upgrade_legacy_performance_fingerprints(source, path) == 0
+    store = duckdb.connect(str(path), read_only=True)
+    fingerprints = dict(store.execute("SELECT * FROM performance_runs").fetchall())
+    assert fingerprints["compatible"] == screener.compute_source_fingerprint(source)
+    assert fingerprints["different-source"] == "unknown"
+    assert store.execute("SELECT previous_fingerprint FROM performance_source_migrations").fetchone()[0] == legacy
+    assert screener._upgrade_legacy_performance_fingerprints(source, path) == 0
+    store.close()
+    source.close()
+
+
+def test_reconciliation_rejects_changed_positions_before_migrating(tmp_path, monkeypatch):
+    source_path = tmp_path / "source.duckdb"
+    duckdb.connect(str(source_path)).close()
+    path = tmp_path / "performance.duckdb"
+    store = connect_performance_store(path)
+    store.execute(
+        """
+        INSERT INTO performance_runs VALUES (
+            'run','COMPLETE',?, ?, ?, 'old','generation','source',
+            DATE '2025-12-31', DATE '2025-12-31',5,0,0,1,now(),now()
+        );
+        """,
+        [METHODOLOGY_VERSION, PERFORMANCE_LABEL, PERFORMANCE_DISCLAIMER],
+    )
+    store.execute("INSERT INTO performance_run_universe VALUES ('run','1','Example',100)")
+    store.execute(
+        "INSERT INTO performance_manager_state VALUES ('run','1','Example','COMPLETE',1,NULL,now(),now(),now())"
+    )
+    store.execute(
+        """
+        INSERT INTO performance_events VALUES (
+            'run','1',0,'2025-06-30','2025-08-14','2025-08-15','a','["a"]',100,1
+        )
+        """
+    )
+    store.execute("INSERT INTO performance_event_positions VALUES ('run','1',0,'CUSIP','X','X',100)")
+    store.close()
+    monkeypatch.setattr(performance_module, "compute_source_fingerprint", lambda source: "new")
+    monkeypatch.setattr(performance_module, "_load_run_prices", lambda *args, **kwargs: {
+        "SPY": pd.Series([100, 110], index=[date(2025, 8, 15), date(2025, 12, 31)])
+    })
+    event = PortfolioEvent(
+        "1", "Example", date(2025, 6, 30), date(2025, 8, 14),
+        "a", ("a",), (EligiblePosition("CUSIP", 200),),
+    )
+    monkeypatch.setattr(performance_module, "reconstruct_filing_chronology", lambda *args, **kwargs: [event])
+    with pytest.raises(ValueError, match="Filing inputs changed"):
+        performance_module.reconcile_performance_source(
+            "run", source_path=source_path, performance_path=path
+        )
+    store = duckdb.connect(str(path))
+    assert store.execute("SELECT screening_source_fingerprint FROM performance_runs").fetchone()[0] == "old"
+    store.close()
+    event = PortfolioEvent(
+        "1", "Example", date(2025, 6, 30), date(2025, 8, 14),
+        "a", ("a",), (EligiblePosition("CUSIP", 100),),
+    )
+    result = performance_module.reconcile_performance_source(
+        "run", source_path=source_path, performance_path=path
+    )
+    assert result == {"run_id": "run", "status": "RECONCILED", "managers": 1, "events": 1}
+    store = duckdb.connect(str(path), read_only=True)
+    assert store.execute("SELECT screening_source_fingerprint FROM performance_runs").fetchone()[0] == "new"
+    assert store.execute("SELECT reported_value FROM performance_event_positions").fetchone()[0] == 100
+    store.close()
 
 
 def _add_filing(

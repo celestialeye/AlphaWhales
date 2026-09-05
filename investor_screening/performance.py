@@ -18,11 +18,13 @@ import duckdb
 import pandas as pd
 from openbb_core.provider.utils.errors import EmptyDataError, OpenBBError
 
-from config import FUND_MANAGERS
+from config import FUND_MANAGERS, ROSTER_PATH
+from roster_store import canonical_cik_aliases
 from .database import DEFAULT_DATABASE_PATH, DEFAULT_DATA_DIR
 from .screener import (
     DEFAULT_SNAPSHOT_POINTER,
     FUND_LIKE_PATTERN,
+    _record_performance_source_migration,
     compute_source_fingerprint,
     resolve_snapshot_path,
 )
@@ -544,16 +546,17 @@ def _source_ciks_by_canonical(
     selected = {_cik_identity(manager.cik): manager.cik for manager in managers}
     canonical_by_source: dict[str, str] = dict(selected)
     source_values = {manager.cik for manager in managers}
-    for fund in FUND_MANAGERS:
-        canonical_identity = _cik_identity(fund["cik"])
+    for source, canonical_cik in canonical_cik_aliases(
+        FUND_MANAGERS, ROSTER_PATH.with_name("roster_archive.json")
+    ).items():
+        canonical_identity = _cik_identity(canonical_cik)
         if canonical_identity not in selected:
             continue
         canonical = selected[canonical_identity]
-        for source in [fund["cik"], *fund.get("historical_ciks", [])]:
-            canonical_by_source[_cik_identity(source)] = canonical
-            source_values.update(
-                {str(source), str(source).lstrip("0") or "0", str(source).zfill(10)}
-            )
+        canonical_by_source[_cik_identity(source)] = canonical
+        source_values.update(
+            {str(source), str(source).lstrip("0") or "0", str(source).zfill(10)}
+        )
     for manager in managers:
         source_values.update(
             {
@@ -1574,6 +1577,123 @@ def _select_events_for_window(
         if calculation_start <= event.filing_date <= requested_as_of
     )
     return selected
+
+
+def reconcile_performance_source(
+    run_id: str,
+    *,
+    source_path: str | Path = DEFAULT_DATABASE_PATH,
+    performance_path: str | Path = DEFAULT_PERFORMANCE_PATH,
+) -> dict:
+    """Verify frozen filing inputs before rebinding an old run; never fetch prices."""
+    source = duckdb.connect(str(Path(source_path).resolve()), read_only=True)
+    store = connect_performance_store(performance_path)
+    try:
+        run = store.execute(
+            """
+            SELECT status, methodology_version, screening_source_fingerprint,
+                   requested_as_of, latest_end_date, window_years, manager_count
+            FROM performance_runs WHERE run_id = ?
+            """,
+            [run_id],
+        ).fetchone()
+        if not run or run[0] != "COMPLETE" or run[1] != METHODOLOGY_VERSION:
+            raise ValueError("Reconciliation requires a complete current-methodology run")
+        fingerprint = compute_source_fingerprint(source)
+        if run[2] == fingerprint:
+            return {"run_id": run_id, "status": "CURRENT"}
+        managers = [
+            ManagerUniverseItem(str(cik), str(name), float(size))
+            for cik, name, size in store.execute(
+                """
+                SELECT cik, manager_name, median_reported_value_4q
+                FROM performance_run_universe WHERE run_id = ? ORDER BY cik
+                """,
+                [run_id],
+            ).fetchall()
+        ]
+        completed = store.execute(
+            """
+            SELECT count(*) FROM performance_manager_state
+            WHERE run_id = ? AND status = 'COMPLETE'
+            """,
+            [run_id],
+        ).fetchone()[0]
+        if not managers or len(managers) != run[6] or completed != len(managers):
+            raise ValueError("Reconciliation requires all frozen manager checkpoints")
+        prices = _load_run_prices(store, run_id=run_id, symbols=["SPY"])
+        if "SPY" not in prices:
+            raise ValueError("Frozen SPY sessions are required for reconciliation")
+        sessions = list(prices["SPY"].index)
+        calculation_start = _subtract_years(run[3], run[5])
+        verified_events = 0
+        for start in range(0, len(managers), 100):
+            batch = managers[start:start + 100]
+            raw = reconstruct_filing_chronology(
+                source, batch,
+                minimum_filing_date=calculation_start - timedelta(days=400),
+                maximum_filing_date=run[3],
+            )
+            by_manager = defaultdict(list)
+            for event in raw:
+                by_manager[event.cik].append(event)
+            for manager in batch:
+                selected = _select_events_for_window(
+                    by_manager[manager.cik],
+                    calculation_start=calculation_start, requested_as_of=run[3],
+                )
+                events = [
+                    event for event in assign_and_consolidate_execution_dates(selected, sessions)
+                    if event.execution_date <= run[4]
+                ]
+                expected = [
+                    (
+                        index, event.report_period, event.filing_date,
+                        event.execution_date, event.triggering_accession,
+                        list(event.effective_accessions), event.eligible_value,
+                    )
+                    for index, event in enumerate(events)
+                ]
+                stored = store.execute(
+                    """
+                    SELECT event_index, report_period, filing_date, execution_date,
+                           triggering_accession, effective_accessions, eligible_value
+                    FROM performance_events WHERE run_id = ? AND cik = ?
+                    ORDER BY event_index
+                    """,
+                    [run_id, manager.cik],
+                ).fetchall()
+                stored = [(*row[:5], json.loads(row[5]), row[6]) for row in stored]
+                expected_positions = sorted(
+                    (index, position.cusip or "", position.reported_value)
+                    for index, event in enumerate(events)
+                    for position in event.positions
+                )
+                stored_positions = store.execute(
+                    """
+                    SELECT event_index, coalesce(cusip, ''), reported_value
+                    FROM performance_event_positions WHERE run_id = ? AND cik = ?
+                    ORDER BY event_index, coalesce(cusip, ''), reported_value
+                    """,
+                    [run_id, manager.cik],
+                ).fetchall()
+                if expected != stored or expected_positions != stored_positions:
+                    raise ValueError(
+                        f"Filing inputs changed for manager {manager.cik}; "
+                        "performance fingerprint was not migrated"
+                    )
+                verified_events += len(events)
+        _record_performance_source_migration(
+            store, [(run_id, run[2])], fingerprint,
+            f"Reconstructed {verified_events} events and all positions for {len(managers)} managers",
+        )
+        return {
+            "run_id": run_id, "status": "RECONCILED",
+            "managers": len(managers), "events": verified_events,
+        }
+    finally:
+        store.close()
+        source.close()
 
 
 def _manager_state_counts(

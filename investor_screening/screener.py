@@ -9,9 +9,10 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 
-from config import FUND_MANAGERS
-from roster_store import normalize_cik
+from config import FUND_MANAGERS, ROSTER_PATH
+from roster_store import canonical_cik_aliases, normalize_cik
 from .database import DEFAULT_DATABASE_PATH
 
 DEFAULT_SNAPSHOT_POINTER = (
@@ -198,18 +199,27 @@ def _sql_string(value: str) -> str:
     return value.replace("'", "''")
 
 
-def _alias_values() -> str:
+def _alias_values(*, legacy=False) -> str:
     rows = []
     for fund in FUND_MANAGERS:
         roster_name = fund["manager"]
         rows.append((fund["cik"], fund["cik"], roster_name))
+        if legacy:
+            rows.extend(
+                (historical_cik, fund["cik"], roster_name)
+                for historical_cik in fund.get("historical_ciks", [])
+            )
+    if not legacy:
+        names = {fund["cik"]: fund["manager"] for fund in FUND_MANAGERS}
         rows.extend(
-            (historical_cik, fund["cik"], roster_name)
-            for historical_cik in fund.get("historical_ciks", [])
+            (source, canonical, names.get(canonical))
+            for source, canonical in canonical_cik_aliases(
+                FUND_MANAGERS, ROSTER_PATH.with_name("roster_archive.json")
+            ).items()
         )
     return ", ".join(
         f"('{_sql_string(source)}','{_sql_string(canonical)}',"
-        f"'{_sql_string(name)}')"
+        + (f"'{_sql_string(name)}')" if name is not None else "NULL)")
         for source, canonical, name in rows
     )
 
@@ -227,13 +237,117 @@ def compute_source_fingerprint(
     ).fetchall()
     payload = {
         "datasets": datasets,
-        "methodology": "screening-source-v2",
+        "methodology": "screening-source-v3",
         "fund_pattern": FUND_LIKE_PATTERN,
-        "canonical_aliases": _alias_values(),
+        "canonical_aliases": canonical_cik_aliases(
+            FUND_MANAGERS, ROSTER_PATH.with_name("roster_archive.json")
+        ),
     }
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     ).hexdigest()
+
+
+def _upgrade_legacy_performance_fingerprints(source, performance_path):
+    """Migrate only legacy hashes reproducible from the exact current inputs."""
+    path = Path(performance_path).resolve()
+    if not path.is_file():
+        return 0
+    active_aliases = {
+        historical: fund["cik"]
+        for fund in FUND_MANAGERS
+        for historical in fund.get("historical_ciks", [])
+    }
+    if active_aliases != canonical_cik_aliases(
+        FUND_MANAGERS, ROSTER_PATH.with_name("roster_archive.json")
+    ):
+        return 0
+    datasets = source.execute(
+        """
+        SELECT dataset_id, source_sha256, submission_count, holdings_count
+        FROM datasets WHERE status = 'IMPORTED' ORDER BY dataset_id
+        """
+    ).fetchall()
+    legacy_fingerprints = []
+    for version, alias_key in (
+        ("screening-v1", "aliases"),
+        ("screening-source-v2", "canonical_aliases"),
+    ):
+        payload = {
+            "datasets": datasets,
+            "methodology": version,
+            "fund_pattern": FUND_LIKE_PATTERN,
+            alias_key: _alias_values(legacy=True),
+        }
+        legacy_fingerprints.append(hashlib.sha256(
+            json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest())
+    fingerprint = compute_source_fingerprint(source)
+    performance = duckdb.connect(str(path), read_only=True)
+    try:
+        if not performance.execute(
+            """
+            SELECT 1 FROM information_schema.tables
+            WHERE table_name = 'performance_runs'
+            """
+        ).fetchone():
+            return 0
+        rows = performance.execute(
+            """
+            SELECT run_id, screening_source_fingerprint
+            FROM performance_runs
+            WHERE screening_source_fingerprint IN (?, ?)
+            """,
+            legacy_fingerprints,
+        ).fetchall()
+    finally:
+        performance.close()
+    if not rows:
+        return 0
+    performance = duckdb.connect(str(path))
+    try:
+        _record_performance_source_migration(
+            performance, rows, fingerprint, "Exact legacy manifest and aliases"
+        )
+        return len(rows)
+    finally:
+        performance.close()
+
+
+def _record_performance_source_migration(performance, rows, fingerprint, verification):
+    performance.execute("BEGIN TRANSACTION")
+    try:
+        performance.execute(
+            """
+            CREATE TABLE IF NOT EXISTS performance_source_migrations (
+                run_id VARCHAR NOT NULL,
+                previous_fingerprint VARCHAR NOT NULL,
+                source_fingerprint VARCHAR NOT NULL,
+                verification VARCHAR NOT NULL,
+                migrated_at TIMESTAMPTZ NOT NULL DEFAULT current_timestamp,
+                PRIMARY KEY (run_id, previous_fingerprint)
+            )
+            """
+        )
+        performance.executemany(
+            """
+            INSERT INTO performance_source_migrations
+                (run_id, previous_fingerprint, source_fingerprint, verification)
+            VALUES (?, ?, ?, ?)
+            """,
+            [(run_id, old, fingerprint, verification) for run_id, old in rows],
+        )
+        performance.executemany(
+            """
+            UPDATE performance_runs SET screening_source_fingerprint = ?
+            WHERE run_id = ?
+            """,
+            [(fingerprint, run_id) for run_id, _ in rows],
+        )
+        performance.execute("COMMIT")
+    except Exception:
+        performance.execute("ROLLBACK")
+        raise
 
 
 def resolve_snapshot_path(
@@ -463,6 +577,7 @@ def build_screening_snapshot(
     staging_file = snapshot_file.with_suffix(".building.duckdb")
     snapshot = duckdb.connect(str(staging_file))
     try:
+        _upgrade_legacy_performance_fingerprints(source, performance_path)
         source.execute("PRAGMA disable_progress_bar")
         snapshot.execute("PRAGMA disable_progress_bar")
         source.execute("SET preserve_insertion_order=false")
@@ -882,50 +997,25 @@ def build_screening_snapshot(
             """,
             [report_period, datetime.now(timezone.utc), source_fingerprint],
         )
-        manager_insert = (
-            "INSERT INTO manager_metrics VALUES ("
-            + ",".join("?" for _ in range(16))
-            + ")"
-        )
-        for start in range(0, len(manager_rows), 500):
-            snapshot.executemany(
-                manager_insert,
-                manager_rows[start:start + 500],
-            )
-        for start in range(0, len(position_rows), 500):
-            snapshot.executemany(
-                "INSERT INTO durable_positions VALUES (?,?,?,?,?,?,?,?,?,?)",
-                position_rows[start:start + 500],
-            )
-        for start in range(0, len(position_quarter_rows), 1000):
-            snapshot.executemany(
-                "INSERT INTO manager_position_quarters VALUES ("
-                + ",".join("?" for _ in range(12))
-                + ")",
-                position_quarter_rows[start:start + 1000],
-            )
-        for start in range(0, len(concentration_rows), 500):
-            snapshot.executemany(
-                "INSERT INTO manager_quarter_concentration VALUES (?,?,?)",
-                concentration_rows[start:start + 500],
-            )
-        if performance_metadata_rows:
-            snapshot.executemany(
-                "INSERT INTO performance_run_metadata VALUES (?,?,?,?,?,?,?,?,?,?)",
-                performance_metadata_rows,
-            )
-        for start in range(0, len(performance_summary_rows), 500):
-            snapshot.executemany(
-                "INSERT INTO manager_performance VALUES ("
-                + ",".join("?" for _ in range(25))
-                + ")",
-                performance_summary_rows[start:start + 500],
-            )
-        for start in range(0, len(performance_monthly_rows), 1000):
-            snapshot.executemany(
-                "INSERT INTO manager_performance_monthly VALUES (?,?,?,?,?,?,?)",
-                performance_monthly_rows[start:start + 1000],
-            )
+        for table_name, rows in (
+            ("manager_metrics", manager_rows),
+            ("durable_positions", position_rows),
+            ("manager_position_quarters", position_quarter_rows),
+            ("manager_quarter_concentration", concentration_rows),
+            ("performance_run_metadata", performance_metadata_rows),
+            ("manager_performance", performance_summary_rows),
+            ("manager_performance_monthly", performance_monthly_rows),
+        ):
+            if rows:
+                columns = [
+                    row[1] for row in snapshot.execute(
+                        f"PRAGMA table_info('{table_name}')"
+                    ).fetchall()
+                ]
+                snapshot.append(
+                    table_name,
+                    pd.DataFrame.from_records(rows, columns=columns),
+                )
         snapshot.execute("COMMIT")
 
         default_count = snapshot.execute(

@@ -209,6 +209,21 @@ failed or missing work is reconsidered. Do not delete the lock file to break a
 live run. The operating-system lock, not the diagnostic text in the file, is
 authoritative.
 
+An HTTP 429 stops the remaining discovery and defers cache refreshes; the
+process observes a ten-minute SEC cooldown rather than continuing requests.
+Transient discovery or parsing errors remain retryable errors, not confirmed
+missing filings, and incomplete historical builds are not persisted as ready.
+
+Historical holdings use filing chronology: an original or explicit restatement
+replaces the period's base, and subsequent `NEW HOLDINGS` amendments add to it.
+The cache records all effective accessions. Unknown amendment types or missing
+bases fail explicitly rather than selecting a potentially incomplete filing
+by its row count.
+
+Publication manifests record the last changed generation per manager and
+historical period. Readers apply only unseen changes, including changes missed
+between polls; no-change runs do not repeatedly delete rebuilt history.
+
 ## Loading behavior
 
 ### QoQ period selector
@@ -335,6 +350,22 @@ python -m investor_screening.cli refresh-screening
 # Run the full filesystem/hash/row-count/coverage integrity audit
 python -m investor_screening.cli audit-integrity
 ```
+
+Performance compatibility excludes roster ordering, display names, and
+membership. Historical CIK mappings are retained through `roster_archive.json`;
+actual identity or source changes still invalidate compatibility. Snapshot
+publication can migrate a legacy fingerprint only when its exact source
+manifest and aliases can be reproduced, retaining a migration audit record.
+For other legacy fingerprints, reconcile the frozen filing inputs offline:
+
+```powershell
+python -m investor_screening.cli reconcile-performance-source --run-id <run-id>
+python -m investor_screening.cli refresh-screening
+```
+
+Reconciliation compares every stored event and eligible position with the
+current archive over the run's original window and frozen trading calendar.
+It refuses changed inputs. It neither fetches prices nor recalculates returns.
 
 Set a real SEC contact identity before network operations:
 

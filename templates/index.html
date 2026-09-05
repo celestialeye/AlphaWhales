@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}QoQ Changes Across The Board - Alpha Whales Intelligence{% endblock %}
+{% block title %}QoQ Signal Desk - Alpha Whales Intelligence{% endblock %}
 
 {% block content %}
 <div class="period-loader" id="period-loader" hidden aria-live="polite" aria-busy="true">
@@ -24,15 +24,15 @@
     </div>
 </div>
 
-<!-- Actionable Signal Bar -->
-<div class="kpi-grid" id="kpi-banner">
+{% set context_kpis %}
+<div class="kpi-grid mt-2" id="kpi-banner" data-overview-panel="positioning" hidden>
     <a class="kpi-card kpi-signal-card signal-buy" id="signal-consensus-buy" href="/ticker">
         <div class="kpi-label">CONSENSUS BUY</div>
         <div class="kpi-value font-mono">--</div>
         <div class="kpi-sub">Finding the broadest accumulation...</div>
     </a>
     <a class="kpi-card kpi-signal-card signal-inflow" id="signal-dollar-inflow" href="/ticker">
-        <div class="kpi-label">BIGGEST NET $ INFLOW</div>
+        <div class="kpi-label">NET REPORTED VALUE INCREASE</div>
         <div class="kpi-value font-mono">--</div>
         <div class="kpi-sub">Finding the largest reported value increase...</div>
     </a>
@@ -42,7 +42,7 @@
         <div class="kpi-sub">Finding the broadest reduction...</div>
     </a>
     <a class="kpi-card kpi-signal-card signal-outflow" id="signal-dollar-outflow" href="/ticker">
-        <div class="kpi-label">BIGGEST NET $ OUTFLOW</div>
+        <div class="kpi-label">NET REPORTED VALUE REDUCTION</div>
         <div class="kpi-value font-mono">--</div>
         <div class="kpi-sub">Finding the largest reported value reduction...</div>
     </a>
@@ -62,25 +62,20 @@
         <div class="kpi-sub">Finding a high-conviction value setup...</div>
     </a>
 </div>
+{% endset %}
 
 <!-- Cross-Portfolio Intelligence -->
-<section class="portfolio-stats-section mt-4" aria-labelledby="portfolio-stats-title">
+<section class="portfolio-stats-section qoq-workspace" aria-labelledby="portfolio-stats-title">
     <div class="section-header portfolio-stats-heading">
         <div>
-            <h2 id="portfolio-stats-title">Superinvestor Portfolio Stats</h2>
-            <p class="section-sub" id="overview-tab-description">Consensus ownership, conviction, market context, and the quarter's broadest signals.</p>
+            <span class="stats-eyebrow">FOLLOW THE COMMITMENT, NOT JUST THE CROWD</span>
+            <h2 id="portfolio-stats-title">QoQ Signal Desk</h2>
+            <p class="section-sub" id="overview-tab-description">Find meaningful buys, build-ups, reductions, unchanged holdings, and exits.</p>
         </div>
         <div class="filing-period-control">
             <label for="filing-period-select">Filing period</label>
             <select id="filing-period-select" onchange="changeFilingPeriod(this.value)" disabled>
                 <option>Loading periods...</option>
-            </select>
-            <label for="awfi-horizon-select">AWFI horizon</label>
-            <select id="awfi-horizon-select" onchange="changeAwfiHorizon(this.value)">
-                <option value="126">6 months</option>
-                <option value="252" selected>12 months</option>
-                <option value="378">18 months</option>
-                <option value="504">24 months</option>
             </select>
             <span id="filing-period-status">Latest period loads by default</span>
         </div>
@@ -91,20 +86,20 @@
             <button class="overview-tab is-active" id="overview-tab-overview" type="button" role="tab"
                     aria-selected="true" tabindex="0" data-overview-tab="overview"
                     onclick="switchOverviewTab('overview')">
-                <span>Overview</span>
-                <small>Consensus &amp; market</small>
+                <span>Signals</span>
+                <small>What changed?</small>
             </button>
             <button class="overview-tab" id="overview-tab-sentiment" type="button" role="tab"
                     aria-selected="false" tabindex="-1" data-overview-tab="sentiment"
                     onclick="switchOverviewTab('sentiment')">
                 <span>AWFI</span>
-                <small>Forward index</small>
+                <small>6–24 month research</small>
             </button>
             <button class="overview-tab" id="overview-tab-positioning" type="button" role="tab"
                     aria-selected="false" tabindex="-1" data-overview-tab="positioning"
                     onclick="switchOverviewTab('positioning')">
-                <span>Positioning</span>
-                <small>Buys &amp; sells</small>
+                <span>Context</span>
+                <small>Consensus &amp; market</small>
             </button>
             <button class="overview-tab" id="overview-tab-managers" type="button" role="tab"
                     aria-selected="false" tabindex="-1" data-overview-tab="managers"
@@ -115,14 +110,126 @@
             <button class="overview-tab" id="overview-tab-changes" type="button" role="tab"
                     aria-selected="false" tabindex="-1" data-overview-tab="changes"
                     onclick="switchOverviewTab('changes')">
-                <span>All Changes</span>
-                <small>Filter &amp; export</small>
+                <span>Changes</span>
+                <small>Full log &amp; export</small>
             </button>
         </div>
     </div>
 
+    <article class="stats-card notable-bets mt-2" id="notable-bets" data-overview-panel="overview" aria-labelledby="notable-bets-title">
+        <div class="stats-card-header">
+            <div>
+                <span class="stats-eyebrow">REPORTED MANAGER ACTIONS</span>
+                <h3 id="notable-bets-title">Sector &times; Action</h3>
+                <p class="section-sub">Find where managers are acting. Select a sector and action to inspect the positions below.</p>
+            </div>
+        </div>
+        {% set signal_lanes = [
+            ('NEW', 'new', 'Buy', 'Meaningful initiations', 'New positions, ranked by reported position value by default.'),
+            ('INCREASED', 'adds', 'Increase', 'Major build-ups', 'Share growth plus portfolio-weight growth, ranked by weight added.'),
+            ('DECREASED', 'cuts', 'Decrease', 'Meaningful reductions', 'Share cuts to previously meaningful positions. Largest share cuts rank first by default.'),
+            ('UNCHANGED', 'holds', 'Hold', 'Unchanged share holdings', 'No reported share-count change. Ending weight ranks first by default. Not an endorsement to hold.'),
+            ('CLOSED', 'exits', 'Exit', 'Meaningful exits', 'Fully closed positions. Previous portfolio weight ranks first by default.')
+        ] %}
+        <div class="signal-desk-toolbar">
+            <button type="button" class="btn btn-outline" id="signal-opportunities" aria-pressed="true"
+                    aria-controls="notable-lanes" onclick="selectNotableAction('opportunities')">Buy + increase</button>
+            <label class="signal-desk-search" for="notable-search">
+                <span>Find a ticker or manager</span>
+                <input id="notable-search" type="search" placeholder="e.g. MU, INTC, Laffont"
+                       title="Exact ticker matches take priority; otherwise searches ticker, company, manager, and fund."
+                       oninput="renderNotableBets(true)">
+            </label>
+            <button type="button" class="btn btn-outline" onclick="resetNotableFilters()">Reset filters</button>
+        </div>
+        <p class="signal-matrix-legend" id="signal-matrix-legend"><strong>Notable / reported positions.</strong> Counts reflect search and significance thresholds, not recommendations. Click a count to filter details; click a sector name to keep the current action. Hold means unchanged shares.</p>
+        <div class="signal-matrix-wrap" tabindex="0" role="region" aria-label="Scrollable sector by action matrix">
+            <table class="signal-matrix" aria-describedby="signal-matrix-legend">
+                <thead>
+                    <tr>
+                        <th scope="col">Sector</th>
+                        {% for status, key, label, title, description in signal_lanes %}
+                        <th scope="col" class="signal-tone-{{ key }}" data-signal-column="{{ status }}">{{ label }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody id="signal-matrix-body" onclick="selectNotableMatrixCell(event)">
+                    <tr><td colspan="6" class="stats-loading">Loading sector activity...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="notable-bets-summary" id="notable-bets-summary" aria-live="polite">Loading selected-period commitments...</p>
+        <details class="notable-bets-criteria">
+            <summary>What qualifies? Adjust thresholds</summary>
+            <div class="notable-bets-inputs">
+                <label for="notable-min-weight">Min position weight (%)
+                    <input id="notable-min-weight" type="number" min="0" step="any" value="2" required oninput="renderNotableBets(true)">
+                </label>
+                <label for="notable-min-shares">Build-up: min shares increase (%)
+                    <input id="notable-min-shares" type="number" min="0" step="any" value="50" required oninput="renderNotableBets(true)">
+                </label>
+                <label for="notable-min-delta">Build-up: min weight increase (pp)
+                    <input id="notable-min-delta" type="number" min="0" step="any" value="1" required oninput="renderNotableBets(true)">
+                </label>
+                <label for="notable-min-cut">Decrease: min shares cut (%)
+                    <input id="notable-min-cut" type="number" min="0" max="100" step="any" value="25" required oninput="renderNotableBets(true)">
+                </label>
+            </div>
+            <p class="notable-bets-caveat">Buy, increase, and hold use ending weight. Decrease and exit use previous weight so a sold-down position is not hidden. Decreases need a share cut, not a fall in reported value. Hold means unchanged shares only; missing filings never count as holds or exits.</p>
+        </details>
+        <div class="notable-bets-lanes" id="notable-lanes">
+            {% for status, key, label, title, description in signal_lanes %}
+            <section class="notable-bets-lane signal-tone-{{ key }}" id="notable-{{ key }}-lane"
+                     aria-labelledby="notable-{{ key }}-title" {% if status not in ['NEW', 'INCREASED'] %}hidden{% endif %}>
+                <div class="notable-lane-heading">
+                    <h4 id="notable-{{ key }}-title">{{ title }} <span id="notable-{{ key }}-count">--</span></h4>
+                    <p>{{ description }}</p>
+                    <label for="notable-{{ key }}-sort">Rank by
+                        <select id="notable-{{ key }}-sort" onchange="renderNotableBets(true)">
+                            {% if status == 'INCREASED' %}
+                            <option value="portfolio_weight_change_raw">Portfolio weight added (pp)</option>
+                            {% elif status == 'DECREASED' %}
+                            <option value="shares_change_pct">Shares cut (%)</option>
+                            {% endif %}
+                            {% if status in ['DECREASED', 'CLOSED'] %}
+                            <option value="previous_portfolio_weight">Previous portfolio weight</option>
+                            <option value="prev_value">Previous reported position ($)</option>
+                            {% else %}
+                            {% if status == 'UNCHANGED' %}
+                            <option value="portfolio_weight">Ending portfolio weight</option>
+                            <option value="value">Reported position ($)</option>
+                            {% else %}
+                            <option value="value">Reported position ($)</option>
+                            <option value="portfolio_weight">Ending portfolio weight</option>
+                            {% endif %}
+                            <option value="position_size_vs_normal">Size vs normal holding</option>
+                            {% endif %}
+                        </select>
+                    </label>
+                </div>
+                <ol class="notable-bets-list" id="notable-{{ key }}-list">
+                    <li class="stats-loading">Loading positions...</li>
+                </ol>
+                <div class="notable-lane-footer">
+                    <span id="notable-{{ key }}-shown" aria-live="polite"></span>
+                    <button type="button" class="btn btn-sm btn-outline" id="notable-{{ key }}-toggle"
+                            aria-controls="notable-{{ key }}-list" aria-expanded="false" onclick="toggleNotableBets('{{ status }}')" hidden>View all</button>
+                </div>
+            </section>
+            {% endfor %}
+        </div>
+        <div class="signal-desk-next">
+            <span>Next: open a ticker or manager above, or explore</span>
+            <button type="button" onclick="switchOverviewTab('sentiment')">AWFI research &rarr;</button>
+            <button type="button" onclick="switchOverviewTab('managers')">Manager activity &rarr;</button>
+            <button type="button" onclick="switchOverviewTab('changes')">Full change log &rarr;</button>
+        </div>
+        <p class="notable-bets-caveat">Discovery filters, not return forecasts. Portfolio-weight changes also reflect prices and other holdings. Dollars are reported positions, not cash spent or received. Normal size uses the manager's median positive prior-quarter position weight. Sector and industry reuse cached company profiles, then the local reference snapshot; neither is a historical classification. Missing coverage is Unclassified. Sentiment and AWFI are separate research measures.</p>
+    </article>
+
+    {{ context_kpis }}
     <div class="portfolio-stats-grid mt-2" id="portfolio-stats-grid">
-        <article class="stats-card" data-overview-panel="overview">
+        <article class="stats-card" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">CONSENSUS</span>
@@ -149,7 +256,7 @@
             </div>
         </article>
 
-        <article class="stats-card" data-overview-panel="overview">
+        <article class="stats-card" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">HIGHEST CONVICTION</span>
@@ -162,7 +269,7 @@
             </ol>
         </article>
 
-        <article class="stats-card stats-card-wide" data-overview-panel="overview">
+        <article class="stats-card stats-card-wide" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">CONCENTRATED POSITIONS</span>
@@ -188,6 +295,15 @@
         </article>
 
         <article class="stats-card stats-card-wide awfi-status-card" data-overview-panel="sentiment" hidden>
+            <div class="filing-period-control awfi-period-control">
+                <label for="awfi-horizon-select">Research horizon</label>
+                <select id="awfi-horizon-select" onchange="changeAwfiHorizon(this.value)">
+                    <option value="126">6 months</option>
+                    <option value="252" selected>12 months</option>
+                    <option value="378">18 months</option>
+                    <option value="504">24 months</option>
+                </select>
+            </div>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">RESEARCH SNAPSHOT</span>
@@ -227,8 +343,8 @@
         <article class="stats-card" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
-                    <span class="stats-eyebrow">DOLLAR ACCUMULATION</span>
-                    <h3>Top 10 Buys This Quarter</h3>
+                    <span class="stats-eyebrow">REPORTED VALUE, NOT CASH FLOW</span>
+                    <h3>Largest Reported Increases Among Buyers</h3>
                 </div>
                 <span class="stats-icon stats-icon-green">$</span>
             </div>
@@ -241,7 +357,7 @@
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">PORTFOLIO WEIGHT</span>
-                    <h3>Top 10 Buys This Quarter by %</h3>
+                    <h3>Largest Ending Positions Among Buyers</h3>
                 </div>
                 <span class="stats-icon stats-icon-green">%</span>
             </div>
@@ -276,7 +392,7 @@
             </ol>
         </article>
 
-        <article class="stats-card stats-card-wide" data-overview-panel="overview">
+        <article class="stats-card stats-card-wide" data-overview-panel="positioning" hidden>
             <div class="stats-card-header">
                 <div>
                     <span class="stats-eyebrow">OPENBB MARKET SIGNAL</span>
@@ -305,7 +421,7 @@
     </div>
 
 <!-- Visual Insights Charts -->
-<div class="grid chart-grid mt-4" data-overview-panel="overview">
+<div class="grid chart-grid mt-4" data-overview-panel="positioning" hidden>
     <div class="card chart-card">
         <div class="card-header">
             <h3>QoQ Share Actions by Investment Style</h3>
@@ -354,7 +470,7 @@
 <div class="section-header mt-4" data-overview-panel="changes" hidden>
     <div>
         <h2>Quarter-Over-Quarter Position Changes</h2>
-        <p class="section-sub">All institutional buys, sells, entries, and exits sorted by absolute dollar impact.</p>
+        <p class="section-sub">Every comparable changed position, without the Signal Desk's significance thresholds. Sorted by absolute reported-value change, not cash flow. Unchanged holdings are in Signals &rarr; Hold.</p>
     </div>
     <div class="section-actions">
         <button class="btn btn-outline" onclick="exportQoQToCSV()">📥 Export CSV</button>
